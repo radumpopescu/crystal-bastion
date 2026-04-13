@@ -424,7 +424,6 @@ function startDevWave() {
     .filter(id => (devConfig.weaponLevels[id] || 0) > 0)
     .map(id => ({ id, level: clamp(devConfig.weaponLevels[id] || 1, 1, 4) }));
   newGame({
-    devSession: true,
     startGold: clamp(Math.round(devConfig.gold || 0), 0, 999999),
     startWeapons,
   });
@@ -440,7 +439,7 @@ function startDevWave() {
   game.shopCards = null;
   state = 'playing';
   startNextWave(false);
-  devMenuStatus = `Testing wave ${game.wave}. Finish it to return here.`;
+  devMenuStatus = `Started a normal run at wave ${game.wave}.`;
 }
 
 // ─── INPUT ───────────────────────────────────────────────────────────────────
@@ -2925,21 +2924,6 @@ function renderMenu() {
     btn(W/2, H/2+72, 'META UPGRADES 💎', '#8e44ad'),
     btn(W/2, H/2+136,'CARD BOOK 📖', '#2980b9'),
   ];
-
-  if (devMenuHoldStart > 0) {
-    const progress = clamp((performance.now() - devMenuHoldStart) / DEV_MENU_HOLD_MS, 0, 1);
-    const holdW = 240;
-    const holdX = W / 2 - holdW / 2;
-    const holdY = H / 2 + 204;
-    ctx.fillStyle = 'rgba(5,10,20,0.9)';
-    rrect(holdX, holdY, holdW, 34, 8); ctx.fill();
-    ctx.strokeStyle = '#34495e';
-    rrect(holdX, holdY, holdW, 34, 8); ctx.stroke();
-    ctx.fillStyle = '#95a5a6'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
-    ctx.fillText('HOLD G FOR DEV MENU', W/2, holdY + 13);
-    ctx.fillStyle = '#27ae60';
-    rrect(holdX + 10, holdY + 19, (holdW - 20) * progress, 7, 3); ctx.fill();
-  }
 }
 
 function handleMenuClick(mx, my) {
@@ -2964,31 +2948,75 @@ function drawDevMenuButton(x, y, w, h, label, color, data, font = 'bold 11px mon
   devMenuBtns.push({ x, y, w, h, ...data });
 }
 
-function renderDevStepperRow(x, y, w, label, value, color, minusData, plusData, extraLabel = '') {
+function renderDevSlotPips(x, y, total, active, color) {
+  const pipW = total <= 4 ? 16 : 12;
+  const pipH = 8;
+  const pipGap = 4;
+  const totalW = total * pipW + (total - 1) * pipGap;
+  const startX = x - totalW;
+  for (let i = 0; i < total; i++) {
+    ctx.fillStyle = i < active ? color : '#1d2b3a';
+    rrect(startX + i * (pipW + pipGap), y - pipH / 2, pipW, pipH, 3); ctx.fill();
+    ctx.strokeStyle = i < active ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    rrect(startX + i * (pipW + pipGap), y - pipH / 2, pipW, pipH, 3); ctx.stroke();
+  }
+}
+
+function renderDevStepperRow(x, y, w, label, value, color, minusData, plusData, opts = {}) {
+  const rowH = 22;
+  const minusX = x + w - 58;
+  const plusX = x + w - 30;
+  const valueRight = minusX - 10;
+  const tagX = x + w - 212;
+
   ctx.fillStyle = 'rgba(8,14,24,0.9)';
-  rrect(x, y, w, 20, 6); ctx.fill();
+  rrect(x, y, w, rowH, 6); ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,0.08)';
   ctx.lineWidth = 1;
-  rrect(x, y, w, 20, 6); ctx.stroke();
+  rrect(x, y, w, rowH, 6); ctx.stroke();
 
   ctx.fillStyle = color;
   ctx.font = '11px monospace';
   ctx.textAlign = 'left';
-  ctx.fillText(label, x + 8, y + 14);
-
-  ctx.fillStyle = '#dfe6e9';
-  ctx.textAlign = 'right';
-  ctx.fillText(value, x + w - 70, y + 14);
+  ctx.fillText(label, x + 8, y + 15);
 
   const btnY = y + 1;
-  drawDevMenuButton(x + w - 58, btnY, 24, 18, '−', '#223047', minusData, 'bold 13px monospace');
-  drawDevMenuButton(x + w - 30, btnY, 24, 18, '+', '#223047', plusData, 'bold 13px monospace');
+  drawDevMenuButton(minusX, btnY, 24, 20, '−', '#223047', minusData, 'bold 13px monospace');
+  drawDevMenuButton(plusX, btnY, 24, 20, '+', '#223047', plusData, 'bold 13px monospace');
 
-  if (extraLabel) {
+  if (opts.tag) {
+    ctx.fillStyle = (opts.tagColor || '#34495e') + '55';
+    rrect(tagX, y + 3, 72, 16, 5); ctx.fill();
+    ctx.strokeStyle = (opts.tagColor || '#34495e') + 'aa';
+    ctx.lineWidth = 1;
+    rrect(tagX, y + 3, 72, 16, 5); ctx.stroke();
+    ctx.fillStyle = opts.tagColor || '#7f8c8d';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(opts.tag, tagX + 36, y + 14);
+  }
+
+  if (opts.slots && opts.slots.total > 0 && opts.slots.total <= 6) {
+    renderDevSlotPips(valueRight, y + 11, opts.slots.total, opts.slots.active, color);
+    if (opts.slotText) {
+      ctx.fillStyle = '#95a5a6';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(opts.slotText, tagX - 8, y + 15);
+    }
+  } else {
+    ctx.fillStyle = '#dfe6e9';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(value, valueRight, y + 15);
+  }
+
+  if (opts.extraLabel) {
     ctx.fillStyle = '#7f8c8d';
     ctx.font = '10px monospace';
     ctx.textAlign = 'right';
-    ctx.fillText(extraLabel, x + w - 92, y + 14);
+    ctx.fillText(opts.extraLabel, tagX - 8, y + 15);
   }
 }
 
@@ -2997,11 +3025,13 @@ function renderDevMenu() {
   const panelX = Math.round(W / 2 - panelW / 2);
   const panelY = 24;
   const panelH = H - 48;
-  const rowH = 20;
+  const rowH = 24;
   const leftX = panelX + 24;
   const rightX = panelX + panelW / 2 + 10;
   const colW = panelW / 2 - 34;
-  const baseY = panelY + 142;
+  const topBoxY = panelY + 88;
+  const topBoxH = 76;
+  const baseY = panelY + 196;
 
   devMenuBtns = [];
 
@@ -3030,30 +3060,37 @@ function renderDevMenu() {
   ctx.font = '11px monospace';
   ctx.fillText(devMenuStatus, W / 2, panelY + 70);
 
-  const topRowY = panelY + 90;
-  ctx.fillStyle = '#95a5a6';
-  ctx.font = '11px monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText('STARTING GOLD', leftX, topRowY + 14);
-  ctx.fillStyle = '#f1c40f';
-  ctx.font = 'bold 16px monospace';
-  ctx.fillText(`${Math.round(devConfig.gold)}`, leftX, topRowY + 38);
-  drawDevMenuButton(leftX + 110, topRowY + 20, 42, 22, '-100', '#2c3e50', { action:'gold', delta:-100 }, 'bold 10px monospace');
-  drawDevMenuButton(leftX + 158, topRowY + 20, 34, 22, '-10', '#2c3e50', { action:'gold', delta:-10 }, 'bold 10px monospace');
-  drawDevMenuButton(leftX + 198, topRowY + 20, 34, 22, '+10', '#2c3e50', { action:'gold', delta:10 }, 'bold 10px monospace');
-  drawDevMenuButton(leftX + 238, topRowY + 20, 42, 22, '+100', '#2c3e50', { action:'gold', delta:100 }, 'bold 10px monospace');
+  ctx.fillStyle = 'rgba(8,14,24,0.9)';
+  rrect(leftX, topBoxY, colW, topBoxH, 10); ctx.fill();
+  rrect(rightX, topBoxY, colW, topBoxH, 10); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  rrect(leftX, topBoxY, colW, topBoxH, 10); ctx.stroke();
+  rrect(rightX, topBoxY, colW, topBoxH, 10); ctx.stroke();
 
   ctx.fillStyle = '#95a5a6';
   ctx.font = '11px monospace';
   ctx.textAlign = 'left';
-  ctx.fillText('TARGET WAVE', rightX, topRowY + 14);
+  ctx.fillText('STARTING GOLD', leftX + 12, topBoxY + 18);
+  ctx.fillStyle = '#f1c40f';
+  ctx.font = 'bold 28px monospace';
+  ctx.fillText(`${Math.round(devConfig.gold)}`, leftX + 12, topBoxY + 52);
+  drawDevMenuButton(leftX + colW - 178, topBoxY + 20, 42, 24, '-100', '#2c3e50', { action:'gold', delta:-100 }, 'bold 10px monospace');
+  drawDevMenuButton(leftX + colW - 130, topBoxY + 20, 34, 24, '-10', '#2c3e50', { action:'gold', delta:-10 }, 'bold 10px monospace');
+  drawDevMenuButton(leftX + colW - 90, topBoxY + 20, 34, 24, '+10', '#2c3e50', { action:'gold', delta:10 }, 'bold 10px monospace');
+  drawDevMenuButton(leftX + colW - 50, topBoxY + 20, 42, 24, '+100', '#2c3e50', { action:'gold', delta:100 }, 'bold 10px monospace');
+
+  ctx.fillStyle = '#95a5a6';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('TARGET WAVE', rightX + 12, topBoxY + 18);
   ctx.fillStyle = '#e74c3c';
-  ctx.font = 'bold 16px monospace';
-  ctx.fillText(`${Math.round(devConfig.wave)}`, rightX, topRowY + 38);
-  drawDevMenuButton(rightX + 92, topRowY + 20, 34, 22, '-5', '#2c3e50', { action:'wave', delta:-5 }, 'bold 10px monospace');
-  drawDevMenuButton(rightX + 132, topRowY + 20, 34, 22, '-1', '#2c3e50', { action:'wave', delta:-1 }, 'bold 10px monospace');
-  drawDevMenuButton(rightX + 172, topRowY + 20, 34, 22, '+1', '#2c3e50', { action:'wave', delta:1 }, 'bold 10px monospace');
-  drawDevMenuButton(rightX + 212, topRowY + 20, 34, 22, '+5', '#2c3e50', { action:'wave', delta:5 }, 'bold 10px monospace');
+  ctx.font = 'bold 28px monospace';
+  ctx.fillText(`${Math.round(devConfig.wave)}`, rightX + 12, topBoxY + 52);
+  drawDevMenuButton(rightX + colW - 170, topBoxY + 20, 34, 24, '-5', '#2c3e50', { action:'wave', delta:-5 }, 'bold 10px monospace');
+  drawDevMenuButton(rightX + colW - 130, topBoxY + 20, 34, 24, '-1', '#2c3e50', { action:'wave', delta:-1 }, 'bold 10px monospace');
+  drawDevMenuButton(rightX + colW - 90, topBoxY + 20, 34, 24, '+1', '#2c3e50', { action:'wave', delta:1 }, 'bold 10px monospace');
+  drawDevMenuButton(rightX + colW - 50, topBoxY + 20, 34, 24, '+5', '#2c3e50', { action:'wave', delta:5 }, 'bold 10px monospace');
 
   ctx.fillStyle = '#e67e22';
   ctx.font = 'bold 12px monospace';
@@ -3072,7 +3109,12 @@ function renderDevMenu() {
       def.color,
       { action:'weapon', id, delta:-1 },
       { action:'weapon', id, delta:1 },
-      `${def.rarity.toUpperCase()}`
+      {
+        tag: def.rarity.toUpperCase(),
+        tagColor: def.color,
+        slots: { total: 4, active: devConfig.weaponLevels[id] || 0 },
+        slotText: devConfig.weaponLevels[id] > 0 ? `L${devConfig.weaponLevels[id]}` : 'OFF',
+      }
     );
   });
 
@@ -3091,7 +3133,18 @@ function renderDevMenu() {
       devCardColor(stat),
       { action:'card', id:stat.id, delta:-1 },
       { action:'card', id:stat.id, delta:1 },
-      stat.max ? `max ${stat.max}` : 'custom'
+      stat.max && stat.max <= 6
+        ? {
+            tag: `MAX ${stat.max}`,
+            tagColor: devCardColor(stat),
+            slots: { total: stat.max, active: Math.min(devConfig.cardCounts[stat.id] || 0, stat.max) },
+            slotText: (devConfig.cardCounts[stat.id] || 0) === 0 ? 'OFF' : `x${devConfig.cardCounts[stat.id] || 0}`,
+          }
+        : {
+            tag: stat.max ? `MAX ${stat.max}` : 'CUSTOM',
+            tagColor: devCardColor(stat),
+            extraLabel: `x${devConfig.cardCounts[stat.id] || 0}`,
+          }
     );
   });
 
