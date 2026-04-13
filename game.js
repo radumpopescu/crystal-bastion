@@ -29,6 +29,13 @@ function w2s(wx, wy, wz = 0) {
 // ─── WORLD CONSTANTS ─────────────────────────────────────────────────────────
 const WORLD_TILES = 28;
 const TILE_SIZE   = 80;
+const AUTO_CONSTRUCT_MODES = [
+  { label:'OFF', spacing:0 },
+  { label:'1m',  spacing:TILE_SIZE * 1 },
+  { label:'2m',  spacing:TILE_SIZE * 2 },
+  { label:'5m',  spacing:TILE_SIZE * 5 },
+  { label:'10m', spacing:TILE_SIZE * 10 },
+];
 
 const TOWER_RANGE    = 700;
 const OUTPOST_RANGE  = 550;
@@ -51,8 +58,6 @@ const DASH_COOLDOWN   = 1.2;
 
 const OUTPOST_HP_BASE = 100;
 const OUTPOST_COST    = 40;
-const AUTO_CONSTRUCT_SPACING_RATIO = 0.6;
-const AUTO_CONSTRUCT_MIN_SPACING   = 220;
 
 const WAVE_INTERVAL   = 42;
 const BASE_MONSTERS   = 4;
@@ -324,7 +329,7 @@ function newGame() {
     keys: {},
     showUpgradeMenu: false,
     upgradeMenuCooldown: 0,
-    autoConstructArmed: true,
+    autoConstructMode: 0,
   };
 
   // Engineer Corps: bonus starting gold per level (enough to place outposts)
@@ -349,6 +354,17 @@ function makeWeapon(id) {
 window.addEventListener('keydown', e => {
   if (!game) return;
   game.keys[e.code] = true;
+  if (
+    state === 'playing' &&
+    !e.repeat &&
+    (e.code === 'ShiftLeft' || e.code === 'ShiftRight') &&
+    (meta.upgrades['autoConstruct'] || 0) > 0
+  ) {
+    game.autoConstructMode = ((game.autoConstructMode || 0) + 1) % AUTO_CONSTRUCT_MODES.length;
+    const mode = AUTO_CONSTRUCT_MODES[game.autoConstructMode];
+    spawnDmgNum(game.player.x, game.player.y - 44, `AUTO ${mode.label}`, mode.spacing > 0 ? '#27ae60' : '#95a5a6');
+    return;
+  }
   if (state === 'playing' || state === 'paused') {
     if (e.code === 'KeyP' || e.code === 'Escape') {
       if (state === 'playing') { state = 'paused'; game.showUpgradeMenu = false; }
@@ -478,10 +494,6 @@ function handleUpgradeMenuClick(mx, my) {
 function handlePlayingClick(mx, my) {
   // Pause button (top-right ⏸ area)
   if (mx >= W-46 && mx <= W-10 && my >= 10 && my <= 46) { state='paused'; return; }
-  if (autoConstructHudBtn && inBtn(mx, my, autoConstructHudBtn)) {
-    game.autoConstructArmed = game.autoConstructArmed === false ? true : false;
-    return;
-  }
   // Start wave button
   if (waveStartBtn && !game.waveActive && inBtn(mx, my, waveStartBtn)) {
     startNextWave(true); // early = give gold bonus
@@ -490,7 +502,6 @@ function handlePlayingClick(mx, my) {
 
 // ─── WAVE SYSTEM ─────────────────────────────────────────────────────────────
 let waveStartBtn = null;
-let autoConstructHudBtn = null;
 
 function startNextWave(early = false) {
   // Early wave bonus: gold proportional to time remaining
@@ -1000,17 +1011,15 @@ function updateMonsters(dt) {
 // ─── TOWER & OUTPOST SHOOTING ────────────────────────────────────────────────
 function updateAutoConstruct() {
   if (!(meta.upgrades['autoConstruct'] > 0)) return;
-  if (game.autoConstructArmed === false) return;
+  const mode = AUTO_CONSTRUCT_MODES[game.autoConstructMode || 0] || AUTO_CONSTRUCT_MODES[0];
+  if (mode.spacing <= 0) return;
   const p = game.player;
   if (p.dashing || !p._walkMoved) return;
-  if (!(game.keys['ShiftLeft'] || game.keys['ShiftRight'])) return;
   const { anchor, dist: anchorDist } = nearestAnchor(p.x, p.y);
   if (!anchor) return;
-  const opRange = OUTPOST_RANGE + (game.opRangeBonus || 0);
-  const spacing = Math.max(AUTO_CONSTRUCT_MIN_SPACING, opRange * AUTO_CONSTRUCT_SPACING_RATIO);
-  if (anchorDist < spacing) return;
+  if (anchorDist < mode.spacing) return;
   if (tryPlaceOutpostAt(p.x, p.y)) {
-    spawnDmgNum(p.x, p.y - 28, 'AUTO', '#27ae60');
+    spawnDmgNum(p.x, p.y - 28, `AUTO ${mode.label}`, '#27ae60');
   }
 }
 
@@ -1640,12 +1649,12 @@ function renderHUD() {
   ctx.fillStyle = '#a855f7'; ctx.font = 'bold 13px monospace';
   ctx.fillText(`💎 ${meta.crystals} crystals`, W - 14, controlsBoxY + 56);
   if (autoConstructUnlocked) {
-    const autoConstructOn = game.autoConstructArmed !== false;
     ctx.fillStyle = '#7f8c8d'; ctx.font = '11px monospace';
-    ctx.fillText('Hold SHIFT to chain-build outposts', W - 14, controlsBoxY + 74);
-    autoConstructHudBtn = btn(W - 70, controlsBoxY + 88, autoConstructOn ? 'AUTO ON' : 'AUTO OFF', autoConstructOn ? '#27ae60' : '#555', 120, 24);
-  } else {
-    autoConstructHudBtn = null;
+    ctx.fillText('SHIFT cycles auto spacing', W - 14, controlsBoxY + 74);
+    const autoMode = AUTO_CONSTRUCT_MODES[game.autoConstructMode || 0] || AUTO_CONSTRUCT_MODES[0];
+    ctx.fillStyle = autoMode.spacing > 0 ? '#27ae60' : '#95a5a6';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText(`Auto: ${autoMode.label}`, W - 14, controlsBoxY + 90);
   }
 
   renderMinimap();
