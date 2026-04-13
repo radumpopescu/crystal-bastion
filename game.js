@@ -4,6 +4,8 @@ const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 let W = canvas.width, H = canvas.height;
+let mouseX = 0, mouseY = 0, mouseInside = false;
+let hoverRegions = [];
 
 window.addEventListener('resize', () => {
   canvas.width = window.innerWidth;
@@ -165,16 +167,18 @@ const STAT_UPGRADES = [
   { id:'dash',       icon:'💨',  name:'Dash Charge',   desc:'+1 max dash charge',          apply:(p)  => { p.maxDashes=(p.maxDashes||1)+1; p.dashes=Math.min((p.dashes||1)+1,p.maxDashes); },
     max:4,  count:(p) => (p.maxDashes||1) - 1 },
   // Tower cards
-  { id:'towerRepair',  icon:'🏰',  name:'Tower Repair',    desc:'Restore 200 tower HP',         apply:(p,g)  => { g.tower.hp = Math.min(g.tower.hp+200, g.tower.maxHp); }, rarity:'uncommon' },
+  { id:'towerRepair',  icon:'🏰',  name:'Tower Repair',    desc:'Restore 200 tower HP',         apply:(p,g)  => { g.tower.hp = Math.min(g.tower.hp+200, g.tower.maxHp); }, rarity:'uncommon',
+    available:(p,g) => g.tower.hp < g.tower.maxHp },
   { id:'towerBoost',   icon:'🗼',  name:'Tower Overcharge',desc:'+30% tower damage this run',   apply:(p,g)  => { g.tower.atkDmg = Math.round(g.tower.atkDmg*1.30); }, rarity:'uncommon' },
   { id:'towerRadar',   icon:'📡',  name:'Tower Radar',     desc:'+120 tower attack range',      apply:(p,g)  => { g.tower.atkRange += 120; }, rarity:'uncommon' },
   { id:'towerSpeed',   icon:'🌀',  name:'Tower Rapid Fire',desc:'+35% tower fire rate',         apply:(p,g)  => { g.tower.atkSpeed *= 1.35; }, rarity:'uncommon' },
   // Outpost cards
-  { id:'outpostRepair',icon:'🔧',  name:'Repair Outposts', desc:'Fully heal all outposts',      apply:(p,g)  => { for(const op of g.outposts) op.hp = op.maxHp; }, rarity:'uncommon' },
-  { id:'outpostBoost', icon:'⚔️',  name:'Outpost Arsenal', desc:'+40% outpost damage this run', apply:(p,g)  => { for(const op of g.outposts) op.atkDmg = Math.round(op.atkDmg*1.40); }, rarity:'uncommon' },
+  { id:'outpostRepair',icon:'🔧',  name:'Repair Outposts', desc:'Fully heal all outposts',      apply:(p,g)  => { for(const op of g.outposts) op.hp = op.maxHp; }, rarity:'uncommon',
+    available:(p,g) => g.outposts.some(op => op.hp < op.maxHp) },
+  { id:'outpostBoost', icon:'⚔️',  name:'Outpost Arsenal', desc:'+40% outpost damage this run', apply:(p,g)  => { for(const op of g.outposts) op.atkDmg = Math.round(op.atkDmg*1.40); }, rarity:'uncommon',
+    available:(p,g) => g.outposts.length > 0 },
   { id:'outpostCheap', icon:'💰',  name:'Supply Lines',    desc:'Outposts cost 5 less gold',    apply:(p,g)  => { g.outpostDiscount = (g.outpostDiscount||0) + 5; }, rarity:'uncommon',
     available:(p,g) => { const cur = OUTPOST_COST - (g.outpostDiscount||0); return cur > 10; } },
-  { id:'extraOutpost', icon:'🏗️',  name:'Rapid Deploy',    desc:'Place a free outpost now',     apply:(p,g)  => { g.freeOutpost = (g.freeOutpost||0) + 1; }, rarity:'rare' },
 ];
 
 // ─── META ─────────────────────────────────────────────────────────────────────
@@ -330,6 +334,8 @@ function newGame() {
     showUpgradeMenu: false,
     upgradeMenuCooldown: 0,
     autoConstructMode: 0,
+    runCardCounts: {},
+    runCardOrder: [],
   };
 
   // Engineer Corps: bonus starting gold per level (enough to place outposts)
@@ -379,6 +385,15 @@ window.addEventListener('keydown', e => {
   }
 });
 window.addEventListener('keyup', e => { if (game) game.keys[e.code] = false; });
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = e.clientX - rect.left;
+  mouseY = e.clientY - rect.top;
+  mouseInside = true;
+});
+canvas.addEventListener('mouseleave', () => {
+  mouseInside = false;
+});
 canvas.addEventListener('wheel', e => {
   // Normalise: mouse wheel gives ~100 deltaY per notch, trackpad gives small values.
   // Use a fixed step per "tick" for mouse, passthrough for trackpad.
@@ -560,6 +575,12 @@ const MONSTER_DEF = {
 };
 
 // ─── LEVEL UP CARDS ───────────────────────────────────────────────────────────
+function isStatUpgradeAvailable(stat, p = game.player, g = game) {
+  if (stat.available && !stat.available(p, g)) return false;
+  if (stat.max !== undefined && stat.count && stat.count(p) >= stat.max) return false;
+  return true;
+}
+
 function generateCards() {
   const pool = [];
   const p = game.player;
@@ -577,8 +598,7 @@ function generateCards() {
 
   // Stat cards (skip maxed or unavailable)
   for (const s of STAT_UPGRADES) {
-    if (s.available && !s.available(game.player, game)) continue;
-    if (s.max !== undefined && s.count && s.count(game.player) >= s.max) continue;
+    if (!isStatUpgradeAvailable(s, game.player, game)) continue;
     pool.push({ type:'stat', statId:s.id, rarity: s.rarity || 'common' });
   }
 
@@ -596,8 +616,6 @@ function generateCards() {
     if (!seen.has(key)) { seen.add(key); cards.push(c); }
     if (cards.length >= 4) break;
   }
-  // Pad if needed
-  while (cards.length < 4) cards.push({ type:'stat', statId:'maxHp', rarity:'common' });
   return cards;
 }
 
@@ -620,8 +638,7 @@ function generateShopCards(n = 4) {
     else if (!existing && p.weapons.length < 6) pool.push({ type:'weapon', weaponId:id, newLevel:1, rarity: WEAPONS[id].rarity });
   }
   for (const s of STAT_UPGRADES) {
-    if (s.available && !s.available(game.player, game)) continue;
-    if (s.max !== undefined && s.count && s.count(game.player) >= s.max) continue;
+    if (!isStatUpgradeAvailable(s, game.player, game)) continue;
     pool.push({ type:'stat', statId:s.id, rarity: s.rarity || 'common' });
   }
 
@@ -641,8 +658,144 @@ function generateShopCards(n = 4) {
     if (!seen.has(key) && !inFree) { seen.add(key); cards.push({ ...c, cost: cardGoldCost(c) }); }
     if (cards.length >= n) break;
   }
-  while (cards.length < n) cards.push({ type:'stat', statId:'damage', rarity:'common', cost: cardGoldCost({rarity:'common'}) });
   return cards;
+}
+
+function getRunCardKey(card) {
+  return card.type === 'weapon' ? `weapon:${card.weaponId}` : `stat:${card.statId}`;
+}
+
+function getRunCardMeta(entry) {
+  if (entry.type === 'weapon') {
+    const def = WEAPONS[entry.weaponId];
+    return def ? {
+      icon: def.icon,
+      name: def.name,
+      desc: def.desc,
+      color: def.color,
+      levelBonus: def.levelBonus,
+    } : null;
+  }
+  const stat = STAT_UPGRADES.find(s => s.id === entry.statId);
+  return stat ? {
+    icon: stat.icon,
+    name: stat.name,
+    desc: stat.desc,
+    color: '#2ecc71',
+    max: stat.max,
+    count: stat.count,
+  } : null;
+}
+
+function recordRunCard(card) {
+  if (!game?.runCardCounts || !game?.runCardOrder) return;
+  const key = getRunCardKey(card);
+  const existing = game.runCardCounts[key];
+  if (existing) {
+    existing.count++;
+  } else {
+    game.runCardCounts[key] = card.type === 'weapon'
+      ? { key, type:'weapon', weaponId: card.weaponId, count:1 }
+      : { key, type:'stat', statId: card.statId, count:1 };
+    game.runCardOrder.push(key);
+  }
+}
+
+function getRunCardEntries() {
+  if (!game?.runCardCounts || !game?.runCardOrder) return [];
+  return game.runCardOrder
+    .map(key => game.runCardCounts[key])
+    .filter(Boolean)
+    .map(entry => {
+      const meta = getRunCardMeta(entry);
+      return meta ? { ...entry, ...meta } : null;
+    })
+    .filter(Boolean);
+}
+
+function registerHoverRegion(x, y, w, h, data) {
+  hoverRegions.push({ x, y, w, h, data });
+}
+
+function wrapTextLines(text, maxW) {
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    const test = line ? line + ' ' + word : word;
+    if (ctx.measureText(test).width > maxW && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function getRunCardTooltipLines(entry) {
+  const lines = [`${entry.icon} ${entry.name}`];
+  lines.push(...wrapTextLines(entry.desc, 220));
+  if (entry.count > 1) lines.push(`Taken ${entry.count}x this run`);
+
+  if (entry.type === 'weapon') {
+    const weapon = game.player.weapons.find(w => w.id === entry.weaponId);
+    if (weapon) {
+      lines.push(`Current level ${weapon.level}/4`);
+      const bonuses = (entry.levelBonus || [])
+        .slice(1, weapon.level)
+        .filter(Boolean);
+      bonuses.forEach(bonus => {
+        lines.push(...wrapTextLines(`+ ${bonus}`, 220));
+      });
+    }
+  } else {
+    const stat = STAT_UPGRADES.find(s => s.id === entry.statId);
+    if (stat?.count) {
+      const cur = stat.count(game.player);
+      lines.push(stat.max ? `Stacks ${cur}/${stat.max}` : `Stacks ${cur}`);
+    }
+  }
+
+  return lines;
+}
+
+function renderRunCardTooltip() {
+  if (!mouseInside || hoverRegions.length === 0) return;
+  let hovered = null;
+  for (let i = hoverRegions.length - 1; i >= 0; i--) {
+    const region = hoverRegions[i];
+    if (mouseX >= region.x && mouseX <= region.x + region.w && mouseY >= region.y && mouseY <= region.y + region.h) {
+      hovered = region;
+      break;
+    }
+  }
+  if (!hovered?.data?.entry) return;
+
+  ctx.save();
+  ctx.font = '11px monospace';
+  const lines = getRunCardTooltipLines(hovered.data.entry);
+  const pad = 10;
+  const lineH = 14;
+  const boxW = Math.min(260, Math.max(160, Math.max(...lines.map(line => ctx.measureText(line).width)) + pad * 2));
+  const boxH = lines.length * lineH + pad * 2;
+  const boxX = clamp(mouseX - boxW / 2, 10, W - boxW - 10);
+  const boxY = mouseY > H * 0.55 ? mouseY - boxH - 14 : mouseY + 14;
+
+  ctx.fillStyle = 'rgba(8,12,22,0.95)';
+  rrect(boxX, boxY, boxW, boxH, 8); ctx.fill();
+  ctx.strokeStyle = hovered.data.entry.color || '#2ecc71';
+  ctx.lineWidth = 1.5;
+  rrect(boxX, boxY, boxW, boxH, 8); ctx.stroke();
+
+  ctx.fillStyle = '#ecf0f1';
+  ctx.textAlign = 'left';
+  lines.forEach((line, index) => {
+    ctx.fillStyle = index === 0 ? (hovered.data.entry.color || '#ecf0f1') : '#d0d7de';
+    ctx.fillText(line, boxX + pad, boxY + pad + 11 + index * lineH);
+  });
+  ctx.restore();
 }
 
 function applyCard(card) {
@@ -655,6 +808,7 @@ function applyCard(card) {
     const s = STAT_UPGRADES.find(s => s.id === card.statId);
     if (s) s.apply(p, game);
   }
+  recordRunCard(card);
 }
 
 // Layout constants shared between render and click handler
@@ -1228,14 +1382,16 @@ function loop(ts) {
 
 // ─── RENDER ──────────────────────────────────────────────────────────────────
 function render() {
+  hoverRegions = [];
   ctx.clearRect(0, 0, W, H);
   if (state === 'menu')       { renderMenu(); return; }
   if (state === 'gameover')   { renderGameover(); return; }
   if (state === 'metascreen') { renderMetaScreen(); return; }
   if (state === 'cardbook')   { renderCardBook(); return; }
-  if (state === 'levelup')    { renderGame(); renderLevelUpCards(); return; }
+  if (state === 'levelup')    { renderGame(); hoverRegions = []; renderLevelUpCards(); renderRunCardTooltip(); return; }
   if (state === 'paused')     { renderGame(); renderPauseScreen(); return; }
   renderGame();
+  renderRunCardTooltip();
 }
 
 function renderGame() {
@@ -1574,6 +1730,7 @@ function renderDmgNums() {
 function renderHUD() {
   const p = game.player, t = game.tower;
   const autoConstructUnlocked = (meta.upgrades['autoConstruct'] || 0) > 0;
+  const runCards = getRunCardEntries();
 
   // ── Tower HP — top center ──
   const tBarW = 260, tBarH = 52;
@@ -1641,6 +1798,44 @@ function renderHUD() {
   // ── Controls hint + crystals — above minimap ──
   const controlsBoxH = autoConstructUnlocked ? 100 : 70;
   const controlsBoxY = autoConstructUnlocked ? H - 310 : H - 280;
+  const cardsPanelX = W - 230;
+  const cardsPanelY = 58;
+  const cardsPanelH = Math.max(72, controlsBoxY - cardsPanelY - 12);
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  rrect(cardsPanelX, cardsPanelY, 220, cardsPanelH, 6); ctx.fill();
+  ctx.fillStyle = '#7aa2ff';
+  ctx.font = 'bold 11px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('RUN CARDS', cardsPanelX + 10, cardsPanelY + 18);
+  if (runCards.length === 0) {
+    ctx.fillStyle = '#556';
+    ctx.font = '11px monospace';
+    ctx.fillText('No cards picked yet', cardsPanelX + 10, cardsPanelY + 40);
+  } else {
+    const rowH = 18;
+    const maxRows = Math.max(1, Math.floor((cardsPanelH - 28) / rowH));
+    const visible = runCards.slice(-maxRows);
+    visible.forEach((entry, index) => {
+      const rowY = cardsPanelY + 38 + index * rowH;
+      const suffix = entry.count > 1 ? ` x${entry.count}` : '';
+      const name = `${entry.icon} ${entry.name}`;
+      const maxNameW = 220 - 24 - ctx.measureText(suffix).width;
+      let label = name;
+      while (ctx.measureText(label).width > maxNameW && label.length > 4) {
+        label = label.slice(0, -2).trimEnd() + '…';
+      }
+      ctx.fillStyle = entry.color;
+      ctx.font = '11px monospace';
+      ctx.fillText(label, cardsPanelX + 10, rowY);
+      if (suffix) {
+        ctx.fillStyle = '#dfe6e9';
+        ctx.textAlign = 'right';
+        ctx.fillText(suffix, cardsPanelX + 206, rowY);
+        ctx.textAlign = 'left';
+      }
+      registerHoverRegion(cardsPanelX + 8, rowY - 12, 204, 16, { entry });
+    });
+  }
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
   rrect(W - 230, controlsBoxY, 220, controlsBoxH, 6); ctx.fill();
   ctx.fillStyle = '#666'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
@@ -1655,6 +1850,60 @@ function renderHUD() {
     ctx.fillStyle = autoMode.spacing > 0 ? '#27ae60' : '#95a5a6';
     ctx.font = 'bold 12px monospace';
     ctx.fillText(`Auto: ${autoMode.label}`, W - 14, controlsBoxY + 90);
+  }
+
+  // ── Bottom run-card strip ──
+  if (runCards.length > 0) {
+    const stripX = 250;
+    const stripW = Math.max(180, W - stripX - 210);
+    const stripY = H - 142;
+    const stripH = 58;
+    ctx.fillStyle = 'rgba(0,0,0,0.48)';
+    rrect(stripX, stripY, stripW, stripH, 8); ctx.fill();
+    ctx.fillStyle = '#7aa2ff';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('CARDS THIS RUN', stripX + 10, stripY + 15);
+
+    let chipX = stripX + 10;
+    let chipY = stripY + 24;
+    const chipH = 20;
+    const chipGap = 8;
+    const rowLimitY = stripY + stripH - chipH;
+    let hidden = 0;
+    runCards.forEach((entry, index) => {
+      if (hidden > 0) return;
+      const suffix = entry.count > 1 ? ` x${entry.count}` : '';
+      let label = `${entry.icon} ${entry.name}${suffix}`;
+      const maxChipInner = 138;
+      while (ctx.measureText(label).width > maxChipInner && label.length > 6) {
+        label = label.slice(0, -2).trimEnd() + '…';
+      }
+      const chipW = Math.min(154, Math.max(54, ctx.measureText(label).width + 18));
+      if (chipX + chipW > stripX + stripW - 10) {
+        chipX = stripX + 10;
+        chipY += chipH + 6;
+      }
+      if (chipY > rowLimitY) {
+        hidden = runCards.length - index;
+        return;
+      }
+      ctx.fillStyle = 'rgba(13,24,40,0.92)';
+      rrect(chipX, chipY, chipW, chipH, 10); ctx.fill();
+      ctx.strokeStyle = entry.color;
+      ctx.lineWidth = 1;
+      rrect(chipX, chipY, chipW, chipH, 10); ctx.stroke();
+      ctx.fillStyle = '#dfe6e9';
+      ctx.font = '10px monospace';
+      ctx.fillText(label, chipX + 9, chipY + 14);
+      registerHoverRegion(chipX, chipY, chipW, chipH, { entry });
+      chipX += chipW + chipGap;
+    });
+    if (hidden > 0) {
+      ctx.fillStyle = '#95a5a6';
+      ctx.font = '10px monospace';
+      ctx.fillText(`+${hidden} more`, stripX + stripW - 60, stripY + stripH - 8);
+    }
   }
 
   renderMinimap();
@@ -1862,11 +2111,17 @@ function buildDropChanceTable(luck) {
 
   // Count cards by rarity (same pool shape as generateCards)
   let nC = 0, nU = 0, nR = 0;
-  for (const def of Object.values(WEAPONS)) {
+  for (const [id, def] of Object.entries(WEAPONS)) {
+    if (game) {
+      const existing = game.player.weapons.find(w => w.id === id);
+      if (existing && existing.level >= 4) continue;
+      if (!existing && game.player.weapons.length >= 6) continue;
+    }
     const r = def.rarity || 'common';
     if (r === 'rare') nR++; else if (r === 'uncommon') nU++; else nC++;
   }
   for (const s of STAT_UPGRADES) {
+    if (game && !isStatUpgradeAvailable(s, game.player, game)) continue;
     const r = s.rarity || 'common';
     if (r === 'rare') nR++; else if (r === 'uncommon') nU++; else nC++;
   }
@@ -1944,6 +2199,31 @@ function renderLevelUpCards() {
     ctx.textAlign = 'left';
     sideY += 22;
   });
+
+  const runCards = getRunCardEntries();
+  if (runCards.length > 0) {
+    sideY += 8;
+    ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace';
+    ctx.fillText('CARDS THIS RUN', panelX + 10, sideY); sideY += 14;
+    runCards.slice(-8).forEach(entry => {
+      const rowY = sideY;
+      const suffix = entry.count > 1 ? ` x${entry.count}` : '';
+      const maxNameW = panelW - 26 - ctx.measureText(suffix).width;
+      let label = `${entry.icon} ${entry.name}`;
+      while (ctx.measureText(label).width > maxNameW && label.length > 4) {
+        label = label.slice(0, -2).trimEnd() + '…';
+      }
+      ctx.fillStyle = entry.color; ctx.font = '11px monospace';
+      ctx.fillText(label, panelX + 10, rowY);
+      if (suffix) {
+        ctx.fillStyle = '#dfe6e9'; ctx.textAlign = 'right';
+        ctx.fillText(suffix, panelX + panelW - 4, rowY);
+        ctx.textAlign = 'left';
+      }
+      registerHoverRegion(panelX + 8, rowY - 12, panelW - 12, 16, { entry });
+      sideY += 18;
+    });
+  }
 
   // ── Header ──
   const centerX = panelX / 2;
@@ -2127,7 +2407,7 @@ const CB_SECTIONS = [
   {
     label: '🧍 PLAYER STATS', color: '#2ecc71',
     cards: () => STAT_UPGRADES
-      .filter(s => !['towerRepair','towerBoost','towerRadar','towerSpeed','outpostRepair','outpostBoost','outpostCheap','extraOutpost'].includes(s.id))
+      .filter(s => !['towerRepair','towerBoost','towerRadar','towerSpeed','outpostRepair','outpostBoost','outpostCheap'].includes(s.id))
       .map(s => ({ type:'stat', statId:s.id, rarity:s.rarity||'common' })),
   },
   {
@@ -2138,7 +2418,7 @@ const CB_SECTIONS = [
   },
   {
     label: '🔵 OUTPOST CARDS', color: '#3498db',
-    cards: () => ['outpostRepair','outpostBoost','outpostCheap','extraOutpost']
+    cards: () => ['outpostRepair','outpostBoost','outpostCheap']
       .map(id => { const s = STAT_UPGRADES.find(x=>x.id===id); return s ? { type:'stat', statId:id, rarity:s.rarity||'uncommon' } : null; })
       .filter(Boolean),
   },
