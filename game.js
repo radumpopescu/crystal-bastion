@@ -761,6 +761,23 @@ function getRunCardTooltipLines(entry) {
   return lines;
 }
 
+function getLoadoutStats() {
+  const p = game.player;
+  return [
+    { icon:'❤️', name:'Max HP',      value: `${Math.round(p.maxHp)}` },
+    { icon:'💚', name:'Regen',       value: `${(p.regen || 0).toFixed(1)}/s` },
+    { icon:'🩸', name:'Lifesteal',   value: `${Math.round((p.lifesteal || 0) * 100)}%` },
+    { icon:'💢', name:'Damage',      value: `${Math.round((p.dmgMult || 1) * 100)}%` },
+    { icon:'⚡', name:'Atk Speed',   value: `${Math.round((p.atkSpdMult || 1) * 100)}%` },
+    { icon:'👟', name:'Move Speed',  value: `${Math.round(p.speed || 0)}` },
+    { icon:'🔭', name:'Range',       value: `${Math.round((p.rangeMult || 1) * 100)}%` },
+    { icon:'🛡️', name:'Armor',       value: `${Math.round((p.armor || 0) * 100)}%` },
+    { icon:'💵', name:'Gold Find',   value: `${Math.round((p.goldFinder || 0) * 100)}%` },
+    { icon:'🍀', name:'Luck',        value: `${p.luck || 0}` },
+    { icon:'💨', name:'Dash Charges',value: `${p.maxDashes || 0}` },
+  ];
+}
+
 function renderRunCardTooltip() {
   if (!mouseInside || hoverRegions.length === 0) return;
   let hovered = null;
@@ -2091,20 +2108,13 @@ function renderLevelUpCards() {
   // Stats list
   sideY += 6;
   ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace';
-  ctx.fillText('STATS', panelX + 10, sideY); sideY += 14;
-  STAT_UPGRADES.filter(s => s.count && s.count(game.player) > 0 && s.max).forEach(s => {
-    const cur = s.count(game.player);
-    ctx.fillStyle = '#ccc'; ctx.font = '11px monospace';
-    ctx.fillText(`${s.icon} ${s.name}`, panelX + 10, sideY);
-    const pipW = Math.max(4, Math.floor((panelW - 20) / s.max) - 2);
-    for (let p2 = 0; p2 < s.max; p2++) {
-      ctx.fillStyle = p2 < cur ? '#2ecc71' : '#1a2a1a';
-      ctx.fillRect(panelX + 10 + p2*(pipW+2), sideY + 3, pipW, 5);
-    }
-    ctx.fillStyle = '#556'; ctx.font = '10px monospace'; ctx.textAlign = 'right';
-    ctx.fillText(`${cur}/${s.max}`, panelX + panelW - 4, sideY);
-    ctx.textAlign = 'left';
-    sideY += 22;
+  ctx.fillText('CURRENT STATS', panelX + 10, sideY); sideY += 14;
+  getLoadoutStats().forEach(stat => {
+    ctx.fillStyle = '#cbd5e1'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
+    ctx.fillText(`${stat.icon} ${stat.name}`, panelX + 10, sideY);
+    ctx.fillStyle = '#8bd3ff'; ctx.textAlign = 'right';
+    ctx.fillText(stat.value, panelX + panelW - 4, sideY);
+    sideY += 16;
   });
 
   const runCards = getRunCardEntries();
