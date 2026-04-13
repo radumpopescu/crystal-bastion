@@ -1021,31 +1021,190 @@ function nearestMonster(x, y, maxR) {
   return best;
 }
 
+function addProjectile(projectile) {
+  const life = projectile.life ?? 1;
+  const size = projectile.size ?? 5;
+  game.projectiles.push({
+    age: 0,
+    maxLife: projectile.maxLife ?? life,
+    length: Math.max(6, projectile.length ?? size * 2.6),
+    width: Math.max(2, projectile.width ?? size * 0.75),
+    trailColor: projectile.trailColor || projectile.color,
+    coreColor: projectile.coreColor || '#ffffff',
+    glow: projectile.glow ?? 10,
+    rot: projectile.rot ?? 0,
+    spin: projectile.spin ?? 0,
+    ...projectile,
+  });
+}
+
+function createBoltPoints(x1, y1, x2, y2, segments = 6, spread = 24) {
+  const points = [{ x:x1, y:y1 }];
+  const nx = -(y2 - y1);
+  const ny = x2 - x1;
+  const nLen = Math.hypot(nx, ny) || 1;
+  for (let i = 1; i < segments; i++) {
+    const t = i / segments;
+    const baseX = x1 + (x2 - x1) * t;
+    const baseY = y1 + (y2 - y1) * t;
+    const falloff = 1 - Math.abs(t - 0.5) * 1.3;
+    const offset = (Math.random() - 0.5) * spread * falloff;
+    points.push({
+      x: baseX + nx / nLen * offset,
+      y: baseY + ny / nLen * offset,
+    });
+  }
+  points.push({ x:x2, y:y2 });
+  return points;
+}
+
+function spawnSparkBurst(x, y, color, count, speed, spread = Math.PI * 2, baseAngle = 0) {
+  for (let i = 0; i < count; i++) {
+    const ang = baseAngle + (Math.random() - 0.5) * spread;
+    const vel = speed * (0.45 + Math.random() * 0.75);
+    game.particles.push({
+      x, y,
+      vx: Math.cos(ang) * vel,
+      vy: Math.sin(ang) * vel,
+      life: 0.14 + Math.random() * 0.14,
+      maxLife: 0.28,
+      color,
+      r: 2 + Math.random() * 2,
+      width: 1 + Math.random() * 1.2,
+      type: 'spark',
+    });
+  }
+}
+
+function spawnSmokePuffs(x, y, count, size, speed, color = '#64748b') {
+  for (let i = 0; i < count; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const vel = speed * (0.2 + Math.random() * 0.5);
+    game.particles.push({
+      x, y,
+      vx: Math.cos(ang) * vel,
+      vy: Math.sin(ang) * vel - speed * 0.25,
+      life: 0.28 + Math.random() * 0.26,
+      maxLife: 0.6,
+      color,
+      r: size * (0.4 + Math.random() * 0.45),
+      grow: 12 + Math.random() * 10,
+      type: 'smoke',
+    });
+  }
+}
+
+function spawnShockRing(x, y, color, maxRadius, lineWidth = 2, life = 0.22) {
+  game.particles.push({ x, y, life, maxLife: life, color, maxRadius, lineWidth, type:'ring' });
+}
+
+function spawnMuzzleFlash(x, y, angle, color, size = 16) {
+  spawnSparkBurst(x, y, color, 4, 120, 0.7, angle);
+  spawnShockRing(x + Math.cos(angle) * 10, y + Math.sin(angle) * 10, color, size, 1.5, 0.08);
+}
+
+function spawnProjectileImpact(p) {
+  switch (p.visual) {
+    case 'sniper':
+      spawnSparkBurst(p.x, p.y, '#d9c2ff', 8, 170);
+      spawnShockRing(p.x, p.y, '#b388ff', 18, 2.5, 0.12);
+      break;
+    case 'shotgun':
+      spawnSparkBurst(p.x, p.y, '#ffbe82', 5, 95);
+      break;
+    case 'flame':
+      spawnSparkBurst(p.x, p.y, '#ff9348', 3, 50);
+      spawnSmokePuffs(p.x, p.y, 1, 6, 12, '#5b4636');
+      break;
+    case 'boomerang':
+      spawnSparkBurst(p.x, p.y, '#ff9dc8', 4, 80);
+      break;
+    default:
+      spawnSparkBurst(p.x, p.y, p.color, 4, 80);
+      break;
+  }
+}
+
 function fireWeapon(w, def, owner, target) {
   const dmg = calcDmg(def, w, owner);
   const ox = owner.x, oy = owner.y;
   const tx = target.x, ty = target.y;
+  const aimAng = Math.atan2(ty - oy, tx - ox);
 
   switch (def.mode) {
     case 'basic':
+      if (w.id === 'rifle') {
+        spawnProj(ox, oy, tx, ty, dmg, def.projSpeed, def.projSize, def.color, 'player', false, {
+          visual: 'rifle',
+          trailColor: '#5cf2a0',
+          coreColor: '#f4fff9',
+          length: 18,
+          width: 3,
+          glow: 13,
+          life: 1.1,
+        });
+        spawnMuzzleFlash(ox, oy, aimAng, '#5cf2a0', 14);
+      } else {
+        spawnProj(ox, oy, tx, ty, dmg, def.projSpeed, def.projSize, def.color, 'player', false, {
+          visual: 'pistol',
+          trailColor: '#8ecbff',
+          coreColor: '#ffffff',
+          length: 15,
+          width: 4,
+          glow: 11,
+        });
+        spawnMuzzleFlash(ox, oy, aimAng, '#8ecbff', 12);
+      }
+      break;
+
     case 'minigun':
-      spawnProj(ox, oy, tx, ty, dmg, def.projSpeed, def.projSize, def.color, 'player', false);
+      spawnProj(ox, oy, tx, ty, dmg, def.projSpeed, def.projSize, def.color, 'player', false, {
+        visual: 'minigun',
+        trailColor: '#8fd8ff',
+        coreColor: '#ffffff',
+        length: 12,
+        width: 2.4,
+        glow: 10,
+        life: 0.95,
+      });
+      if (Math.random() < 0.6) spawnMuzzleFlash(ox, oy, aimAng, '#8fd8ff', 10);
       break;
 
     case 'shotgun': {
       const pellets = def.pellets + (w.level >= 2 ? 2 : 0) + (w.level >= 4 ? 2 : 0);
-      const baseAng = Math.atan2(ty - oy, tx - ox);
+      const baseAng = aimAng;
       for (let i = 0; i < pellets; i++) {
         const spread = (i / (pellets - 1) - 0.5) * def.spread;
         const ang = baseAng + spread;
         const speed = def.projSpeed * (0.85 + Math.random() * 0.3);
-        game.projectiles.push({ x:ox, y:oy, vx:Math.cos(ang)*speed, vy:Math.sin(ang)*speed, dmg, size:def.projSize, color:def.color, life:0.6, owner:'player', pierce:false, type:'basic' });
+        addProjectile({
+          x:ox, y:oy,
+          vx:Math.cos(ang)*speed, vy:Math.sin(ang)*speed,
+          dmg, size:def.projSize, color:def.color, life:0.45,
+          owner:'player', pierce:false, type:'basic',
+          visual:'shotgun',
+          trailColor:'#ffb56f',
+          coreColor:'#fff2d8',
+          length:10,
+          width:3.2,
+          glow:8,
+        });
       }
+      spawnMuzzleFlash(ox, oy, baseAng, '#ff9d4d', 18);
       break;
     }
 
     case 'pierce':
-      spawnProj(ox, oy, tx, ty, dmg, def.projSpeed, def.projSize, def.color, 'player', true);
+      spawnProj(ox, oy, tx, ty, dmg, def.projSpeed, def.projSize, def.color, 'player', true, {
+        visual: 'sniper',
+        trailColor: '#c79bff',
+        coreColor: '#ffffff',
+        length: 28,
+        width: 3.6,
+        glow: 18,
+        life: 1.4,
+      });
+      spawnMuzzleFlash(ox, oy, aimAng, '#c79bff', 20);
       break;
 
     case 'melee': {
@@ -1077,17 +1236,50 @@ function fireWeapon(w, def, owner, target) {
     }
 
     case 'flame': {
-      const baseAng = Math.atan2(ty - oy, tx - ox);
-      for (let i = 0; i < 3; i++) {
+      const baseAng = aimAng;
+      for (let i = 0; i < 4; i++) {
         const ang = baseAng + (Math.random() - 0.5) * 0.5;
         const speed = def.projSpeed * (0.6 + Math.random() * 0.6);
-        game.projectiles.push({ x:ox, y:oy, vx:Math.cos(ang)*speed, vy:Math.sin(ang)*speed, dmg, size: 5 + Math.random()*5, color: Math.random()>0.5?'#ff6b35':'#f1c40f', life:0.35, owner:'player', pierce:false, type:'flame' });
+        addProjectile({
+          x:ox, y:oy,
+          vx:Math.cos(ang)*speed, vy:Math.sin(ang)*speed,
+          dmg,
+          size: 6 + Math.random()*5,
+          color: Math.random()>0.5 ? '#ff6b35' : '#f1c40f',
+          life: 0.26 + Math.random() * 0.12,
+          owner:'player', pierce:false, type:'flame',
+          visual:'flame',
+          trailColor:'#ff9348',
+          coreColor:'#fff4a8',
+          glow:12,
+          spin:(Math.random() - 0.5) * 4,
+        });
       }
+      if (Math.random() < 0.35) spawnMuzzleFlash(ox, oy, baseAng, '#ff9348', 12);
       break;
     }
 
     case 'grenade':
-      game.projectiles.push({ x:ox, y:oy, vx:(tx-ox)/dist(ox,oy,tx,ty)*def.projSpeed, vy:(ty-oy)/dist(ox,oy,tx,ty)*def.projSpeed, dmg, blastR: def.blastR * (w.level>=2?1.4:1), size:def.projSize, color:def.color, life:1.2, owner:'player', pierce:false, type:'grenade', tx, ty });
+      addProjectile({
+        x:ox, y:oy,
+        vx:(tx-ox)/dist(ox,oy,tx,ty)*def.projSpeed,
+        vy:(ty-oy)/dist(ox,oy,tx,ty)*def.projSpeed,
+        dmg,
+        blastR: def.blastR * (w.level>=2?1.4:1),
+        size:def.projSize,
+        color:def.color,
+        life:1.2,
+        maxLife:1.2,
+        owner:'player',
+        pierce:false,
+        type:'grenade',
+        visual:'grenade',
+        tx, ty,
+        rot: Math.random() * Math.PI * 2,
+        spin: 9 + Math.random() * 4,
+        fuseTimer: 0.05,
+      });
+      spawnMuzzleFlash(ox, oy, aimAng, '#ffd54f', 14);
       break;
 
     case 'lightning': {
@@ -1098,8 +1290,12 @@ function fireWeapon(w, def, owner, target) {
       for (let i = 0; i < chains && near; i++) {
         hit.add(near);
         dealDamage(near, dmg, owner);
-        // Visual bolt
-        game.particles.push({ x:current.x, y:current.y, tx:near.x, ty:near.y, life:0.25, maxLife:0.25, type:'bolt', color:'#a29bfe' });
+        game.particles.push({
+          x:current.x, y:current.y, tx:near.x, ty:near.y,
+          life:0.18, maxLife:0.18, type:'bolt', color:'#a29bfe',
+          points: createBoltPoints(current.x, current.y, near.x, near.y, 7, 26),
+        });
+        spawnSparkBurst(near.x, near.y, '#d8c7ff', 4, 90);
         current = near;
         near = null;
         let bestD2 = 220;
@@ -1113,17 +1309,43 @@ function fireWeapon(w, def, owner, target) {
     }
 
     case 'boomerang': {
-      const ang = Math.atan2(ty - oy, tx - ox);
-      game.projectiles.push({ x:ox, y:oy, startX:ox, startY:oy, vx:Math.cos(ang)*def.projSpeed, vy:Math.sin(ang)*def.projSpeed, dmg, size:def.projSize, color:def.color, life: 1.0, owner:'player', pierce:true, type:'boomerang', ang, returning:false, hits:new Set() });
+      const ang = aimAng;
+      addProjectile({
+        x:ox, y:oy,
+        startX:ox, startY:oy,
+        vx:Math.cos(ang)*def.projSpeed,
+        vy:Math.sin(ang)*def.projSpeed,
+        dmg,
+        size:def.projSize,
+        color:def.color,
+        life: 1.0,
+        owner:'player',
+        pierce:true,
+        type:'boomerang',
+        visual:'boomerang',
+        ang,
+        rot: ang,
+        spin: 14,
+        returning:false,
+        hits:new Set(),
+      });
       break;
     }
   }
 }
 
-function spawnProj(ox, oy, tx, ty, dmg, speed, size, color, owner, pierce) {
+function spawnProj(ox, oy, tx, ty, dmg, speed, size, color, owner, pierce, opts = {}) {
   const d = dist(ox, oy, tx, ty);
   if (d === 0) return;
-  game.projectiles.push({ x:ox, y:oy, vx:(tx-ox)/d*speed, vy:(ty-oy)/d*speed, dmg, size, color, life:2, owner, pierce, type:'basic' });
+  addProjectile({
+    x:ox, y:oy,
+    vx:(tx-ox)/d*speed, vy:(ty-oy)/d*speed,
+    dmg, size, color,
+    life: opts.life ?? 2,
+    owner, pierce,
+    type: opts.type || 'basic',
+    ...opts,
+  });
 }
 
 // ─── MONSTER UPDATE ──────────────────────────────────────────────────────────
@@ -1199,12 +1421,34 @@ function updateStructures(dt) {
   if (t.atkCooldown > 0) t.atkCooldown -= dt;
   else {
     const m = nearestMonster(t.x, t.y, t.atkRange);
-    if (m) { spawnProj(t.x, t.y, m.x, m.y, t.atkDmg, 460, 8, '#f1c40f', 'tower', false); t.atkCooldown = 1/t.atkSpeed; }
+    if (m) {
+      spawnProj(t.x, t.y, m.x, m.y, t.atkDmg, 460, 8, '#f1c40f', 'tower', false, {
+        visual:'tower',
+        trailColor:'#ffe082',
+        coreColor:'#fffbe8',
+        length:16,
+        width:4,
+        glow:12,
+        life:1.2,
+      });
+      t.atkCooldown = 1/t.atkSpeed;
+    }
   }
   for (const op of game.outposts) {
     if (op.atkCooldown > 0) { op.atkCooldown -= dt; continue; }
     const m = nearestMonster(op.x, op.y, op.atkRange);
-    if (m) { spawnProj(op.x, op.y, m.x, m.y, op.atkDmg, 420, 6, '#27ae60', 'structure', false); op.atkCooldown = 1/op.atkSpeed; }
+    if (m) {
+      spawnProj(op.x, op.y, m.x, m.y, op.atkDmg, 420, 6, '#27ae60', 'structure', false, {
+        visual:'structure',
+        trailColor:'#78f3a5',
+        coreColor:'#f3fff7',
+        length:14,
+        width:3,
+        glow:10,
+        life:1.1,
+      });
+      op.atkCooldown = 1/op.atkSpeed;
+    }
   }
 }
 
@@ -1213,7 +1457,25 @@ function updateProjectiles(dt) {
   for (let i = game.projectiles.length - 1; i >= 0; i--) {
     const p = game.projectiles[i];
     p.life -= dt;
+    p.age = (p.age || 0) + dt;
+    if (p.spin) p.rot += p.spin * dt;
     if (p.life <= 0) { game.projectiles.splice(i, 1); continue; }
+
+    if (p.type === 'flame') {
+      p.vx *= 0.95;
+      p.vy *= 0.95;
+      p.renderSize = (p.renderSize || p.size) + dt * 10;
+      if (Math.random() < dt * 12) spawnSmokePuffs(p.x, p.y, 1, 4, 10, '#5a4634');
+    }
+
+    if (p.type === 'grenade') {
+      p.fuseTimer = (p.fuseTimer || 0) - dt;
+      if (p.fuseTimer <= 0) {
+        p.fuseTimer = 0.05;
+        spawnSparkBurst(p.x, p.y, '#ffd54f', 1, 45, 0.7, Math.atan2(p.vy, p.vx) + Math.PI);
+        if (Math.random() < 0.7) spawnSmokePuffs(p.x, p.y, 1, 4, 8);
+      }
+    }
 
     // Boomerang: reverse after half life
     if (p.type === 'boomerang') {
@@ -1250,7 +1512,7 @@ function updateProjectiles(dt) {
         if (dist(p.x, p.y, m.x, m.y) < m.radius + p.size) {
           const killed = dealDamage(m, p.dmg, p.owner === 'player' ? game.player : null);
           if (p.hits) p.hits.add(m);
-          spawnParticles(p.x, p.y, p.color, 4, 40);
+          spawnProjectileImpact(p);
           if (killed) killMonster(j);
           if (!p.pierce) { game.projectiles.splice(i, 1); break; }
         }
@@ -1260,8 +1522,11 @@ function updateProjectiles(dt) {
 }
 
 function explodeGrenade(p) {
+  spawnShockRing(p.x, p.y, '#ffd54f', p.blastR * 0.7, 4, 0.22);
   spawnParticles(p.x, p.y, '#f1c40f', 20, 100);
   spawnParticles(p.x, p.y, '#ff6b35', 14, 70);
+  spawnSparkBurst(p.x, p.y, '#ffd54f', 14, 180);
+  spawnSmokePuffs(p.x, p.y, 7, 12, 55, '#6b7280');
   for (let j = game.monsters.length - 1; j >= 0; j--) {
     const m = game.monsters[j];
     if (dist(p.x, p.y, m.x, m.y) < p.blastR + m.radius) {
@@ -1324,9 +1589,20 @@ function updateParticles(dt) {
     const p = game.particles[i];
     p.life -= dt;
     if (p.life <= 0) { game.particles.splice(i, 1); continue; }
-    if (p.type === 'bolt') continue; // static
-    p.x += p.vx * dt; p.y += p.vy * dt;
-    p.vx *= 0.91; p.vy *= 0.91;
+    if (p.type === 'bolt') continue;
+    if (p.type === 'ring') continue;
+    if (p.type === 'smoke') {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= 0.96;
+      p.vy *= 0.92;
+      p.r += (p.grow || 10) * dt;
+      continue;
+    }
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vx *= p.type === 'spark' ? 0.88 : 0.91;
+    p.vy *= p.type === 'spark' ? 0.88 : 0.91;
   }
 }
 
@@ -1672,38 +1948,167 @@ function renderPlayer() {
 }
 
 // ─── PROJECTILES ─────────────────────────────────────────────────────────────
+function drawTracerProjectile(sx, sy, p, length = p.length, width = p.width) {
+  const ang = Math.atan2(p.vy, p.vx);
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.rotate(ang);
+  ctx.lineCap = 'round';
+  ctx.shadowColor = p.color;
+  ctx.shadowBlur = p.glow || 10;
+  ctx.strokeStyle = p.trailColor || p.color;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(-length * 0.8, 0);
+  ctx.lineTo(length * 0.22, 0);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = p.coreColor || '#ffffff';
+  ctx.lineWidth = Math.max(1, width * 0.45);
+  ctx.beginPath();
+  ctx.moveTo(-length * 0.15, 0);
+  ctx.lineTo(length * 0.38, 0);
+  ctx.stroke();
+  ctx.fillStyle = p.coreColor || '#ffffff';
+  ctx.beginPath();
+  ctx.arc(length * 0.35, 0, Math.max(1.4, width * 0.48), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawFlameProjectile(sx, sy, p) {
+  const ang = Math.atan2(p.vy, p.vx);
+  const lifePct = clamp(p.life / (p.maxLife || 1), 0, 1);
+  const size = p.renderSize || p.size;
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.rotate(ang + (p.rot || 0) * 0.08);
+  ctx.globalAlpha = Math.max(0.2, lifePct);
+  ctx.fillStyle = '#ff6b35';
+  ctx.beginPath();
+  ctx.ellipse(-size * 0.2, 0, size * 1.15, size * 0.72, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffb347';
+  ctx.beginPath();
+  ctx.ellipse(size * 0.18, 0, size * 0.72, size * 0.46, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff2a8';
+  ctx.beginPath();
+  ctx.ellipse(size * 0.42, 0, size * 0.34, size * 0.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawGrenadeProjectile(p) {
+  const progress = clamp((p.age || 0) / (p.maxLife || 1), 0, 1);
+  const lift = Math.sin(progress * Math.PI) * 90;
+  const shadow = w2s(p.x, p.y, 0);
+  const { sx, sy } = w2s(p.x, p.y, 12 + lift);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.24)';
+  ctx.beginPath();
+  ctx.ellipse(shadow.sx, shadow.sy + 9, p.size * 1.3, p.size * 0.7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.rotate(p.rot || 0);
+  ctx.fillStyle = '#2c3e50';
+  ctx.beginPath();
+  ctx.arc(0, 0, p.size, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#f1c40f';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, p.size * 0.72, Math.PI * 0.15, Math.PI * 0.85);
+  ctx.stroke();
+  ctx.strokeStyle = '#8b5e3c';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, -p.size + 1);
+  ctx.lineTo(0, -p.size - 6);
+  ctx.stroke();
+  ctx.fillStyle = '#ffd54f';
+  ctx.beginPath();
+  ctx.arc(0, -p.size - 7, 2.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawBoomerangProjectile(sx, sy, p) {
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.rotate(p.rot || 0);
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = p.color;
+  ctx.lineWidth = Math.max(4, p.size * 0.48);
+  ctx.shadowColor = p.color;
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.moveTo(-p.size * 0.95, p.size * 0.45);
+  ctx.lineTo(0, -p.size * 0.2);
+  ctx.lineTo(p.size * 0.95, p.size * 0.45);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#fff1f7';
+  ctx.lineWidth = Math.max(1.5, p.size * 0.16);
+  ctx.beginPath();
+  ctx.moveTo(-p.size * 0.65, p.size * 0.25);
+  ctx.lineTo(0, -p.size * 0.02);
+  ctx.lineTo(p.size * 0.65, p.size * 0.25);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function renderProjectilesWorld() {
   for (const p of game.projectiles) {
     const { sx, sy } = w2s(p.x, p.y, 8);
     const r = p.size || 5;
-    ctx.fillStyle = p.color;
-    if (p.type === 'flame') {
-      ctx.globalAlpha = p.life * 2.5;
-      ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2); ctx.fill();
-      ctx.globalAlpha = 1;
-    } else if (p.type === 'grenade') {
-      ctx.fillStyle = '#f1c40f';
-      ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#000';
-      ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI*2); ctx.fill();
-    } else if (p.type === 'boomerang') {
-      ctx.save(); ctx.translate(sx, sy); ctx.rotate(game.tick * 8);
-      ctx.fillStyle = p.color; ctx.beginPath();
-      ctx.ellipse(0, 0, r, r*0.4, 0, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-    } else {
-      // Trail
-      ctx.globalAlpha = 0.3;
-      ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.arc(sx - p.vx * 0.03 * ISO_SCALE, sy - p.vy * 0.03 * ISO_SCALE * 0.5, r * 0.6, 0, Math.PI*2); ctx.fill();
-      ctx.globalAlpha = 1;
-      // Glow + body
-      ctx.shadowColor = p.color; ctx.shadowBlur = 12;
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(sx, sy, r * 0.5, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2); ctx.fill();
-      ctx.shadowBlur = 0;
+    switch (p.visual || p.type) {
+      case 'pistol':
+        drawTracerProjectile(sx, sy, p, 15, 4);
+        break;
+      case 'rifle':
+        drawTracerProjectile(sx, sy, p, 18, 3);
+        break;
+      case 'minigun':
+        drawTracerProjectile(sx, sy, p, 12, 2.5);
+        break;
+      case 'shotgun':
+        drawTracerProjectile(sx, sy, p, 9, 3.4);
+        break;
+      case 'sniper':
+        drawTracerProjectile(sx, sy, p, 28, 3.8);
+        break;
+      case 'tower':
+        drawTracerProjectile(sx, sy, p, 16, 4);
+        break;
+      case 'structure':
+        drawTracerProjectile(sx, sy, p, 14, 3);
+        break;
+      case 'flame':
+        drawFlameProjectile(sx, sy, p);
+        break;
+      case 'grenade':
+        drawGrenadeProjectile(p);
+        break;
+      case 'boomerang':
+        drawBoomerangProjectile(sx, sy, p);
+        break;
+      default:
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(sx - p.vx * 0.03 * ISO_SCALE, sy - p.vy * 0.03 * ISO_SCALE * 0.5, r * 0.6, 0, Math.PI*2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.shadowColor = p.color; ctx.shadowBlur = 12;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(sx, sy, r * 0.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+        break;
     }
   }
 }
@@ -1715,13 +2120,54 @@ function renderParticlesWorld() {
     ctx.globalAlpha = Math.max(0, alpha);
 
     if (p.type === 'bolt') {
-      // Lightning bolt line
-      const { sx:ax, sy:ay } = w2s(p.x, p.y, 10);
-      const { sx:bx, sy:by } = w2s(p.tx, p.ty, 10);
-      ctx.strokeStyle = p.color; ctx.lineWidth = 2;
-      ctx.shadowColor = p.color; ctx.shadowBlur = 8;
-      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      const points = p.points || [{ x:p.x, y:p.y }, { x:p.tx, y:p.ty }];
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 4;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      points.forEach((pt, index) => {
+        const { sx, sy } = w2s(pt.x, pt.y, 10);
+        if (index === 0) ctx.moveTo(sx, sy);
+        else ctx.lineTo(sx, sy);
+      });
+      ctx.stroke();
       ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      points.forEach((pt, index) => {
+        const { sx, sy } = w2s(pt.x, pt.y, 10);
+        if (index === 0) ctx.moveTo(sx, sy);
+        else ctx.lineTo(sx, sy);
+      });
+      ctx.stroke();
+    } else if (p.type === 'spark') {
+      const { sx, sy } = w2s(p.x, p.y, 8);
+      const tailX = sx - p.vx * 0.025 * ISO_SCALE;
+      const tailY = sy - p.vy * 0.025 * ISO_SCALE * 0.5;
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = p.width || 1.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(tailX, tailY);
+      ctx.lineTo(sx, sy);
+      ctx.stroke();
+    } else if (p.type === 'smoke') {
+      const { sx, sy } = w2s(p.x, p.y, 6);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(sx, sy, p.r, 0, Math.PI*2);
+      ctx.fill();
+    } else if (p.type === 'ring') {
+      const { sx, sy } = w2s(p.x, p.y, 10);
+      const radius = p.maxRadius * (1 - alpha);
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = p.lineWidth || 2;
+      ctx.beginPath();
+      ctx.arc(sx, sy, radius * ISO_SCALE * 0.9, 0, Math.PI*2);
+      ctx.stroke();
     } else {
       const { sx, sy } = w2s(p.x, p.y, 5);
       ctx.fillStyle = p.color;
