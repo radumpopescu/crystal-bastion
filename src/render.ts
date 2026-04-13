@@ -912,7 +912,7 @@ function renderLevelUpCards() {
     sideY += 24;
   }
   sideY += 4;
-  ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace';
+  ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
   ctx.fillText('CURRENT STATS', panelX + 10, sideY); sideY += 14;
   getLoadoutStats().forEach(stat => {
     ctx.fillStyle = '#cbd5e1'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
