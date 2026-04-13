@@ -149,6 +149,16 @@ export const STAT_UPGRADES: any[] = [
     available:(_p: any, g: any) => g.outposts.length > 0 },
   { id:'outpostCheap', icon:'💰',  name:'Supply Lines',    desc:'Towers cost 5 less gold',      apply:(_p: any, g: any)  => { g.outpostDiscount = (g.outpostDiscount || 0) + 5; }, rarity:'uncommon',
     available:(_p: any, g: any) => { const cur = OUTPOST_COST - (g.outpostDiscount || 0); return cur > 10; } },
+  { id:'outpostLevel', icon:'⬆️',  name:'Tower Mastery',   desc:'All towers +1 level (max 5)',  apply:(_p: any, g: any)  => {
+      const lv = Math.min((g.outpostLevel || 1) + 1, 5);
+      g.outpostLevel = lv;
+      const base = 20 * (g.opAtkMult || 1);
+      const dmg = base * Math.pow(1.28, lv - 1);
+      const range = 240 + (lv - 1) * 18;
+      for (const op of g.outposts) { op.atkDmg = dmg; op.atkRange = range; }
+    }, rarity:'rare',
+    max:4, count:(_p: any, g: any) => Math.max(0, (g.outpostLevel || 1) - 1),
+    available:(_p: any, g: any) => (g.outpostLevel || 1) < 5 },
 ];
 
 export const META_UPGRADES: any[] = [

@@ -38,27 +38,34 @@ function canPlaceOutpostAt(px: number, py: number) {
   return true;
 }
 
-const OUTPOST_LEVEL_KILLS = [0, 8, 20, 38, 62];
-
-function outpostLevelUp(op: any) {
-  const newLevel = OUTPOST_LEVEL_KILLS.findIndex((t, i) => i > 0 && op.kills < OUTPOST_LEVEL_KILLS[i]);
-  const level = newLevel === -1 ? 5 : newLevel;
-  if (level > op.level) {
-    op.level = level;
-    op.atkDmg = op._baseDmg * Math.pow(1.25, level - 1);
-    op.atkRange = op._baseRange + (level - 1) * 15;
-    spawnParticles(op.x, op.y, '#f1c40f', 14, 70);
-  }
+function outpostStatsForLevel(level: number, game: any) {
+  const base = 20 * (game.opAtkMult || 1);
+  return {
+    atkDmg: base * Math.pow(1.28, level - 1),
+    atkRange: 240 + (level - 1) * 18,
+    atkSpeed: 0.85,
+  };
 }
 
 function placeOutpostAt(px: number, py: number) {
   const game = R.game;
   const opRange = OUTPOST_RANGE + (game.opRangeBonus || 0);
   const maxHp = OUTPOST_HP_BASE + (game.opHpBonus || 0);
-  const baseDmg = 20 * (game.opAtkMult || 1);
-  const baseRange = 240;
-  game.outposts.push({ x:px, y:py, hp:maxHp, maxHp, range:opRange, atkRange:baseRange, atkDmg:baseDmg, atkSpeed:0.85, atkCooldown:0, level:1, kills:0, _baseDmg:baseDmg, _baseRange:baseRange });
+  const level = game.outpostLevel || 1;
+  const stats = outpostStatsForLevel(level, game);
+  game.outposts.push({ x:px, y:py, hp:maxHp, maxHp, range:opRange, ...stats, atkCooldown:0 });
   spawnParticles(px, py, '#27ae60', 12, 60);
+}
+
+export function upgradeOutpostLevel(game: any) {
+  const newLevel = Math.min((game.outpostLevel || 1) + 1, 5);
+  game.outpostLevel = newLevel;
+  const stats = outpostStatsForLevel(newLevel, game);
+  for (const op of game.outposts) {
+    op.atkDmg = stats.atkDmg;
+    op.atkRange = stats.atkRange;
+  }
+  for (const op of game.outposts) spawnParticles(op.x, op.y, '#f1c40f', 10, 60);
 }
 
 export function tryPlaceOutpostAt(px: number, py: number) {
@@ -76,33 +83,6 @@ export function tryPlaceOutpostAt(px: number, py: number) {
 export function tryPlaceOutpost() {
   const game = R.game;
   return tryPlaceOutpostAt(game.player.x, game.player.y);
-}
-
-export function toggleUpgradeMenu() {
-  const game = R.game;
-  if (game.upgradeMenuCooldown > 0) return;
-  if (dist(game.player.x, game.player.y, game.tower.x, game.tower.y) > game.tower.range * 0.8) return;
-  game.showUpgradeMenu = !game.showUpgradeMenu;
-  game.upgradeMenuCooldown = 0.3;
-}
-
-export function handleUpgradeMenuClick(mx: number, my: number) {
-  const game = R.game;
-  const mX = R.W / 2 - 165;
-  const mY = R.H / 2 - 140;
-  TOWER_UPGRADES.forEach((upg, i) => {
-    const lvl = game.tower.upgrades[upg.id] || 0;
-    if (lvl >= upg.max) return;
-    const cost = upg.cost[lvl];
-    const by = mY + 50 + i * 74;
-    if (mx >= mX && mx <= mX + 330 && my >= by && my <= by + 54 && game.gold >= cost) {
-      game.gold -= cost;
-      game.tower.upgrades[upg.id]++;
-      if (upg.id === 'hp')    { game.tower.maxHp += 150; game.tower.hp = Math.min(game.tower.hp + 150, game.tower.maxHp); }
-      if (upg.id === 'range') { game.tower.range += 60; }
-      if (upg.id === 'dmg')   { game.tower.atkDmg = Math.round(game.tower.atkDmg * 1.4); }
-    }
-  });
 }
 
 export function handlePlayingClick(mx: number, my: number) {
@@ -361,7 +341,7 @@ export function getBaseStats() {
     { icon:'💥', name:'Turret Damage', value: `${Math.round(t.atkDmg)}` },
     { icon:'⚡', name:'Fire Rate',     value: `${t.atkSpeed.toFixed(2)}/s` },
     { icon:'🔥', name:'Aura DPS',      value: `${Math.round(t.auraDmg)}` },
-    { icon:'🎯', name:'Multishot',     value: `${t.multishot || 1} targets` },
+    { icon:'🎱', name:'Multishot',     value: `${t.multishot || 1} targets` },
   ];
 }
 
@@ -988,7 +968,7 @@ export function updateMonsters(dt: number) {
 
     if (dist(m.x, m.y, t.x, t.y) <= t.auraR) {
       m.hp -= t.auraDmg * dt;
-      if (m.hp <= 0) { killMonster(i); continue; }
+      if (m.hp <= 0) { killMonster(i, 'base'); continue; }
     }
 
     const targets = [
@@ -1056,7 +1036,7 @@ export function updateStructures(dt: number) {
     const targets = nearestMonsters(t.x, t.y, t.atkRange, t.multishot || 1);
     if (targets.length > 0) {
       for (const m of targets) {
-        spawnProj(t.x, t.y, m.x, m.y, t.atkDmg, 460, 8, '#f1c40f', 'tower', false, {
+        spawnProj(t.x, t.y, m.x, m.y, t.atkDmg, 460, 8, '#f1c40f', 'base', false, {
           visual:'tower',
           trailColor:'#ffe082',
           coreColor:'#fffbe8',
@@ -1073,7 +1053,7 @@ export function updateStructures(dt: number) {
     if (op.atkCooldown > 0) { op.atkCooldown -= dt; continue; }
     const m = nearestMonster(op.x, op.y, op.atkRange);
     if (m) {
-      spawnProj(op.x, op.y, m.x, m.y, op.atkDmg, 420, 6, '#27ae60', 'structure', false, {
+      spawnProj(op.x, op.y, m.x, m.y, op.atkDmg, 420, 6, '#27ae60', 'tower', false, {
         visual:'structure',
         trailColor:'#78f3a5',
         coreColor:'#f3fff7',
@@ -1081,7 +1061,6 @@ export function updateStructures(dt: number) {
         width:3,
         glow:10,
         life:1.1,
-        sourceOutpost: op,
       });
       op.atkCooldown = 1 / op.atkSpeed;
     }
@@ -1147,13 +1126,7 @@ export function updateProjectiles(dt: number) {
           const killed = dealDamage(m, p.dmg, p.owner === 'player' ? game.player : null);
           if (p.hits) p.hits.add(m);
           spawnProjectileImpact(p);
-          if (killed) {
-            if (p.sourceOutpost) {
-              p.sourceOutpost.kills = (p.sourceOutpost.kills || 0) + 1;
-              outpostLevelUp(p.sourceOutpost);
-            }
-            killMonster(j);
-          }
+          if (killed) killMonster(j, p.owner);
           if (!p.pierce) { game.projectiles.splice(i, 1); break; }
         }
       }
@@ -1172,7 +1145,7 @@ function explodeGrenade(p: any) {
     const m = game.monsters[j];
     if (dist(p.x, p.y, m.x, m.y) < p.blastR + m.radius) {
       const killed = dealDamage(m, p.dmg, game.player);
-      if (killed) killMonster(j);
+      if (killed) killMonster(j, 'player');
     }
   }
 }
@@ -1186,7 +1159,7 @@ function dealDamage(monster: any, rawDmg: number, owner: any) {
   return monster.hp <= 0;
 }
 
-function killMonster(i: number) {
+function killMonster(i: number, owner = 'player') {
   const game = R.game;
   const m = game.monsters[i];
   const goldMult = 1 + (game.player.goldFinder || 0);
@@ -1194,6 +1167,10 @@ function killMonster(i: number) {
   game.gold += gold;
   spawnParticles(m.x, m.y, m.color, 10, 55);
   spawnDmgNum(m.x, m.y, gold, '#f1c40f');
+  if (!game.killStats) game.killStats = { player: 0, base: 0, tower: 0 };
+  if (owner === 'player') game.killStats.player++;
+  else if (owner === 'base') game.killStats.base++;
+  else if (owner === 'tower') game.killStats.tower++;
   game.monsters.splice(i, 1);
   game.monstersLeft = Math.max(0, game.monstersLeft - 1);
   checkWaveEnd();

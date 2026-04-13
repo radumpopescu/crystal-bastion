@@ -161,6 +161,8 @@ export function newGame(opts: any = {}) {
       facing: { x:1, y:0 },
     },
 
+    outpostLevel: 1,
+    killStats: { player: 0, base: 0, tower: 0 },
     outposts: [],
     opHpBonus, opAtkMult, opRangeBonus,
     monsters: [],
@@ -173,9 +175,7 @@ export function newGame(opts: any = {}) {
     shopRefreshCost: 20,
     maxWeaponSlots: MAX_WEAPON_SLOTS + metaVal('startSlot'),
     keys: {},
-    showUpgradeMenu: false,
-    upgradeMenuCooldown: 0,
-      runCardCounts: {},
+    runCardCounts: {},
     runCardOrder: [],
     devSession: !!opts.devSession,
   };
@@ -223,7 +223,6 @@ export function finishDevSession(message: string) {
   R.game.shopCards = null;
   R.game._pickedFreeCard = null;
   R.game._anyBought = false;
-  R.game.showUpgradeMenu = false;
   R.ui.waveStartBtn = null;
   R.dev.menuStatus = message;
   R.state = 'devmenu';

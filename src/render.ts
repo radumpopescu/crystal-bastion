@@ -1,4 +1,4 @@
-import { ENTITY_H, ISO_SCALE, MAX_WEAPON_SLOTS, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES } from './constants';
+import { ENTITY_H, ISO_SCALE, MAX_WEAPON_SLOTS, OUTPOST_HP_BASE, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES } from './constants';
 import { R, devCardColor, devCardLimit, finishDevSession, newGame, resetDevConfig, w2s } from './state';
 import { buildDropChanceTable, getAnchors, getBaseStats, getLoadoutStats, getOutpostCost, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave, weaponCardNeedsSlot } from './systems';
 import { clamp, dist, inBtn } from './utils';
@@ -727,40 +727,6 @@ function renderMinimap() {
   ctx.fillText('MINIMAP', cx, my + MM_SIZE - 4);
 }
 
-function renderUpgradeMenu() {
-  const { ctx, W, H } = R;
-  const game = R.game;
-  const mX = W / 2 - 165, mY = H / 2 - 145;
-  ctx.fillStyle = 'rgba(0,0,0,0.88)'; rrect(mX - 12, mY - 12, 354, 300, 10); ctx.fill();
-  ctx.strokeStyle = '#f39c12'; ctx.lineWidth = 2; rrect(mX - 12, mY - 12, 354, 300, 10); ctx.stroke();
-  ctx.fillStyle = '#f39c12'; ctx.font = 'bold 16px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('BASE UPGRADES  (press U to close)', W / 2, mY + 14);
-  TOWER_UPGRADES.forEach((upg, i) => {
-    const lvl = game.tower.upgrades[upg.id] || 0;
-    const maxed = lvl >= upg.max;
-    const cost = maxed ? 0 : upg.cost[lvl];
-    const canAfford = !maxed && game.gold >= cost;
-    const by = mY + 36 + i * 76;
-    ctx.fillStyle = maxed ? '#1a3a1a' : canAfford ? '#1a2a3a' : '#2a1a1a';
-    rrect(mX, by, 330, 58, 6); ctx.fill();
-    ctx.strokeStyle = maxed ? '#27ae60' : canAfford ? '#3498db' : '#444';
-    ctx.lineWidth = 1.5; rrect(mX, by, 330, 58, 6); ctx.stroke();
-    ctx.fillStyle = maxed ? '#27ae60' : '#ecf0f1'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'left';
-    ctx.fillText(upg.label, mX + 10, by + 22);
-    ctx.fillStyle = '#aaa'; ctx.font = '11px monospace';
-    ctx.fillText('●'.repeat(lvl) + '○'.repeat(upg.max - lvl), mX + 10, by + 42);
-    if (!maxed) {
-      ctx.fillStyle = canAfford ? '#f1c40f' : '#e74c3c'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'right';
-      ctx.fillText(`⬡ ${cost}`, mX + 325, by + 22);
-    } else {
-      ctx.fillStyle = '#27ae60'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'right';
-      ctx.fillText('MAXED', mX + 325, by + 22);
-    }
-  });
-  ctx.fillStyle = '#666'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('Press U or ESC to close', W / 2, mY + 280);
-}
-
 function drawCard(card: any, bx: number, by: number, cW: number, cH: number, opts: any = {}) {
   const { ctx } = R;
   const game = R.game;
@@ -985,33 +951,34 @@ function renderLoadoutSidebar(panelX: number, panelW: number, options: { title?:
   });
 
   const outposts = game.outposts || [];
+  const opLv = game.outpostLevel || 1;
+  const op0 = outposts[0];
+  const fallbackOpHp = OUTPOST_HP_BASE + (game.opHpBonus || 0);
+  const totalHp = outposts.reduce((s: number, o: any) => s + o.hp, 0);
+  const totalMaxHp = outposts.reduce((s: number, o: any) => s + o.maxHp, 0);
+  const hpPct = totalMaxHp > 0 ? totalHp / totalMaxHp : 0;
+  const towerDmg = Math.round(op0?.atkDmg || (20 * (game.opAtkMult || 1) * Math.pow(1.28, opLv - 1)));
+  const towerRange = Math.round(op0?.atkRange || (240 + (opLv - 1) * 18));
+
+  sideY += 4;
+  ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+  ctx.fillText('TOWERS', panelX + 10, sideY);
+  ctx.fillStyle = opLv >= 5 ? '#f1c40f' : '#8bd3ff'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'right';
+  ctx.fillText(`${outposts.length} built  Lv${opLv}/5`, panelX + panelW - 4, sideY); sideY += 14;
+  const barW = panelW - 20;
+  const barX = panelX + 10;
+  ctx.fillStyle = '#1a2535';
+  ctx.fillRect(barX, sideY, barW, 4);
   if (outposts.length > 0) {
-    sideY += 4;
-    ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
-    ctx.fillText(`TOWERS  (${outposts.length})`, panelX + 10, sideY); sideY += 14;
-    for (let oi = 0; oi < outposts.length; oi++) {
-      const op = outposts[oi];
-      const lv = op.level || 1;
-      const hpPct = op.hp / op.maxHp;
-      const barW = panelW - 20;
-      const barH = 4;
-      const barX = panelX + 10;
-      // HP bar
-      ctx.fillStyle = '#1a2535';
-      ctx.fillRect(barX, sideY, barW, barH);
-      ctx.fillStyle = hpPct > 0.5 ? '#27ae60' : hpPct > 0.25 ? '#f39c12' : '#e74c3c';
-      ctx.fillRect(barX, sideY, Math.round(barW * hpPct), barH);
-      sideY += 7;
-      const LEVEL_KILLS = [0, 8, 20, 38, 62];
-      const nextKills = lv < 5 ? LEVEL_KILLS[lv] : null;
-      const lvLabel = lv >= 5 ? '⭐Lv5' : `Lv${lv} → ${nextKills! - op.kills}k`;
-      ctx.fillStyle = lv >= 5 ? '#f1c40f' : '#8bd3ff'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
-      ctx.fillText(`#${oi + 1} ${lvLabel}  ${Math.ceil(op.hp)}/${op.maxHp}HP`, barX, sideY);
-      ctx.fillStyle = '#f5c26b'; ctx.textAlign = 'right';
-      ctx.fillText(`${Math.round(op.atkDmg)}dmg`, panelX + panelW - 4, sideY);
-      sideY += 13;
-    }
+    ctx.fillStyle = hpPct > 0.5 ? '#27ae60' : hpPct > 0.25 ? '#f39c12' : '#e74c3c';
+    ctx.fillRect(barX, sideY, Math.round(barW * hpPct), 4);
   }
+  sideY += 8;
+  ctx.fillStyle = '#cbd5e1'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
+  ctx.fillText(outposts.length > 0 ? `${Math.ceil(totalHp)}/${totalMaxHp} HP total` : `0/${fallbackOpHp} HP each`, barX, sideY);
+  ctx.fillStyle = '#f5c26b'; ctx.textAlign = 'right';
+  ctx.fillText(`${towerDmg}dmg  ${towerRange}rng`, panelX + panelW - 4, sideY);
+  sideY += 14;
 
   renderGroupedRunCards(panelX, panelW, sideY + 8, H - 18);
 }
@@ -1079,6 +1046,23 @@ function renderBaseSidebar(panelX: number, panelW: number, { allowBuy = true } =
       ctx.textAlign = 'right';
       ctx.fillText(`${cost}⬡`, rowX + rowW - 8, rowY + 1);
     }
+  });
+
+  const ks = game.killStats || { player: 0, base: 0, tower: 0 };
+  const killsY = TOWER_UPGRADES.length * 54 + (sideY - 16) + 16;
+  ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+  ctx.fillText('KILLS THIS RUN', panelX + 10, killsY);
+  const rows = [
+    { icon:'⚔️', name:'Player', value: ks.player },
+    { icon:'🏰', name:'Base',   value: ks.base },
+    { icon:'🔵', name:'Towers', value: ks.tower },
+  ];
+  rows.forEach((row, i) => {
+    const ry = killsY + 14 + i * 14;
+    ctx.fillStyle = '#cbd5e1'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
+    ctx.fillText(`${row.icon} ${row.name}`, panelX + 10, ry);
+    ctx.fillStyle = '#8bd3ff'; ctx.textAlign = 'right';
+    ctx.fillText(`${row.value}`, panelX + panelW + 6, ry);
   });
 }
 

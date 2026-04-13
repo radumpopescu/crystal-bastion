@@ -19,7 +19,6 @@ function loop(ts: number) {
   if (R.state === 'playing' && R.game) {
     const game = R.game;
     game.tick += dt;
-    if (game.upgradeMenuCooldown > 0) game.upgradeMenuCooldown -= dt;
     updatePlayer(dt);
     updateMonsters(dt);
     updateProjectiles(dt);
