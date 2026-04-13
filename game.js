@@ -1948,8 +1948,15 @@ function renderPlayer() {
 }
 
 // ─── PROJECTILES ─────────────────────────────────────────────────────────────
+function projectileScreenVector(vx, vy) {
+  const dx = (vx - vy) * ISO_SCALE;
+  const dy = (vx + vy) * ISO_SCALE * 0.5;
+  const len = Math.hypot(dx, dy) || 1;
+  return { dx, dy, len, ang: Math.atan2(dy, dx) };
+}
+
 function drawTracerProjectile(sx, sy, p, length = p.length, width = p.width) {
-  const ang = Math.atan2(p.vy, p.vx);
+  const { ang } = projectileScreenVector(p.vx, p.vy);
   ctx.save();
   ctx.translate(sx, sy);
   ctx.rotate(ang);
@@ -1976,8 +1983,83 @@ function drawTracerProjectile(sx, sy, p, length = p.length, width = p.width) {
   ctx.restore();
 }
 
+function drawBulletProjectile(sx, sy, p, opts = {}) {
+  const { ang } = projectileScreenVector(p.vx, p.vy);
+  const bodyLength = opts.bodyLength ?? Math.max(7, p.length * 0.62);
+  const bodyWidth = opts.bodyWidth ?? Math.max(2.2, p.width * 0.92);
+  const tailLength = opts.tailLength ?? Math.max(2, bodyLength * 0.42);
+  const bodyColor = opts.bodyColor || '#c6b07b';
+  const tipColor = opts.tipColor || '#f4ecd4';
+  const outline = opts.outline || '#5a4a2f';
+  const glowColor = opts.glowColor || p.trailColor || p.color;
+
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.rotate(ang);
+
+  if (tailLength > 0) {
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = glowColor;
+    ctx.globalAlpha = 0.22;
+    ctx.lineWidth = Math.max(1.2, bodyWidth * 0.85);
+    ctx.beginPath();
+    ctx.moveTo(-bodyLength * 0.7 - tailLength, 0);
+    ctx.lineTo(-bodyLength * 0.45, 0);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.fillStyle = bodyColor;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1;
+  rrect(-bodyLength * 0.58, -bodyWidth * 0.52, bodyLength * 0.72, bodyWidth * 1.04, bodyWidth * 0.42);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = tipColor;
+  ctx.beginPath();
+  ctx.moveTo(bodyLength * 0.08, -bodyWidth * 0.52);
+  ctx.lineTo(bodyLength * 0.64, 0);
+  ctx.lineTo(bodyLength * 0.08, bodyWidth * 0.52);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = '#fffdf4';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(-bodyLength * 0.38, -bodyWidth * 0.18);
+  ctx.lineTo(bodyLength * 0.12, -bodyWidth * 0.18);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawPelletProjectile(sx, sy, p, size = p.size * 0.6) {
+  const { ang } = projectileScreenVector(p.vx, p.vy);
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.rotate(ang);
+  ctx.globalAlpha = 0.2;
+  ctx.strokeStyle = p.trailColor || p.color;
+  ctx.lineWidth = Math.max(1, size * 0.7);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-size * 2.1, 0);
+  ctx.lineTo(-size * 0.6, 0);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#e3d6b8';
+  ctx.strokeStyle = '#7a6640';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(0, 0, Math.max(1.8, size), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawFlameProjectile(sx, sy, p) {
-  const ang = Math.atan2(p.vy, p.vx);
+  const { ang } = projectileScreenVector(p.vx, p.vy);
   const lifePct = clamp(p.life / (p.maxLife || 1), 0, 1);
   const size = p.renderSize || p.size;
   ctx.save();
@@ -2066,19 +2148,51 @@ function renderProjectilesWorld() {
     const r = p.size || 5;
     switch (p.visual || p.type) {
       case 'pistol':
-        drawTracerProjectile(sx, sy, p, 15, 4);
+        drawBulletProjectile(sx, sy, p, {
+          bodyLength: 9,
+          bodyWidth: 3,
+          tailLength: 3,
+          bodyColor: '#c8b07a',
+          tipColor: '#f6edd2',
+          outline: '#65532f',
+          glowColor: '#9dd5ff',
+        });
         break;
       case 'rifle':
-        drawTracerProjectile(sx, sy, p, 18, 3);
+        drawBulletProjectile(sx, sy, p, {
+          bodyLength: 10.5,
+          bodyWidth: 2.7,
+          tailLength: 5,
+          bodyColor: '#b9c6ce',
+          tipColor: '#f7fbff',
+          outline: '#5e6e78',
+          glowColor: '#66f0a8',
+        });
         break;
       case 'minigun':
-        drawTracerProjectile(sx, sy, p, 12, 2.5);
+        drawBulletProjectile(sx, sy, p, {
+          bodyLength: 7.5,
+          bodyWidth: 2.2,
+          tailLength: 4,
+          bodyColor: '#c2ccd4',
+          tipColor: '#fbfeff',
+          outline: '#60707c',
+          glowColor: '#8fd8ff',
+        });
         break;
       case 'shotgun':
-        drawTracerProjectile(sx, sy, p, 9, 3.4);
+        drawPelletProjectile(sx, sy, p, 2.3);
         break;
       case 'sniper':
-        drawTracerProjectile(sx, sy, p, 28, 3.8);
+        drawBulletProjectile(sx, sy, p, {
+          bodyLength: 15.5,
+          bodyWidth: 3.3,
+          tailLength: 9,
+          bodyColor: '#cdb5ff',
+          tipColor: '#ffffff',
+          outline: '#6b55a0',
+          glowColor: '#d2b7ff',
+        });
         break;
       case 'tower':
         drawTracerProjectile(sx, sy, p, 16, 4);
