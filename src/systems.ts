@@ -1,0 +1,1173 @@
+import { AUTO_CONSTRUCT_MODES, BASE_MONSTERS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, LEASH_DMG, MONSTER_DEF, MONSTER_SCALE, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_RANGE, PLAYER_RADIUS, PLAYER_SPEED, STAT_UPGRADES, TILE_SIZE, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS } from './constants';
+import { DEV_WEAPON_IDS, R, devCardLimit, finishDevSession, makeWeapon, metaVal, newGame } from './state';
+import { clamp, dist, inBtn, shuffle } from './utils';
+import { saveMeta } from './meta';
+
+export function getAnchors() {
+  const game = R.game;
+  const anchors = [{ x:game.tower.x, y:game.tower.y, range:game.tower.range }];
+  for (const op of game.outposts) anchors.push({ x:op.x, y:op.y, range:op.range });
+  return anchors;
+}
+
+export function nearestAnchor(x: number, y: number) {
+  let best = null;
+  let bestD = Infinity;
+  for (const a of getAnchors()) {
+    const d = dist(x, y, a.x, a.y);
+    if (d < bestD) { bestD = d; best = a; }
+  }
+  return { anchor: best, dist: bestD };
+}
+
+export function getOutpostCost() {
+  return Math.max(10, OUTPOST_COST - (R.game.outpostDiscount || 0));
+}
+
+function canPlaceOutpostAt(px: number, py: number) {
+  const game = R.game;
+  const opRange = OUTPOST_RANGE + (game.opRangeBonus || 0);
+  let canConnect = false;
+  for (const a of getAnchors()) {
+    if (dist(px, py, a.x, a.y) <= a.range + opRange * 0.6) { canConnect = true; break; }
+  }
+  if (!canConnect) return false;
+  for (const a of getAnchors()) {
+    if (dist(px, py, a.x, a.y) < 65) return false;
+  }
+  return true;
+}
+
+function placeOutpostAt(px: number, py: number) {
+  const game = R.game;
+  const opRange = OUTPOST_RANGE + (game.opRangeBonus || 0);
+  const maxHp = OUTPOST_HP_BASE + (game.opHpBonus || 0);
+  const atkDmg = 18 * (game.opAtkMult || 1);
+  game.outposts.push({ x:px, y:py, hp:maxHp, maxHp, range:opRange, atkRange:200, atkDmg, atkSpeed:0.85, atkCooldown:0 });
+  spawnParticles(px, py, '#27ae60', 12, 60);
+}
+
+export function tryPlaceOutpostAt(px: number, py: number) {
+  const game = R.game;
+  const cost = getOutpostCost();
+  const free = (game.freeOutpost || 0) > 0;
+  if (!free && game.gold < cost) return false;
+  if (!canPlaceOutpostAt(px, py)) return false;
+  if (free) game.freeOutpost--;
+  else game.gold -= cost;
+  placeOutpostAt(px, py);
+  return true;
+}
+
+export function tryPlaceOutpost() {
+  const game = R.game;
+  return tryPlaceOutpostAt(game.player.x, game.player.y);
+}
+
+export function toggleUpgradeMenu() {
+  const game = R.game;
+  if (game.upgradeMenuCooldown > 0) return;
+  if (dist(game.player.x, game.player.y, game.tower.x, game.tower.y) > game.tower.range * 0.8) return;
+  game.showUpgradeMenu = !game.showUpgradeMenu;
+  game.upgradeMenuCooldown = 0.3;
+}
+
+export function handleUpgradeMenuClick(mx: number, my: number) {
+  const game = R.game;
+  const mX = R.W / 2 - 165;
+  const mY = R.H / 2 - 140;
+  TOWER_UPGRADES.forEach((upg, i) => {
+    const lvl = game.tower.upgrades[upg.id] || 0;
+    if (lvl >= upg.max) return;
+    const cost = upg.cost[lvl];
+    const by = mY + 50 + i * 74;
+    if (mx >= mX && mx <= mX + 330 && my >= by && my <= by + 54 && game.gold >= cost) {
+      game.gold -= cost;
+      game.tower.upgrades[upg.id]++;
+      if (upg.id === 'hp')    { game.tower.maxHp += 150; game.tower.hp = Math.min(game.tower.hp + 150, game.tower.maxHp); }
+      if (upg.id === 'range') { game.tower.range += 60; }
+      if (upg.id === 'dmg')   { game.tower.atkDmg = Math.round(game.tower.atkDmg * 1.4); }
+    }
+  });
+}
+
+export function handlePlayingClick(mx: number, my: number) {
+  if (mx >= R.W - 46 && mx <= R.W - 10 && my >= 10 && my <= 46) { R.state = 'paused'; return; }
+  if (R.ui.waveStartBtn && !R.game.waveActive && inBtn(mx, my, R.ui.waveStartBtn)) {
+    startNextWave(true);
+  }
+}
+
+export function startNextWave(early = false) {
+  const game = R.game;
+  if (early && game.waveTimer > 0) {
+    const bonusFraction = game.waveTimer / (WAVE_INTERVAL + (game.waveDelayBonus || 0));
+    const bonusGold = Math.round(12 * bonusFraction * (game.earlyBonusMult || 1) * (1 + game.wave * 0.2));
+    game.gold += bonusGold;
+    spawnDmgNum(game.player.x, game.player.y - 40, `+${bonusGold}g EARLY BONUS`, '#f1c40f');
+  }
+
+  game.wave++;
+  const count = Math.floor(BASE_MONSTERS * Math.pow(MONSTER_SCALE, game.wave - 1));
+  const hpScale = 1 + (game.wave - 1) * 0.18;
+  const spdScale = 1 + (game.wave - 1) * 0.03;
+
+  let maxAnchorDist = game.tower.range;
+  for (const op of game.outposts) {
+    const d = Math.hypot(op.x - game.tower.x, op.y - game.tower.y) + op.range;
+    if (d > maxAnchorDist) maxAnchorDist = d;
+  }
+  const spawnBase = maxAnchorDist + 200;
+
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spawnR = spawnBase + Math.random() * 220;
+    const sx = game.tower.x + Math.cos(angle) * spawnR;
+    const sy = game.tower.y + Math.sin(angle) * spawnR;
+
+    let type = 'grunt';
+    const r = Math.random();
+    if (game.wave >= 3 && r < 0.20) type = 'rusher';
+    if (game.wave >= 5 && r < 0.12) type = 'brute';
+    if (game.wave >= 8 && r < 0.06) type = 'tank';
+
+    const T = MONSTER_DEF[type];
+    game.monsters.push({
+      x:sx, y:sy, type,
+      hp: T.hp * hpScale, maxHp: T.hp * hpScale,
+      speed: T.speed * spdScale, dmg: T.dmg,
+      gold: T.gold, radius: T.radius, color: T.color,
+      atkCooldown: Math.random() * 1.5,
+    });
+  }
+  game.monstersLeft = count;
+  game.waveActive = true;
+  const crystalMult = 1 + (metaVal('crystalBonus') || 0);
+  game.crystalsEarned = Math.floor(game.wave * 3 * crystalMult);
+}
+
+export function isStatUpgradeAvailable(stat: any, p = R.game.player, g = R.game) {
+  if (stat.available && !stat.available(p, g)) return false;
+  if (stat.max !== undefined && stat.count && stat.count(p) >= stat.max) return false;
+  return true;
+}
+
+export function generateCards() {
+  const game = R.game;
+  const pool: any[] = [];
+  const p = game.player;
+
+  for (const id of Object.keys(WEAPONS)) {
+    const existing = p.weapons.find((w: any) => w.id === id);
+    if (existing && existing.level < 4) {
+      pool.push({ type:'weapon', weaponId:id, newLevel: existing.level + 1, rarity: WEAPONS[id].rarity });
+    } else if (!existing && p.weapons.length < 6) {
+      pool.push({ type:'weapon', weaponId:id, newLevel:1, rarity: WEAPONS[id].rarity });
+    }
+  }
+
+  for (const s of STAT_UPGRADES) {
+    if (!isStatUpgradeAvailable(s, game.player, game)) continue;
+    pool.push({ type:'stat', statId:s.id, rarity:s.rarity || 'common' });
+  }
+
+  const lk = game.player.luck || 0;
+  const wCommon = Math.max(1, 4 - lk);
+  const wUncommon = 2 + Math.floor(lk * 0.5);
+  const wRare = 1 + lk;
+  const weighted = pool.flatMap(c =>
+    c.rarity === 'rare' ? Array(wRare).fill(c) : c.rarity === 'uncommon' ? Array(wUncommon).fill(c) : Array(wCommon).fill(c)
+  );
+  shuffle(weighted);
+  const seen = new Set();
+  const cards: any[] = [];
+  for (const c of weighted) {
+    const key = c.type === 'weapon' ? c.weaponId : c.statId;
+    if (!seen.has(key)) { seen.add(key); cards.push(c); }
+    if (cards.length >= 4) break;
+  }
+  return cards;
+}
+
+function cardGoldCost(card: any) {
+  const rarityBase: Record<string, number> = { common: 18, uncommon: 32, rare: 55 };
+  const base = rarityBase[card.rarity] || 18;
+  const waveMult = 1 + (R.game.wave - 1) * 0.08;
+  if (card.type === 'weapon' && card.newLevel > 1) return Math.round(base * 0.75 * waveMult);
+  return Math.round(base * waveMult);
+}
+
+export function generateShopCards(n = 4) {
+  const game = R.game;
+  const pool: any[] = [];
+  const p = game.player;
+  for (const id of Object.keys(WEAPONS)) {
+    const existing = p.weapons.find((w: any) => w.id === id);
+    if (existing && existing.level < 4) pool.push({ type:'weapon', weaponId:id, newLevel: existing.level + 1, rarity: WEAPONS[id].rarity });
+    else if (!existing && p.weapons.length < 6) pool.push({ type:'weapon', weaponId:id, newLevel:1, rarity: WEAPONS[id].rarity });
+  }
+  for (const s of STAT_UPGRADES) {
+    if (!isStatUpgradeAvailable(s, game.player, game)) continue;
+    pool.push({ type:'stat', statId:s.id, rarity:s.rarity || 'common' });
+  }
+
+  const lk2 = game.player.luck || 0;
+  const wC2 = Math.max(1, 4 - lk2);
+  const wU2 = 2 + Math.floor(lk2 * 0.5);
+  const wR2 = 1 + lk2;
+  const weighted = pool.flatMap(c => c.rarity === 'rare' ? Array(wR2).fill(c) : c.rarity === 'uncommon' ? Array(wU2).fill(c) : Array(wC2).fill(c));
+  shuffle(weighted);
+  const seen = new Set();
+  const cards: any[] = [];
+  for (const c of weighted) {
+    const key = c.type === 'weapon' ? c.weaponId : c.statId;
+    const inFree = game.levelUpCards && game.levelUpCards.some((fc: any) => {
+      const fkey = fc.type === 'weapon' ? fc.weaponId : fc.statId;
+      return fkey === key;
+    });
+    if (!seen.has(key) && !inFree) { seen.add(key); cards.push({ ...c, cost: cardGoldCost(c) }); }
+    if (cards.length >= n) break;
+  }
+  return cards;
+}
+
+function getRunCardKey(card: any) {
+  return card.type === 'weapon' ? `weapon:${card.weaponId}` : `stat:${card.statId}`;
+}
+
+function getRunCardMeta(entry: any) {
+  if (entry.type === 'weapon') {
+    const def = WEAPONS[entry.weaponId];
+    return def ? {
+      icon: def.icon,
+      name: def.name,
+      desc: def.desc,
+      color: def.color,
+      levelBonus: def.levelBonus,
+    } : null;
+  }
+  const stat = STAT_UPGRADES.find(s => s.id === entry.statId);
+  return stat ? {
+    icon: stat.icon,
+    name: stat.name,
+    desc: stat.desc,
+    color: '#2ecc71',
+    max: stat.max,
+    count: stat.count,
+  } : null;
+}
+
+function recordRunCard(card: any) {
+  const game = R.game;
+  if (!game?.runCardCounts || !game?.runCardOrder) return;
+  const key = getRunCardKey(card);
+  const existing = game.runCardCounts[key];
+  if (existing) {
+    existing.count++;
+  } else {
+    game.runCardCounts[key] = card.type === 'weapon'
+      ? { key, type:'weapon', weaponId: card.weaponId, count:1 }
+      : { key, type:'stat', statId: card.statId, count:1 };
+    game.runCardOrder.push(key);
+  }
+}
+
+export function getRunCardEntries() {
+  const game = R.game;
+  if (!game?.runCardCounts || !game?.runCardOrder) return [];
+  return game.runCardOrder
+    .map((key: string) => game.runCardCounts[key])
+    .filter(Boolean)
+    .map((entry: any) => {
+      const meta = getRunCardMeta(entry);
+      return meta ? { ...entry, ...meta } : null;
+    })
+    .filter(Boolean);
+}
+
+export function getLoadoutStats() {
+  const p = R.game.player;
+  return [
+    { icon:'❤️', name:'Max HP',       value: `${Math.round(p.maxHp)}` },
+    { icon:'💚', name:'Regen',        value: `${(p.regen || 0).toFixed(1)}/s` },
+    { icon:'🩸', name:'Lifesteal',    value: `${Math.round((p.lifesteal || 0) * 100)}%` },
+    { icon:'💢', name:'Damage',       value: `${Math.round((p.dmgMult || 1) * 100)}%` },
+    { icon:'⚡', name:'Atk Speed',    value: `${Math.round((p.atkSpdMult || 1) * 100)}%` },
+    { icon:'👟', name:'Move Speed',   value: `${Math.round(p.speed || 0)}` },
+    { icon:'🔭', name:'Range',        value: `${Math.round((p.rangeMult || 1) * 100)}%` },
+    { icon:'🛡️', name:'Armor',        value: `${Math.round((p.armor || 0) * 100)}%` },
+    { icon:'💵', name:'Gold Find',    value: `${Math.round((p.goldFinder || 0) * 100)}%` },
+    { icon:'🍀', name:'Luck',         value: `${p.luck || 0}` },
+    { icon:'💨', name:'Dash Charges', value: `${p.maxDashes || 0}` },
+  ];
+}
+
+export function applyCard(card: any) {
+  const game = R.game;
+  const p = game.player;
+  if (card.type === 'weapon') {
+    const existing = p.weapons.find((w: any) => w.id === card.weaponId);
+    if (existing) existing.level = card.newLevel;
+    else p.weapons.push(makeWeapon(card.weaponId));
+  } else {
+    const s = STAT_UPGRADES.find(s => s.id === card.statId);
+    if (s) s.apply(p, game);
+  }
+  recordRunCard(card);
+}
+
+export function luCardDims() {
+  const availH = R.H - 90 - 120;
+  const cardH = Math.max(160, Math.min(255, Math.floor(availH / 2)));
+  const cardW = Math.round(cardH * (175 / 255));
+  const gap = Math.max(8, Math.min(16, Math.floor(cardW * 0.09)));
+  return { w: cardW, h: cardH, gap };
+}
+
+export function luPositions() {
+  const { w: cW, h: cH, gap } = luCardDims();
+  const panelW = Math.min(220, R.W * 0.18);
+  const loadoutW = panelW + 16;
+  const centerX = (R.W - loadoutW) / 2;
+  const HEADER_H = 72;
+  const BOT_H = 52;
+  const SEC_GAP = 40;
+  const freeTop = HEADER_H + 26;
+  const shopTop = freeTop + cH + SEC_GAP + 24;
+  return { cW, cH, gap, centerX, freeTop, shopTop, BOT_H };
+}
+
+export function handleCardClick(mx: number, my: number) {
+  const game = R.game;
+  if (!game.levelUpCards) return;
+  const { cW, cH, gap, centerX, freeTop, shopTop } = luPositions();
+
+  const freeN = game.levelUpCards.length;
+  const fTotalW = freeN * cW + (freeN - 1) * gap;
+  const fStartX = centerX - fTotalW / 2;
+  for (let i = 0; i < freeN; i++) {
+    const bx = fStartX + i * (cW + gap);
+    const by = freeTop;
+    if (mx >= bx && mx <= bx + cW && my >= by && my <= by + cH) {
+      applyCard(game.levelUpCards[i]);
+      game._pickedFreeCard = game.levelUpCards[i];
+      game.levelUpCards = [];
+      return;
+    }
+  }
+
+  const sCards = game.shopCards || [];
+  const sTotalW = sCards.length * cW + (sCards.length - 1) * gap;
+  const sStartX = centerX - sTotalW / 2;
+  for (let i = 0; i < sCards.length; i++) {
+    const card = sCards[i];
+    const bx = sStartX + i * (cW + gap);
+    const by = shopTop;
+    if (mx >= bx && mx <= bx + cW && my >= by && my <= by + cH) {
+      if (game.gold >= card.cost && !card._bought) {
+        game.gold -= card.cost;
+        applyCard(card);
+        card._bought = true;
+        game._anyBought = true;
+      }
+      return;
+    }
+  }
+
+  if (R.ui.refreshAllBtn && inBtn(mx, my, R.ui.refreshAllBtn)) {
+    if (game._anyBought) return;
+    if (game.rerollsLeft <= 0) return;
+    game.rerollsLeft--;
+    const freePicked = !game.levelUpCards || game.levelUpCards.length === 0;
+    if (!freePicked) { game.levelUpCards = generateCards(); game._pickedFreeCard = null; }
+    game.shopCards = generateShopCards(4);
+    return;
+  }
+
+  if (R.ui.continueBtn && inBtn(mx, my, R.ui.continueBtn)) {
+    game.levelUpCards = null;
+    R.state = 'playing';
+    game.waveTimer = WAVE_INTERVAL + (game.waveDelayBonus || 0);
+  }
+}
+
+export function updatePlayer(dt: number) {
+  const game = R.game;
+  const p = game.player;
+  p._walkMoved = false;
+  if (p.dead) return;
+  const startX = p.x;
+  const startY = p.y;
+
+  if (p.regen) {
+    p.hp = Math.min(p.hp + p.regen * dt, p.maxHp);
+  }
+
+  if (p.dashing) {
+    p.dashTimer -= dt;
+    p.x += p.dashVx * dt;
+    p.y += p.dashVy * dt;
+    if (p.dashTimer <= 0) { p.dashing = false; p.invincible = Math.max(p.invincible, 0.1); }
+  } else {
+    let dx = 0, dy = 0;
+    if (game.keys['KeyW'] || game.keys['ArrowUp'])    { dx -= 1; dy -= 1; }
+    if (game.keys['KeyS'] || game.keys['ArrowDown'])  { dx += 1; dy += 1; }
+    if (game.keys['KeyA'] || game.keys['ArrowLeft'])  { dx -= 1; dy += 1; }
+    if (game.keys['KeyD'] || game.keys['ArrowRight']) { dx += 1; dy -= 1; }
+    const len = Math.hypot(dx, dy);
+    if (len > 0) {
+      dx /= len;
+      dy /= len;
+      p.facing = { x:dx, y:dy };
+      p.x += dx * p.speed * dt;
+      p.y += dy * p.speed * dt;
+      p._walkMoved = true;
+    }
+  }
+
+  if (p.dashCooldown > 0) {
+    p.dashCooldown -= dt;
+    if (p.dashCooldown <= 0 && p.dashes < p.maxDashes) {
+      p.dashes++;
+      if (p.dashes < p.maxDashes) p.dashCooldown = DASH_COOLDOWN;
+    }
+  }
+
+  if (p.flashTimer > 0) p.flashTimer -= dt;
+  if (p.invincible > 0) p.invincible -= dt;
+  if (p.hp <= 0) p.dead = true;
+  p._walkMoved = p._walkMoved && dist(startX, startY, p.x, p.y) > 1;
+
+  for (const w of p.weapons) {
+    const def = WEAPONS[w.id];
+    if (def.mode === 'minigun') {
+      const any = game.monsters.length > 0;
+      if (any) w.spinup = Math.min(1, w.spinup + dt * 0.8);
+      else w.spinup = Math.max(0, w.spinup - dt * 0.4);
+    }
+    if (w.cooldown > 0) { w.cooldown -= dt; continue; }
+
+    const rate = calcRate(def, w, p);
+    const range = calcRange(def, w, p);
+    const target = nearestMonster(p.x, p.y, range);
+    if (!target) continue;
+
+    fireWeapon(w, def, p, target);
+    w.cooldown = 1 / rate;
+  }
+}
+
+function calcDmg(def: any, w: any, p: any) {
+  let dmg = def.dmg * p.dmgMult;
+  if (w.level >= 2) dmg *= 1.25;
+  if (w.level >= 3) dmg *= 1.35;
+  if (w.level >= 4) dmg *= 1.50;
+  return dmg;
+}
+
+function calcRate(def: any, w: any, p: any) {
+  let rate = def.rate * p.atkSpdMult;
+  if (def.mode === 'minigun') rate = def.rate + (def.maxRate - def.rate) * w.spinup;
+  if (w.level >= 2 && def.levelBonus[1]?.includes('fire rate')) rate *= 1.40;
+  if (w.level >= 3 && def.levelBonus[2]?.includes('fire rate')) rate *= 1.30;
+  if (w.level >= 4 && def.levelBonus[3]?.includes('rate')) rate *= 1.50;
+  return rate;
+}
+
+function calcRange(def: any, w: any, p: any) {
+  let range = def.range * p.rangeMult;
+  if (w.level >= 4 && def.levelBonus[3]?.includes('range')) range *= 1.40;
+  return range;
+}
+
+function nearestMonster(x: number, y: number, maxR: number) {
+  const game = R.game;
+  let best = null;
+  let bestD = maxR;
+  for (const m of game.monsters) {
+    const d = dist(x, y, m.x, m.y);
+    if (d < bestD) { bestD = d; best = m; }
+  }
+  return best;
+}
+
+function addProjectile(projectile: any) {
+  const game = R.game;
+  const life = projectile.life ?? 1;
+  const size = projectile.size ?? 5;
+  game.projectiles.push({
+    age: 0,
+    maxLife: projectile.maxLife ?? life,
+    length: Math.max(6, projectile.length ?? size * 2.6),
+    width: Math.max(2, projectile.width ?? size * 0.75),
+    trailColor: projectile.trailColor || projectile.color,
+    coreColor: projectile.coreColor || '#ffffff',
+    glow: projectile.glow ?? 10,
+    rot: projectile.rot ?? 0,
+    spin: projectile.spin ?? 0,
+    ...projectile,
+  });
+}
+
+function createBoltPoints(x1: number, y1: number, x2: number, y2: number, segments = 6, spread = 24) {
+  const points = [{ x:x1, y:y1 }];
+  const nx = -(y2 - y1);
+  const ny = x2 - x1;
+  const nLen = Math.hypot(nx, ny) || 1;
+  for (let i = 1; i < segments; i++) {
+    const t = i / segments;
+    const baseX = x1 + (x2 - x1) * t;
+    const baseY = y1 + (y2 - y1) * t;
+    const falloff = 1 - Math.abs(t - 0.5) * 1.3;
+    const offset = (Math.random() - 0.5) * spread * falloff;
+    points.push({
+      x: baseX + nx / nLen * offset,
+      y: baseY + ny / nLen * offset,
+    });
+  }
+  points.push({ x:x2, y:y2 });
+  return points;
+}
+
+function spawnSparkBurst(x: number, y: number, color: string, count: number, speed: number, spread = Math.PI * 2, baseAngle = 0) {
+  const game = R.game;
+  for (let i = 0; i < count; i++) {
+    const ang = baseAngle + (Math.random() - 0.5) * spread;
+    const vel = speed * (0.45 + Math.random() * 0.75);
+    game.particles.push({
+      x, y,
+      vx: Math.cos(ang) * vel,
+      vy: Math.sin(ang) * vel,
+      life: 0.14 + Math.random() * 0.14,
+      maxLife: 0.28,
+      color,
+      r: 2 + Math.random() * 2,
+      width: 1 + Math.random() * 1.2,
+      type: 'spark',
+    });
+  }
+}
+
+function spawnSmokePuffs(x: number, y: number, count: number, size: number, speed: number, color = '#64748b') {
+  const game = R.game;
+  for (let i = 0; i < count; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const vel = speed * (0.2 + Math.random() * 0.5);
+    game.particles.push({
+      x, y,
+      vx: Math.cos(ang) * vel,
+      vy: Math.sin(ang) * vel - speed * 0.25,
+      life: 0.28 + Math.random() * 0.26,
+      maxLife: 0.6,
+      color,
+      r: size * (0.4 + Math.random() * 0.45),
+      grow: 12 + Math.random() * 10,
+      type: 'smoke',
+    });
+  }
+}
+
+function spawnShockRing(x: number, y: number, color: string, maxRadius: number, lineWidth = 2, life = 0.22) {
+  R.game.particles.push({ x, y, life, maxLife: life, color, maxRadius, lineWidth, type:'ring' });
+}
+
+function spawnMuzzleFlash(x: number, y: number, angle: number, color: string, size = 16) {
+  spawnSparkBurst(x, y, color, 4, 120, 0.7, angle);
+  spawnShockRing(x + Math.cos(angle) * 10, y + Math.sin(angle) * 10, color, size, 1.5, 0.08);
+}
+
+function spawnProjectileImpact(p: any) {
+  switch (p.visual) {
+    case 'sniper':
+      spawnSparkBurst(p.x, p.y, '#d9c2ff', 8, 170);
+      spawnShockRing(p.x, p.y, '#b388ff', 18, 2.5, 0.12);
+      break;
+    case 'shotgun':
+      spawnSparkBurst(p.x, p.y, '#ffbe82', 5, 95);
+      break;
+    case 'flame':
+      spawnSparkBurst(p.x, p.y, '#ff9348', 3, 50);
+      spawnSmokePuffs(p.x, p.y, 1, 6, 12, '#5b4636');
+      break;
+    case 'boomerang':
+      spawnSparkBurst(p.x, p.y, '#ff9dc8', 4, 80);
+      break;
+    default:
+      spawnSparkBurst(p.x, p.y, p.color, 4, 80);
+      break;
+  }
+}
+
+function fireWeapon(w: any, def: any, owner: any, target: any) {
+  const dmg = calcDmg(def, w, owner);
+  const ox = owner.x, oy = owner.y;
+  const tx = target.x, ty = target.y;
+  const aimAng = Math.atan2(ty - oy, tx - ox);
+
+  switch (def.mode) {
+    case 'basic':
+      if (w.id === 'rifle') {
+        spawnProj(ox, oy, tx, ty, dmg, def.projSpeed, def.projSize, def.color, 'player', false, {
+          visual: 'rifle',
+          trailColor: '#5cf2a0',
+          coreColor: '#f4fff9',
+          length: 18,
+          width: 3,
+          glow: 13,
+          life: 1.1,
+        });
+        spawnMuzzleFlash(ox, oy, aimAng, '#5cf2a0', 14);
+      } else {
+        spawnProj(ox, oy, tx, ty, dmg, def.projSpeed, def.projSize, def.color, 'player', false, {
+          visual: 'pistol',
+          trailColor: '#8ecbff',
+          coreColor: '#ffffff',
+          length: 15,
+          width: 4,
+          glow: 11,
+        });
+        spawnMuzzleFlash(ox, oy, aimAng, '#8ecbff', 12);
+      }
+      break;
+
+    case 'minigun':
+      spawnProj(ox, oy, tx, ty, dmg, def.projSpeed, def.projSize, def.color, 'player', false, {
+        visual: 'minigun',
+        trailColor: '#8fd8ff',
+        coreColor: '#ffffff',
+        length: 12,
+        width: 2.4,
+        glow: 10,
+        life: 0.95,
+      });
+      if (Math.random() < 0.6) spawnMuzzleFlash(ox, oy, aimAng, '#8fd8ff', 10);
+      break;
+
+    case 'shotgun': {
+      const pellets = def.pellets + (w.level >= 2 ? 2 : 0) + (w.level >= 4 ? 2 : 0);
+      const baseAng = aimAng;
+      for (let i = 0; i < pellets; i++) {
+        const spread = (i / (pellets - 1) - 0.5) * def.spread;
+        const ang = baseAng + spread;
+        const speed = def.projSpeed * (0.85 + Math.random() * 0.3);
+        addProjectile({
+          x:ox, y:oy,
+          vx:Math.cos(ang) * speed, vy:Math.sin(ang) * speed,
+          dmg, size:def.projSize, color:def.color, life:0.45,
+          owner:'player', pierce:false, type:'basic',
+          visual:'shotgun',
+          trailColor:'#ffb56f',
+          coreColor:'#fff2d8',
+          length:10,
+          width:3.2,
+          glow:8,
+        });
+      }
+      spawnMuzzleFlash(ox, oy, baseAng, '#ff9d4d', 18);
+      break;
+    }
+
+    case 'pierce':
+      spawnProj(ox, oy, tx, ty, dmg, def.projSpeed, def.projSize, def.color, 'player', true, {
+        visual: 'sniper',
+        trailColor: '#c79bff',
+        coreColor: '#ffffff',
+        length: 28,
+        width: 3.6,
+        glow: 18,
+        life: 1.4,
+      });
+      spawnMuzzleFlash(ox, oy, aimAng, '#c79bff', 20);
+      break;
+
+    case 'melee': {
+      const arcMult = w.level >= 2 ? 1.3 : 1;
+      const range = def.range * arcMult;
+      const baseAng = Math.atan2(ty - oy, tx - ox);
+      const halfArc = def.arcAngle / 2;
+      const hits = new Set();
+      for (const m of R.game.monsters) {
+        const d = dist(ox, oy, m.x, m.y);
+        if (d > range + m.radius) continue;
+        const ang = Math.atan2(m.y - oy, m.x - ox);
+        let diff = ang - baseAng;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        if (Math.abs(diff) <= halfArc) hits.add(m);
+      }
+      hits.forEach((m: any) => {
+        dealDamage(m, dmg, owner);
+        spawnParticles(m.x, m.y, def.color, 5, 60);
+      });
+      for (let i = 0; i < 8; i++) {
+        const ang = baseAng - halfArc + (i / 7) * def.arcAngle;
+        const r = range * (0.5 + Math.random() * 0.5);
+        spawnParticles(ox + Math.cos(ang) * r, oy + Math.sin(ang) * r, def.color, 2, 30);
+      }
+      break;
+    }
+
+    case 'flame': {
+      const baseAng = aimAng;
+      for (let i = 0; i < 4; i++) {
+        const ang = baseAng + (Math.random() - 0.5) * 0.5;
+        const speed = def.projSpeed * (0.6 + Math.random() * 0.6);
+        addProjectile({
+          x:ox, y:oy,
+          vx:Math.cos(ang) * speed, vy:Math.sin(ang) * speed,
+          dmg,
+          size: 6 + Math.random() * 5,
+          color: Math.random() > 0.5 ? '#ff6b35' : '#f1c40f',
+          life: 0.26 + Math.random() * 0.12,
+          owner:'player', pierce:false, type:'flame',
+          visual:'flame',
+          trailColor:'#ff9348',
+          coreColor:'#fff4a8',
+          glow:12,
+          spin:(Math.random() - 0.5) * 4,
+        });
+      }
+      if (Math.random() < 0.35) spawnMuzzleFlash(ox, oy, baseAng, '#ff9348', 12);
+      break;
+    }
+
+    case 'grenade':
+      addProjectile({
+        x:ox, y:oy,
+        vx:(tx - ox) / dist(ox, oy, tx, ty) * def.projSpeed,
+        vy:(ty - oy) / dist(ox, oy, tx, ty) * def.projSpeed,
+        dmg,
+        blastR: def.blastR * (w.level >= 2 ? 1.4 : 1),
+        size:def.projSize,
+        color:def.color,
+        life:1.2,
+        maxLife:1.2,
+        owner:'player',
+        pierce:false,
+        type:'grenade',
+        visual:'grenade',
+        tx, ty,
+        rot: Math.random() * Math.PI * 2,
+        spin: 9 + Math.random() * 4,
+        fuseTimer: 0.05,
+      });
+      spawnMuzzleFlash(ox, oy, aimAng, '#ffd54f', 14);
+      break;
+
+    case 'lightning': {
+      const chains = def.chains + (w.level >= 2 ? 2 : 0) + (w.level >= 4 ? 3 : 0);
+      let current = { x:ox, y:oy };
+      const hit = new Set();
+      let near = target;
+      for (let i = 0; i < chains && near; i++) {
+        hit.add(near);
+        dealDamage(near, dmg, owner);
+        R.game.particles.push({
+          x:current.x, y:current.y, tx:near.x, ty:near.y,
+          life:0.18, maxLife:0.18, type:'bolt', color:'#a29bfe',
+          points: createBoltPoints(current.x, current.y, near.x, near.y, 7, 26),
+        });
+        spawnSparkBurst(near.x, near.y, '#d8c7ff', 4, 90);
+        current = near;
+        near = null;
+        let bestD2 = 220;
+        for (const m of R.game.monsters) {
+          if (hit.has(m)) continue;
+          const d2 = dist(current.x, current.y, m.x, m.y);
+          if (d2 < bestD2) { bestD2 = d2; near = m; }
+        }
+      }
+      break;
+    }
+
+    case 'boomerang': {
+      const ang = aimAng;
+      addProjectile({
+        x:ox, y:oy,
+        startX:ox, startY:oy,
+        vx:Math.cos(ang) * def.projSpeed,
+        vy:Math.sin(ang) * def.projSpeed,
+        dmg,
+        size:def.projSize,
+        color:def.color,
+        life:1.0,
+        owner:'player',
+        pierce:true,
+        type:'boomerang',
+        visual:'boomerang',
+        ang,
+        rot: ang,
+        spin: 14,
+        returning:false,
+        hits:new Set(),
+      });
+      break;
+    }
+  }
+}
+
+function spawnProj(ox: number, oy: number, tx: number, ty: number, dmg: number, speed: number, size: number, color: string, owner: string, pierce: boolean, opts: any = {}) {
+  const d = dist(ox, oy, tx, ty);
+  if (d === 0) return;
+  addProjectile({
+    x:ox, y:oy,
+    vx:(tx - ox) / d * speed, vy:(ty - oy) / d * speed,
+    dmg, size, color,
+    life: opts.life ?? 2,
+    owner, pierce,
+    type: opts.type || 'basic',
+    ...opts,
+  });
+}
+
+export function updateMonsters(dt: number) {
+  const game = R.game;
+  const t = game.tower;
+  for (let i = game.monsters.length - 1; i >= 0; i--) {
+    const m = game.monsters[i];
+
+    if (dist(m.x, m.y, t.x, t.y) <= t.auraR) {
+      m.hp -= t.auraDmg * dt;
+      if (m.hp <= 0) { killMonster(i); continue; }
+    }
+
+    const targets = [
+      { x:t.x, y:t.y, isStruct:true, ref:t },
+      { x:game.player.x, y:game.player.y, isStruct:false, ref:game.player },
+      ...game.outposts.map((op: any) => ({ x:op.x, y:op.y, isStruct:true, ref:op })),
+    ];
+    const nearest = targets.reduce((b, t2) => {
+      const d = dist(m.x, m.y, t2.x, t2.y);
+      return d < b.d ? { d, t:t2 } : b;
+    }, { d:Infinity, t:null as any });
+    const tgt = nearest.t;
+    if (!tgt) continue;
+
+    const d = nearest.d;
+    const contactR = (tgt.isStruct ? 22 : PLAYER_RADIUS) + m.radius;
+
+    if (d > contactR) {
+      m.x += (tgt.x - m.x) / d * m.speed * dt;
+      m.y += (tgt.y - m.y) / d * m.speed * dt;
+    }
+
+    if (m.atkCooldown > 0) { m.atkCooldown -= dt; continue; }
+    if (d > contactR + 8) continue;
+    m.atkCooldown = 1.4;
+
+    if (!tgt.isStruct) {
+      if (game.player.invincible <= 0 && !game.player.dashing) {
+        const dmg = m.dmg * (1 - (game.player.armor || 0));
+        game.player.hp -= dmg;
+        game.player.flashTimer = 0.15;
+        game.player.invincible = 0.45;
+        spawnDmgNum(game.player.x, game.player.y - 24, Math.round(dmg), '#ff6b6b');
+      }
+    } else {
+      tgt.ref.hp -= m.dmg;
+      spawnDmgNum(tgt.x, tgt.y - 24, Math.round(m.dmg), '#ff6b6b');
+      if (tgt.ref.hp <= 0 && tgt.ref !== t) {
+        const idx = game.outposts.indexOf(tgt.ref);
+        if (idx !== -1) { spawnParticles(tgt.ref.x, tgt.ref.y, '#e74c3c', 20, 80); game.outposts.splice(idx, 1); }
+      }
+    }
+  }
+}
+
+export function updateAutoConstruct() {
+  const game = R.game;
+  if (!(R.meta.upgrades['autoConstruct'] > 0)) return;
+  const mode = AUTO_CONSTRUCT_MODES[game.autoConstructMode || 0] || AUTO_CONSTRUCT_MODES[0];
+  if (mode.spacing <= 0) return;
+  const p = game.player;
+  if (p.dashing || !p._walkMoved) return;
+  const { anchor, dist: anchorDist } = nearestAnchor(p.x, p.y);
+  if (!anchor) return;
+  if (anchorDist < mode.spacing) return;
+  if (tryPlaceOutpostAt(p.x, p.y)) {
+    spawnDmgNum(p.x, p.y - 28, `AUTO ${mode.label}`, '#27ae60');
+  }
+}
+
+export function updateStructures(dt: number) {
+  const game = R.game;
+  const t = game.tower;
+  if (t.atkCooldown > 0) t.atkCooldown -= dt;
+  else {
+    const m = nearestMonster(t.x, t.y, t.atkRange);
+    if (m) {
+      spawnProj(t.x, t.y, m.x, m.y, t.atkDmg, 460, 8, '#f1c40f', 'tower', false, {
+        visual:'tower',
+        trailColor:'#ffe082',
+        coreColor:'#fffbe8',
+        length:16,
+        width:4,
+        glow:12,
+        life:1.2,
+      });
+      t.atkCooldown = 1 / t.atkSpeed;
+    }
+  }
+  for (const op of game.outposts) {
+    if (op.atkCooldown > 0) { op.atkCooldown -= dt; continue; }
+    const m = nearestMonster(op.x, op.y, op.atkRange);
+    if (m) {
+      spawnProj(op.x, op.y, m.x, m.y, op.atkDmg, 420, 6, '#27ae60', 'structure', false, {
+        visual:'structure',
+        trailColor:'#78f3a5',
+        coreColor:'#f3fff7',
+        length:14,
+        width:3,
+        glow:10,
+        life:1.1,
+      });
+      op.atkCooldown = 1 / op.atkSpeed;
+    }
+  }
+}
+
+export function updateProjectiles(dt: number) {
+  const game = R.game;
+  for (let i = game.projectiles.length - 1; i >= 0; i--) {
+    const p = game.projectiles[i];
+    p.life -= dt;
+    p.age = (p.age || 0) + dt;
+    if (p.spin) p.rot += p.spin * dt;
+    if (p.life <= 0) { game.projectiles.splice(i, 1); continue; }
+
+    if (p.type === 'flame') {
+      p.vx *= 0.95;
+      p.vy *= 0.95;
+      p.renderSize = (p.renderSize || p.size) + dt * 10;
+      if (Math.random() < dt * 12) spawnSmokePuffs(p.x, p.y, 1, 4, 10, '#5a4634');
+    }
+
+    if (p.type === 'grenade') {
+      p.fuseTimer = (p.fuseTimer || 0) - dt;
+      if (p.fuseTimer <= 0) {
+        p.fuseTimer = 0.05;
+        spawnSparkBurst(p.x, p.y, '#ffd54f', 1, 45, 0.7, Math.atan2(p.vy, p.vx) + Math.PI);
+        if (Math.random() < 0.7) spawnSmokePuffs(p.x, p.y, 1, 4, 8);
+      }
+    }
+
+    if (p.type === 'boomerang') {
+      if (!p.returning && p.life < 0.5) {
+        p.returning = true;
+        const owner = game.player;
+        const d = dist(p.x, p.y, owner.x, owner.y);
+        p.vx = (owner.x - p.x) / d * 320;
+        p.vy = (owner.y - p.y) / d * 320;
+      }
+      if (p.returning) {
+        const owner = game.player;
+        const d = dist(p.x, p.y, owner.x, owner.y);
+        if (d < 20) { game.projectiles.splice(i, 1); continue; }
+        p.vx = (owner.x - p.x) / d * 320;
+        p.vy = (owner.y - p.y) / d * 320;
+      }
+    }
+
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+
+    if (p.type === 'grenade' && dist(p.x, p.y, p.tx, p.ty) < 30) {
+      explodeGrenade(p);
+      game.projectiles.splice(i, 1);
+      continue;
+    }
+
+    if (p.owner === 'tower' || p.owner === 'structure' || p.owner === 'player') {
+      for (let j = game.monsters.length - 1; j >= 0; j--) {
+        const m = game.monsters[j];
+        if (p.hits && p.hits.has(m)) continue;
+        if (dist(p.x, p.y, m.x, m.y) < m.radius + p.size) {
+          const killed = dealDamage(m, p.dmg, p.owner === 'player' ? game.player : null);
+          if (p.hits) p.hits.add(m);
+          spawnProjectileImpact(p);
+          if (killed) killMonster(j);
+          if (!p.pierce) { game.projectiles.splice(i, 1); break; }
+        }
+      }
+    }
+  }
+}
+
+function explodeGrenade(p: any) {
+  const game = R.game;
+  spawnShockRing(p.x, p.y, '#ffd54f', p.blastR * 0.7, 4, 0.22);
+  spawnParticles(p.x, p.y, '#f1c40f', 20, 100);
+  spawnParticles(p.x, p.y, '#ff6b35', 14, 70);
+  spawnSparkBurst(p.x, p.y, '#ffd54f', 14, 180);
+  spawnSmokePuffs(p.x, p.y, 7, 12, 55, '#6b7280');
+  for (let j = game.monsters.length - 1; j >= 0; j--) {
+    const m = game.monsters[j];
+    if (dist(p.x, p.y, m.x, m.y) < p.blastR + m.radius) {
+      const killed = dealDamage(m, p.dmg, game.player);
+      if (killed) killMonster(j);
+    }
+  }
+}
+
+function dealDamage(monster: any, rawDmg: number, owner: any) {
+  monster.hp -= rawDmg;
+  spawnDmgNum(monster.x, monster.y - monster.radius, Math.round(rawDmg), '#fff');
+  if (owner && owner.lifesteal) {
+    owner.hp = Math.min(owner.hp + rawDmg * owner.lifesteal, owner.maxHp);
+  }
+  return monster.hp <= 0;
+}
+
+function killMonster(i: number) {
+  const game = R.game;
+  const m = game.monsters[i];
+  const goldMult = 1 + (game.player.goldFinder || 0);
+  const gold = Math.round(m.gold * goldMult);
+  game.gold += gold;
+  spawnParticles(m.x, m.y, m.color, 10, 55);
+  spawnDmgNum(m.x, m.y, gold, '#f1c40f');
+  game.monsters.splice(i, 1);
+  game.monstersLeft = Math.max(0, game.monstersLeft - 1);
+  checkWaveEnd();
+}
+
+function checkWaveEnd() {
+  const game = R.game;
+  if (game.waveActive && game.monsters.length === 0) {
+    game.waveActive = false;
+    game.waveTimer = WAVE_INTERVAL + (game.waveDelayBonus || 0);
+    if (game.devSession) {
+      finishDevSession(`Wave ${game.wave} cleared. Adjust the preset and run again.`);
+      return;
+    }
+    game.rerollsLeft = 1;
+    game.levelUpCards = generateCards();
+    game.shopCards = generateShopCards(4);
+    game._pickedFreeCard = null;
+    game._anyBought = false;
+    R.state = 'levelup';
+  }
+}
+
+function spawnParticles(x: number, y: number, color: string, count: number, speed: number) {
+  const game = R.game;
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = speed * (0.3 + Math.random() * 0.7);
+    game.particles.push({ x, y, vx:Math.cos(a) * s, vy:Math.sin(a) * s, life:0.5 + Math.random() * 0.3, maxLife:0.8, color, r:2 + Math.random() * 3, type:'circle' });
+  }
+}
+
+function spawnDmgNum(x: number, y: number, val: any, color?: string) {
+  const v = typeof val === 'string' ? val : Math.round(val);
+  R.game.dmgNumbers.push({ x, y, val: v, life:1.5, color: color || '#fff' });
+}
+
+export function updateParticles(dt: number) {
+  const game = R.game;
+  for (let i = game.particles.length - 1; i >= 0; i--) {
+    const p = game.particles[i];
+    p.life -= dt;
+    if (p.life <= 0) { game.particles.splice(i, 1); continue; }
+    if (p.type === 'bolt' || p.type === 'ring') continue;
+    if (p.type === 'smoke') {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= 0.96;
+      p.vy *= 0.92;
+      p.r += (p.grow || 10) * dt;
+      continue;
+    }
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vx *= p.type === 'spark' ? 0.88 : 0.91;
+    p.vy *= p.type === 'spark' ? 0.88 : 0.91;
+  }
+}
+
+export function updateDmgNums(dt: number) {
+  const game = R.game;
+  for (let i = game.dmgNumbers.length - 1; i >= 0; i--) {
+    const d = game.dmgNumbers[i];
+    d.y -= 32 * dt;
+    d.life -= dt;
+    if (d.life <= 0) game.dmgNumbers.splice(i, 1);
+  }
+}
+
+export function tryDash() {
+  const p = R.game.player;
+  if (p.dashing || p.dashes <= 0) return;
+  p.dashing = true;
+  p.dashTimer = DASH_DURATION;
+  p.dashes--;
+  if (p.dashCooldown <= 0) p.dashCooldown = DASH_COOLDOWN;
+  p.invincible = DASH_DURATION + 0.05;
+  p.dashVx = p.facing.x * DASH_SPEED;
+  p.dashVy = p.facing.y * DASH_SPEED;
+  spawnParticles(p.x, p.y, '#3498db', 8, 80);
+}
+
+export function buildDropChanceTable(luck?: number) {
+  const game = R.game;
+  const lk = luck ?? ((game && game.player && game.player.luck) || 0);
+  const wC = Math.max(1, 4 - lk);
+  const wU = 2 + Math.floor(lk * 0.5);
+  const wR = 1 + lk;
+
+  let nC = 0, nU = 0, nR = 0;
+  for (const [id, def] of Object.entries(WEAPONS)) {
+    if (game) {
+      const existing = game.player.weapons.find((w: any) => w.id === id);
+      if (existing && existing.level >= 4) continue;
+      if (!existing && game.player.weapons.length >= 6) continue;
+    }
+    const rarity = (def as any).rarity || 'common';
+    if (rarity === 'rare') nR++;
+    else if (rarity === 'uncommon') nU++;
+    else nC++;
+  }
+  for (const s of STAT_UPGRADES) {
+    if (game && !isStatUpgradeAvailable(s, game.player, game)) continue;
+    const rarity = s.rarity || 'common';
+    if (rarity === 'rare') nR++;
+    else if (rarity === 'uncommon') nU++;
+    else nC++;
+  }
+
+  const totalWeight = nC * wC + nU * wU + nR * wR;
+  if (totalWeight === 0) return { common: 0, uncommon: 0, rare: 0 };
+  return {
+    common:   Math.round(wC / totalWeight * 1000) / 10,
+    uncommon: Math.round(wU / totalWeight * 1000) / 10,
+    rare:     Math.round(wR / totalWeight * 1000) / 10,
+  };
+}
+
+export function rarityDropChance(rarity: string, luck?: number) {
+  const t = buildDropChanceTable(luck);
+  return rarity === 'rare' ? t.rare : rarity === 'uncommon' ? t.uncommon : t.common;
+}
+
+export function startDevWave() {
+  const startWeapons = DEV_WEAPON_IDS
+    .filter(id => (R.dev.config.weaponLevels[id] || 0) > 0)
+    .map(id => ({ id, level: clamp(R.dev.config.weaponLevels[id] || 1, 1, 4) }));
+  newGame({
+    startGold: clamp(Math.round(R.dev.config.gold || 0), 0, 999999),
+    startWeapons,
+  });
+  for (const stat of STAT_UPGRADES) {
+    const count = clamp(Math.round(R.dev.config.cardCounts[stat.id] || 0), 0, devCardLimit(stat));
+    for (let i = 0; i < count; i++) {
+      applyCard({ type:'stat', statId: stat.id, rarity: stat.rarity || 'common' });
+    }
+  }
+  R.game.wave = clamp(Math.round(R.dev.config.wave || 1), 1, 999) - 1;
+  R.game.waveTimer = 0;
+  R.game.levelUpCards = null;
+  R.game.shopCards = null;
+  R.state = 'playing';
+  startNextWave(false);
+  R.dev.menuStatus = `Started a normal run at wave ${R.game.wave}.`;
+}

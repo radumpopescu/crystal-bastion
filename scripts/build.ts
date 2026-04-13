@@ -1,4 +1,4 @@
-import { copyFile, mkdir, rm } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const rootDir = resolve(import.meta.dir, '..');
@@ -24,7 +24,8 @@ const proc = Bun.spawn([
 const exitCode = await proc.exited;
 if (exitCode !== 0) process.exit(exitCode);
 
-await copyFile(resolve(rootDir, 'index.html'), resolve(distDir, 'index.html'));
+const indexTemplate = await readFile(resolve(rootDir, 'index.html'), 'utf8');
+await writeFile(resolve(distDir, 'index.html'), indexTemplate.replace('dist/game.js', 'game.js'));
 await copyFile(resolve(rootDir, 'style.css'), resolve(distDir, 'style.css'));
 
-console.log('Built dist/index.html and dist/game.js from the live root game.js.');
+console.log('Built dist/index.html and dist/game.js from the modular TypeScript source.');
