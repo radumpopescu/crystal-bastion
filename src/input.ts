@@ -1,5 +1,5 @@
 import { R, metaVal } from './state';
-import { handleCardClick, handlePlayingClick, handleUpgradeMenuClick, toggleUpgradeMenu, tryDash, tryPlaceOutpost } from './systems';
+import { handleCardClick, handlePlayingClick, handleUpgradeMenuClick, startNextWave, toggleUpgradeMenu, tryDash, tryPlaceOutpost } from './systems';
 import { handleDevMenuClick, handleGameoverClick, handleMenuClick, handleMetaClick, handlePauseClick } from './render';
 import { clamp } from './utils';
 
@@ -17,6 +17,11 @@ window.addEventListener('keydown', e => {
     }
   }
   if (R.state === 'playing') {
+    if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !e.repeat && !R.game.waveActive && !R.game.showUpgradeMenu) {
+      e.preventDefault();
+      startNextWave(true);
+      return;
+    }
     if (e.code === 'KeyE') tryPlaceOutpost();
     if (e.code === 'KeyU') toggleUpgradeMenu();
     if (e.code === 'Space') tryDash();

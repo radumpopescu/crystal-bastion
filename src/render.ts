@@ -627,7 +627,7 @@ function renderHUD() {
     ctx.fillStyle = '#2ecc71'; ctx.font = 'bold 15px monospace';
     ctx.fillText(`⏱ Next in ${Math.ceil(game.waveTimer)}s`, 20, 56);
     const earlyGold = Math.max(2, Math.round(7 * (game.waveTimer / (WAVE_INTERVAL + (game.waveDelayBonus || 0))) * (game.earlyBonusMult || 1) * (1 + game.wave * 0.12)));
-    ui.waveStartBtn = btn(125, 112, `▶ START  (+${earlyGold}g)`, '#e67e22', 220, 36);
+    ui.waveStartBtn = btn(125, 112, `▶ START [ENTER] (+${earlyGold}g)`, '#e67e22', 220, 36);
   }
   ctx.fillStyle = '#556'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
   ctx.fillText(game.player.weapons.map((w: any) => `${WEAPONS[w.id].icon}${w.level}`).join('  '), 20, game.waveActive ? 78 : 82);
@@ -638,7 +638,7 @@ function renderHUD() {
   rrect(W - 230, controlsBoxY, 220, controlsBoxH, 6); ctx.fill();
   ctx.fillStyle = '#666'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
   ctx.fillText('WASD move · SPACE dash', W - 14, controlsBoxY + 20);
-  ctx.fillText('E: tower · U: upgrades · P: pause', W - 14, controlsBoxY + 36);
+  ctx.fillText('E: tower · U: upgrades · ENTER: wave', W - 14, controlsBoxY + 36);
   ctx.fillStyle = '#a855f7'; ctx.font = 'bold 13px monospace';
   ctx.fillText(`💎 ${meta.crystals} crystals`, W - 14, controlsBoxY + 56);
   ctx.fillStyle = autoConstructUnlocked ? '#7f8c8d' : '#4f5b66'; ctx.font = '11px monospace';
