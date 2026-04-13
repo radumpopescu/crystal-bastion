@@ -1,0 +1,8 @@
+{
+  "name": "tower-survival",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "bun build src/main.ts --outfile dist/bundle.js --target browser",
+    "dev": "bun build src/main.ts --outfile dist/bundle.js --target browser --watch"
+  }
+}
