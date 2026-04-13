@@ -809,7 +809,7 @@ function drawCard(card: any, bx: number, by: number, cW: number, cH: number, opt
   if (opts.locked) {
     ctx.fillStyle = '#f1c40f';
     ctx.font = 'bold 10px monospace';
-    ctx.fillText('LOCKED FOR NEXT SHOP', bx + cW / 2, by + cH - 58);
+    ctx.fillText('HELD FOR NEXT SHOP', bx + cW / 2, by + cH - 58);
   }
   if (opts.costLabel) {
     const canAfford = game.gold >= card.cost;
@@ -989,6 +989,8 @@ function renderLevelUpCards() {
   rrect(sStartX - 14, shopTop - 28, sTotalW + 28, cH + 36, 8); ctx.stroke();
   ctx.fillStyle = '#f39c12'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left';
   ctx.fillText('🛒  SHOP', sStartX - 10, shopTop - 12);
+  ctx.fillStyle = '#95a5a6'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
+  ctx.fillText('Use LOCK NEXT to keep a card for the next shop.', sStartX - 10, shopTop + cH + 18);
   ctx.fillStyle = '#888'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
   ctx.fillText(`Gold: ${game.gold} 🪙`, sStartX + sTotalW + 10, shopTop - 12);
   sCards.forEach((card: any, i: number) => {
@@ -997,19 +999,19 @@ function renderLevelUpCards() {
     if (card._bought) drawCard(card, bx, shopTop, cW, cH, { picked: true, costLabel: '✓ BOUGHT', needsSlot, locked: card._locked });
     else drawCard(card, bx, shopTop, cW, cH, { shopCard: true, dimmed: game.gold < card.cost, costLabel: `${card.cost}🪙`, needsSlot, locked: card._locked });
     if (!card._bought) {
-      const lockX = bx + cW - 48;
+      const lockW = 62;
+      const lockH = 18;
+      const lockX = bx + cW - lockW - 8;
       const lockY = shopTop + 10;
-      const lockW = 38;
-      const lockH = 16;
-      ctx.fillStyle = card._locked ? '#6b5200' : '#1f2937';
+      ctx.fillStyle = card._locked ? '#6b5200' : '#223047';
       rrect(lockX, lockY, lockW, lockH, 4); ctx.fill();
-      ctx.strokeStyle = card._locked ? '#f1c40f' : 'rgba(255,255,255,0.12)';
+      ctx.strokeStyle = card._locked ? '#f1c40f' : '#7f8c8d';
       ctx.lineWidth = 1;
       rrect(lockX, lockY, lockW, lockH, 4); ctx.stroke();
       ctx.fillStyle = card._locked ? '#f8e27a' : '#cbd5e1';
       ctx.font = 'bold 9px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(card._locked ? 'HELD' : 'LOCK', lockX + lockW / 2, lockY + 11);
+      ctx.fillText(card._locked ? 'HELD' : 'LOCK', lockX + lockW / 2, lockY + 12);
       ui.levelupShopLockBtns.push({ x: lockX, y: lockY, w: lockW, h: lockH, cardIndex: i });
     }
   });

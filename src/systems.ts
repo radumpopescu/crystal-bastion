@@ -217,7 +217,7 @@ export function generateShopCards(n = 4) {
   const pool: any[] = [];
   const p = game.player;
   const lockedCards = (game.shopCards || [])
-    .filter((card: any) => card && card._locked && !card._bought)
+    .filter((card: any) => card && card._locked && !card._bought && isCardStillAvailable(card, game))
     .map((card: any) => ({ ...card, _locked: true, _bought: false }));
   const lockedKeys = new Set(lockedCards.map((card: any) => (card.type === 'weapon' ? card.weaponId : card.statId)));
   pool.push(...getWeaponCardPool(game));
@@ -245,6 +245,17 @@ export function generateShopCards(n = 4) {
     if (cards.length >= n) break;
   }
   return cards;
+}
+
+function isCardStillAvailable(card: any, game = R.game) {
+  if (!card) return false;
+  if (card.type === 'weapon') {
+    const existing = game.player.weapons.find((w: any) => w.id === card.weaponId);
+    if (existing) return existing.level < 4 && card.newLevel === existing.level + 1;
+    return card.newLevel === 1;
+  }
+  const stat = STAT_UPGRADES.find(s => s.id === card.statId);
+  return !!stat && isStatUpgradeAvailable(stat, game.player, game);
 }
 
 function getRunCardKey(card: any) {
@@ -1121,6 +1132,9 @@ function checkWaveEnd() {
     game.shopCards = generateShopCards(4);
     game._pickedFreeCard = null;
     game._anyBought = false;
+    game._cardActionHint = game.shopCards.some((card: any) => card?._locked && !card._bought)
+      ? 'Locked cards stay in the shop for the next wave-end offer.'
+      : null;
     R.state = 'levelup';
   }
 }
