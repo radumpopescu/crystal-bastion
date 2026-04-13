@@ -1730,7 +1730,6 @@ function renderDmgNums() {
 function renderHUD() {
   const p = game.player, t = game.tower;
   const autoConstructUnlocked = (meta.upgrades['autoConstruct'] || 0) > 0;
-  const runCards = getRunCardEntries();
 
   // ── Tower HP — top center ──
   const tBarW = 260, tBarH = 52;
@@ -1798,46 +1797,6 @@ function renderHUD() {
   // ── Controls hint + crystals — above minimap ──
   const controlsBoxH = autoConstructUnlocked ? 100 : 70;
   const controlsBoxY = autoConstructUnlocked ? H - 310 : H - 280;
-  const cardsPanelX = W - 230;
-  const cardsPanelY = 58;
-  const cardsPanelH = Math.max(72, controlsBoxY - cardsPanelY - 12);
-  if (!game.waveActive) {
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    rrect(cardsPanelX, cardsPanelY, 220, cardsPanelH, 6); ctx.fill();
-    ctx.fillStyle = '#7aa2ff';
-    ctx.font = 'bold 11px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('RUN CARDS', cardsPanelX + 10, cardsPanelY + 18);
-    if (runCards.length === 0) {
-      ctx.fillStyle = '#556';
-      ctx.font = '11px monospace';
-      ctx.fillText('No cards picked yet', cardsPanelX + 10, cardsPanelY + 40);
-    } else {
-      const rowH = 18;
-      const maxRows = Math.max(1, Math.floor((cardsPanelH - 28) / rowH));
-      const visible = runCards.slice(-maxRows);
-      visible.forEach((entry, index) => {
-        const rowY = cardsPanelY + 38 + index * rowH;
-        const suffix = entry.count > 1 ? ` x${entry.count}` : '';
-        const name = `${entry.icon} ${entry.name}`;
-        const maxNameW = 220 - 24 - ctx.measureText(suffix).width;
-        let label = name;
-        while (ctx.measureText(label).width > maxNameW && label.length > 4) {
-          label = label.slice(0, -2).trimEnd() + '…';
-        }
-        ctx.fillStyle = entry.color;
-        ctx.font = '11px monospace';
-        ctx.fillText(label, cardsPanelX + 10, rowY);
-        if (suffix) {
-          ctx.fillStyle = '#dfe6e9';
-          ctx.textAlign = 'right';
-          ctx.fillText(suffix, cardsPanelX + 206, rowY);
-          ctx.textAlign = 'left';
-        }
-        registerHoverRegion(cardsPanelX + 8, rowY - 12, 204, 16, { entry });
-      });
-    }
-  }
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
   rrect(W - 230, controlsBoxY, 220, controlsBoxH, 6); ctx.fill();
   ctx.fillStyle = '#666'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
@@ -1852,60 +1811,6 @@ function renderHUD() {
     ctx.fillStyle = autoMode.spacing > 0 ? '#27ae60' : '#95a5a6';
     ctx.font = 'bold 12px monospace';
     ctx.fillText(`Auto: ${autoMode.label}`, W - 14, controlsBoxY + 90);
-  }
-
-  // ── Bottom run-card strip ──
-  if (!game.waveActive && runCards.length > 0) {
-    const stripX = 250;
-    const stripW = Math.max(180, W - stripX - 210);
-    const stripY = H - 142;
-    const stripH = 58;
-    ctx.fillStyle = 'rgba(0,0,0,0.48)';
-    rrect(stripX, stripY, stripW, stripH, 8); ctx.fill();
-    ctx.fillStyle = '#7aa2ff';
-    ctx.font = 'bold 10px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('CARDS THIS RUN', stripX + 10, stripY + 15);
-
-    let chipX = stripX + 10;
-    let chipY = stripY + 24;
-    const chipH = 20;
-    const chipGap = 8;
-    const rowLimitY = stripY + stripH - chipH;
-    let hidden = 0;
-    runCards.forEach((entry, index) => {
-      if (hidden > 0) return;
-      const suffix = entry.count > 1 ? ` x${entry.count}` : '';
-      let label = `${entry.icon} ${entry.name}${suffix}`;
-      const maxChipInner = 138;
-      while (ctx.measureText(label).width > maxChipInner && label.length > 6) {
-        label = label.slice(0, -2).trimEnd() + '…';
-      }
-      const chipW = Math.min(154, Math.max(54, ctx.measureText(label).width + 18));
-      if (chipX + chipW > stripX + stripW - 10) {
-        chipX = stripX + 10;
-        chipY += chipH + 6;
-      }
-      if (chipY > rowLimitY) {
-        hidden = runCards.length - index;
-        return;
-      }
-      ctx.fillStyle = 'rgba(13,24,40,0.92)';
-      rrect(chipX, chipY, chipW, chipH, 10); ctx.fill();
-      ctx.strokeStyle = entry.color;
-      ctx.lineWidth = 1;
-      rrect(chipX, chipY, chipW, chipH, 10); ctx.stroke();
-      ctx.fillStyle = '#dfe6e9';
-      ctx.font = '10px monospace';
-      ctx.fillText(label, chipX + 9, chipY + 14);
-      registerHoverRegion(chipX, chipY, chipW, chipH, { entry });
-      chipX += chipW + chipGap;
-    });
-    if (hidden > 0) {
-      ctx.fillStyle = '#95a5a6';
-      ctx.font = '10px monospace';
-      ctx.fillText(`+${hidden} more`, stripX + stripW - 60, stripY + stripH - 8);
-    }
   }
 
   renderMinimap();
