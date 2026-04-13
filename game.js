@@ -1789,7 +1789,7 @@ function renderHUD() {
   ctx.fillText(`⬡ ${game.gold}`, W - 60, 37);
 
   // ── Wave info — top left ──
-  const waveBoxH = game.waveActive ? 80 : 110;
+  const waveBoxH = game.waveActive ? 84 : 132;
   ctx.fillStyle = 'rgba(0,0,0,0.72)';
   rrect(10, 8, 230, waveBoxH, 8); ctx.fill();
 
@@ -1804,12 +1804,12 @@ function renderHUD() {
     ctx.fillStyle = '#2ecc71'; ctx.font = 'bold 15px monospace';
     ctx.fillText(`⏱ Next in ${Math.ceil(game.waveTimer)}s`, 20, 56);
     const earlyGold = Math.round(12 * (game.waveTimer / (WAVE_INTERVAL + (game.waveDelayBonus||0))) * (game.earlyBonusMult||1) * (1 + game.wave * 0.2));
-    waveStartBtn = btn(125, 88, `▶ START  (+${earlyGold}g)`, '#e67e22', 220, 36);
+    waveStartBtn = btn(125, 112, `▶ START  (+${earlyGold}g)`, '#e67e22', 220, 36);
   }
 
   // Weapons strip
   ctx.fillStyle = '#556'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
-  ctx.fillText(game.player.weapons.map(w => `${WEAPONS[w.id].icon}${w.level}`).join('  '), 20, game.waveActive ? 76 : game.waveActive ? 76 : 76);
+  ctx.fillText(game.player.weapons.map(w => `${WEAPONS[w.id].icon}${w.level}`).join('  '), 20, game.waveActive ? 78 : 82);
 
   // ── Controls hint + crystals — above minimap ──
   const controlsBoxH = autoConstructUnlocked ? 100 : 70;
