@@ -1,4 +1,4 @@
-import { AUTO_CONSTRUCT_MODES, BASE_MONSTERS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, LEASH_DMG, MONSTER_DEF, MONSTER_SCALE, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_RANGE, PLAYER_RADIUS, PLAYER_SPEED, STAT_UPGRADES, TILE_SIZE, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS } from './constants';
+import { AUTO_CONSTRUCT_MODES, BASE_MONSTERS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, LEASH_DMG, MAX_WEAPON_SLOTS, MONSTER_DEF, MONSTER_SCALE, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_RANGE, PLAYER_RADIUS, PLAYER_SPEED, STAT_UPGRADES, TILE_SIZE, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS } from './constants';
 import { DEV_WEAPON_IDS, R, devCardLimit, finishDevSession, makeWeapon, metaVal, newGame } from './state';
 import { clamp, dist, inBtn, shuffle } from './utils';
 import { saveMeta } from './meta';
@@ -152,19 +152,34 @@ export function isStatUpgradeAvailable(stat: any, p = R.game.player, g = R.game)
   return true;
 }
 
+function getWeaponCardPool(game = R.game) {
+  const p = game.player;
+  const newCards: any[] = [];
+  const upgradeCards: any[] = [];
+  for (const id of Object.keys(WEAPONS)) {
+    const existing = p.weapons.find((w: any) => w.id === id);
+    if (existing) {
+      if (existing.level < 4) upgradeCards.push({ type:'weapon', weaponId:id, newLevel: existing.level + 1, rarity: WEAPONS[id].rarity });
+    } else {
+      newCards.push({ type:'weapon', weaponId:id, newLevel:1, rarity: WEAPONS[id].rarity });
+    }
+  }
+  const atCap = p.weapons.length >= MAX_WEAPON_SLOTS;
+  return atCap && newCards.length > 0 ? newCards : [...upgradeCards, ...newCards];
+}
+
+export function weaponCardNeedsSlot(card: any, game = R.game) {
+  if (!card || card.type !== 'weapon') return false;
+  const existing = game.player.weapons.find((w: any) => w.id === card.weaponId);
+  return !existing && game.player.weapons.length >= MAX_WEAPON_SLOTS;
+}
+
 export function generateCards() {
   const game = R.game;
   const pool: any[] = [];
   const p = game.player;
 
-  for (const id of Object.keys(WEAPONS)) {
-    const existing = p.weapons.find((w: any) => w.id === id);
-    if (existing && existing.level < 4) {
-      pool.push({ type:'weapon', weaponId:id, newLevel: existing.level + 1, rarity: WEAPONS[id].rarity });
-    } else if (!existing && p.weapons.length < 6) {
-      pool.push({ type:'weapon', weaponId:id, newLevel:1, rarity: WEAPONS[id].rarity });
-    }
-  }
+  pool.push(...getWeaponCardPool(game));
 
   for (const s of STAT_UPGRADES) {
     if (!isStatUpgradeAvailable(s, game.player, game)) continue;
@@ -201,11 +216,7 @@ export function generateShopCards(n = 4) {
   const game = R.game;
   const pool: any[] = [];
   const p = game.player;
-  for (const id of Object.keys(WEAPONS)) {
-    const existing = p.weapons.find((w: any) => w.id === id);
-    if (existing && existing.level < 4) pool.push({ type:'weapon', weaponId:id, newLevel: existing.level + 1, rarity: WEAPONS[id].rarity });
-    else if (!existing && p.weapons.length < 6) pool.push({ type:'weapon', weaponId:id, newLevel:1, rarity: WEAPONS[id].rarity });
-  }
+  pool.push(...getWeaponCardPool(game));
   for (const s of STAT_UPGRADES) {
     if (!isStatUpgradeAvailable(s, game.player, game)) continue;
     pool.push({ type:'stat', statId:s.id, rarity:s.rarity || 'common' });
@@ -305,18 +316,32 @@ export function getLoadoutStats() {
   ];
 }
 
+export function sellWeapon(slotIndex: number) {
+  const game = R.game;
+  const weapon = game.player.weapons[slotIndex];
+  if (!weapon) return false;
+  game.player.weapons.splice(slotIndex, 1);
+  game._cardActionHint = `${WEAPONS[weapon.id].name} removed. Empty slot ready for a new weapon.`;
+  return true;
+}
+
 export function applyCard(card: any) {
   const game = R.game;
   const p = game.player;
   if (card.type === 'weapon') {
     const existing = p.weapons.find((w: any) => w.id === card.weaponId);
     if (existing) existing.level = card.newLevel;
-    else p.weapons.push(makeWeapon(card.weaponId));
+    else {
+      if (p.weapons.length >= MAX_WEAPON_SLOTS) return false;
+      p.weapons.push({ ...makeWeapon(card.weaponId), level: clamp(card.newLevel || 1, 1, 4) });
+    }
   } else {
     const s = STAT_UPGRADES.find(s => s.id === card.statId);
     if (s) s.apply(p, game);
   }
   recordRunCard(card);
+  game._cardActionHint = null;
+  return true;
 }
 
 export function luCardDims() {
@@ -343,6 +368,12 @@ export function luPositions() {
 export function handleCardClick(mx: number, my: number) {
   const game = R.game;
   if (!game.levelUpCards) return;
+  for (const btn of R.ui.levelupWeaponBtns || []) {
+    if (mx >= btn.x && mx <= btn.x + btn.w && my >= btn.y && my <= btn.y + btn.h) {
+      sellWeapon(btn.slotIndex);
+      return;
+    }
+  }
   const { cW, cH, gap, centerX, freeTop, shopTop } = luPositions();
 
   const freeN = game.levelUpCards.length;
@@ -352,7 +383,13 @@ export function handleCardClick(mx: number, my: number) {
     const bx = fStartX + i * (cW + gap);
     const by = freeTop;
     if (mx >= bx && mx <= bx + cW && my >= by && my <= by + cH) {
-      applyCard(game.levelUpCards[i]);
+      const card = game.levelUpCards[i];
+      if (weaponCardNeedsSlot(card, game)) {
+        game._cardActionHint = `Sell a weapon slot first to take ${WEAPONS[card.weaponId].name}.`;
+        return;
+      }
+      const applied = applyCard(card);
+      if (!applied) return;
       game._pickedFreeCard = game.levelUpCards[i];
       game.levelUpCards = [];
       return;
@@ -368,8 +405,16 @@ export function handleCardClick(mx: number, my: number) {
     const by = shopTop;
     if (mx >= bx && mx <= bx + cW && my >= by && my <= by + cH) {
       if (game.gold >= card.cost && !card._bought) {
+        if (weaponCardNeedsSlot(card, game)) {
+          game._cardActionHint = `Sell a weapon slot first to buy ${WEAPONS[card.weaponId].name}.`;
+          return;
+        }
         game.gold -= card.cost;
-        applyCard(card);
+        const applied = applyCard(card);
+        if (!applied) {
+          game.gold += card.cost;
+          return;
+        }
         card._bought = true;
         game._anyBought = true;
       }
@@ -384,11 +429,13 @@ export function handleCardClick(mx: number, my: number) {
     const freePicked = !game.levelUpCards || game.levelUpCards.length === 0;
     if (!freePicked) { game.levelUpCards = generateCards(); game._pickedFreeCard = null; }
     game.shopCards = generateShopCards(4);
+    game._cardActionHint = null;
     return;
   }
 
   if (R.ui.continueBtn && inBtn(mx, my, R.ui.continueBtn)) {
     game.levelUpCards = null;
+    game._cardActionHint = null;
     R.state = 'playing';
     game.waveTimer = WAVE_INTERVAL + (game.waveDelayBonus || 0);
   }
@@ -1126,13 +1173,11 @@ export function buildDropChanceTable(luck?: number) {
   const wR = 1 + lk;
 
   let nC = 0, nU = 0, nR = 0;
-  for (const [id, def] of Object.entries(WEAPONS)) {
-    if (game) {
-      const existing = game.player.weapons.find((w: any) => w.id === id);
-      if (existing && existing.level >= 4) continue;
-      if (!existing && game.player.weapons.length >= 6) continue;
-    }
-    const rarity = (def as any).rarity || 'common';
+  const weaponCards = game
+    ? getWeaponCardPool(game)
+    : Object.keys(WEAPONS).map(id => ({ weaponId:id, rarity: WEAPONS[id].rarity }));
+  for (const card of weaponCards) {
+    const rarity = card.rarity || 'common';
     if (rarity === 'rare') nR++;
     else if (rarity === 'uncommon') nU++;
     else nC++;

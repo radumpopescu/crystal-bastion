@@ -39,6 +39,7 @@ export interface RuntimeUI {
   metaScroll: number;
   maxMetaScroll: number;
   devMenuBtns: any[];
+  levelupWeaponBtns: any[];
 }
 
 export interface RuntimeDev {

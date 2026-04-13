@@ -35,6 +35,7 @@ export const DASH_COOLDOWN = 1.2;
 
 export const OUTPOST_HP_BASE = 100;
 export const OUTPOST_COST = 55;
+export const MAX_WEAPON_SLOTS = 6;
 
 export const WAVE_INTERVAL = 34;
 export const BASE_MONSTERS = 4;

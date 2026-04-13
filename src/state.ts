@@ -45,6 +45,7 @@ export const R: Runtime = {
     metaScroll: 0,
     maxMetaScroll: 0,
     devMenuBtns: [],
+    levelupWeaponBtns: [],
   },
   dev: {
     menuHoldStart: 0,

@@ -1,6 +1,6 @@
-import { AUTO_CONSTRUCT_MODES, ENTITY_H, ISO_SCALE, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES } from './constants';
+import { AUTO_CONSTRUCT_MODES, ENTITY_H, ISO_SCALE, MAX_WEAPON_SLOTS, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES } from './constants';
 import { R, devCardColor, devCardLimit, finishDevSession, newGame, resetDevConfig, w2s } from './state';
-import { buildDropChanceTable, getAnchors, getLoadoutStats, getOutpostCost, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave } from './systems';
+import { buildDropChanceTable, getAnchors, getLoadoutStats, getOutpostCost, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave, weaponCardNeedsSlot } from './systems';
 import { clamp, dist, inBtn } from './utils';
 import { saveMeta } from './meta';
 import type { BtnRect } from './types';
@@ -801,6 +801,11 @@ function drawCard(card: any, bx: number, by: number, cW: number, cH: number, opt
     ctx.font = 'bold 10px monospace';
     ctx.fillText(def.levelBonus[card.newLevel - 1], bx + cW / 2, by + cH - 30);
   }
+  if (opts.needsSlot) {
+    ctx.fillStyle = '#e67e22';
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText('SELL A SLOT FIRST', bx + cW / 2, by + cH - 44);
+  }
   if (opts.costLabel) {
     const canAfford = game.gold >= card.cost;
     ctx.fillStyle = canAfford ? '#f1c40f' : '#e74c3c';
@@ -821,6 +826,7 @@ function renderLevelUpCards() {
   const game = R.game;
   const cards = game.levelUpCards;
   if (!cards) return;
+  ui.levelupWeaponBtns = [];
   ctx.fillStyle = 'rgba(4,8,20,0.93)'; ctx.fillRect(0, 0, W, H);
   const { w: cW, h: cH, gap } = luCardDims();
   const { freeTop, shopTop } = luPositions();
@@ -833,24 +839,72 @@ function renderLevelUpCards() {
   ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center';
   ctx.fillText('LOADOUT', panelX + panelW / 2, 28);
 
-  let sideY = 48;
-  ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
-  ctx.fillText('WEAPONS', panelX + 10, sideY); sideY += 14;
-  game.player.weapons.forEach((w: any) => {
-    const def = WEAPONS[w.id];
-    ctx.fillStyle = def.color + 'cc'; ctx.font = '12px monospace';
-    ctx.fillText(`${def.icon} ${def.name}`, panelX + 10, sideY);
-    const barX = panelX + 10, barY = sideY + 3, barW = panelW - 20, pip = Math.floor((barW - 3 * 3) / 4);
-    for (let lv = 0; lv < 4; lv++) {
-      ctx.fillStyle = lv < w.level ? def.color : '#1e2a38';
-      ctx.fillRect(barX + lv * (pip + 3), barY, pip, 5);
-    }
-    ctx.fillStyle = '#556'; ctx.font = '10px monospace'; ctx.textAlign = 'right';
-    ctx.fillText(`${w.level}/4`, panelX + panelW - 4, sideY);
+  let sideY = 46;
+  if (game._cardActionHint) {
+    const hintLines = wrapTextLines(game._cardActionHint, panelW - 20);
+    ctx.fillStyle = '#f39c12';
+    ctx.font = '10px monospace';
     ctx.textAlign = 'left';
-    sideY += 26;
-  });
-  sideY += 6;
+    hintLines.forEach((line, index) => ctx.fillText(line, panelX + 10, sideY + index * 12));
+    sideY += hintLines.length * 12 + 8;
+  }
+  ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+  ctx.fillText(`WEAPON SLOTS ${game.player.weapons.length}/${MAX_WEAPON_SLOTS}`, panelX + 10, sideY); sideY += 14;
+  if (game.player.weapons.length >= MAX_WEAPON_SLOTS) {
+    ctx.fillStyle = '#e67e22';
+    ctx.font = '10px monospace';
+    ctx.fillText('Full loadout: sell one to take a new weapon.', panelX + 10, sideY);
+    sideY += 14;
+  }
+  for (let slot = 0; slot < MAX_WEAPON_SLOTS; slot++) {
+    const rowY = sideY;
+    const weapon = game.player.weapons[slot];
+    const rowH = 22;
+    ctx.fillStyle = weapon ? '#101a29' : '#0c1522';
+    rrect(panelX + 8, rowY - 12, panelW - 16, rowH, 6); ctx.fill();
+    ctx.strokeStyle = weapon ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    rrect(panelX + 8, rowY - 12, panelW - 16, rowH, 6); ctx.stroke();
+    if (weapon) {
+      const def = WEAPONS[weapon.id];
+      const sellX = panelX + panelW - 52;
+      const sellY = rowY - 10;
+      const sellW = 40;
+      const sellH = 16;
+      ctx.fillStyle = def.color;
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(`${def.icon} ${def.name}`, panelX + 14, rowY + 1);
+      const pipW = 14;
+      const pipGap = 2;
+      const barX = panelX + 14;
+      const barY = rowY + 6;
+      for (let lv = 0; lv < 4; lv++) {
+        ctx.fillStyle = lv < weapon.level ? def.color : '#1e2a38';
+        ctx.fillRect(barX + lv * (pipW + pipGap), barY, pipW, 4);
+      }
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(`L${weapon.level}`, sellX - 8, rowY + 1);
+      ctx.fillStyle = '#5b1f1f';
+      rrect(sellX, sellY, sellW, sellH, 4); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      rrect(sellX, sellY, sellW, sellH, 4); ctx.stroke();
+      ctx.fillStyle = '#f8d7da';
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('SELL', sellX + sellW / 2, sellY + 11);
+      ui.levelupWeaponBtns.push({ x: sellX, y: sellY, w: sellW, h: sellH, slotIndex: slot });
+    } else {
+      ctx.fillStyle = '#566573';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(`SLOT ${slot + 1}  EMPTY`, panelX + 14, rowY + 1);
+    }
+    sideY += 24;
+  }
+  sideY += 4;
   ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace';
   ctx.fillText('CURRENT STATS', panelX + 10, sideY); sideY += 14;
   getLoadoutStats().forEach(stat => {
@@ -915,9 +969,9 @@ function renderLevelUpCards() {
     ctx.fillText('✓ PICKED', fStartX + fTotalW + 10, freeTop - 12);
   }
   if (freePicked && game._pickedFreeCard) {
-    drawCard(game._pickedFreeCard, centerX - cW / 2, freeTop, cW, cH, { picked: true });
+    drawCard(game._pickedFreeCard, centerX - cW / 2, freeTop, cW, cH, { picked: true, needsSlot: weaponCardNeedsSlot(game._pickedFreeCard, game) });
   } else if (!freePicked) {
-    freeCards.forEach((card: any, i: number) => drawCard(card, fStartX + i * (cW + gap), freeTop, cW, cH));
+    freeCards.forEach((card: any, i: number) => drawCard(card, fStartX + i * (cW + gap), freeTop, cW, cH, { needsSlot: weaponCardNeedsSlot(card, game) }));
   }
 
   const sCards = game.shopCards || [];
@@ -933,8 +987,9 @@ function renderLevelUpCards() {
   ctx.fillText(`Gold: ${game.gold} 🪙`, sStartX + sTotalW + 10, shopTop - 12);
   sCards.forEach((card: any, i: number) => {
     const bx = sStartX + i * (cW + gap);
-    if (card._bought) drawCard(card, bx, shopTop, cW, cH, { picked: true, costLabel: '✓ BOUGHT' });
-    else drawCard(card, bx, shopTop, cW, cH, { shopCard: true, dimmed: game.gold < card.cost, costLabel: `${card.cost}🪙` });
+    const needsSlot = weaponCardNeedsSlot(card, game);
+    if (card._bought) drawCard(card, bx, shopTop, cW, cH, { picked: true, costLabel: '✓ BOUGHT', needsSlot });
+    else drawCard(card, bx, shopTop, cW, cH, { shopCard: true, dimmed: game.gold < card.cost, costLabel: `${card.cost}🪙`, needsSlot });
   });
 
   const botY = H - 52;
