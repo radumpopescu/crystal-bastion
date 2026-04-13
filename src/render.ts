@@ -3,6 +3,7 @@ import { R, devCardColor, devCardLimit, finishDevSession, newGame, resetDevConfi
 import { buildDropChanceTable, getAnchors, getLoadoutStats, getOutpostCost, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave, weaponCardNeedsSlot } from './systems';
 import { clamp, dist, inBtn } from './utils';
 import { saveMeta } from './meta';
+import { GAME_VERSION } from './version';
 import type { BtnRect } from './types';
 
 const CB_W = 148, CB_H = 215, CB_GAP = 10;
@@ -1044,6 +1045,9 @@ function renderMenu() {
   ctx.fillStyle = '#566573';
   ctx.font = '11px monospace';
   ctx.fillText(autoConstructUnlocked ? 'It places them every 1m only while SHIFT is held.' : 'You can buy it in Meta Upgrades even before you ever use it.', W / 2, H / 2 - 8);
+  ctx.fillStyle = '#4f637a';
+  ctx.font = '11px monospace';
+  ctx.fillText(`v${GAME_VERSION}`, W / 2, H - 26);
   ui.menuBtns = [
     btn(W / 2, H / 2 + 28, 'PLAY', '#27ae60'),
     btn(W / 2, H / 2 + 92, 'META UPGRADES 💎', '#8e44ad'),

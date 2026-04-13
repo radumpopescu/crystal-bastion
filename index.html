@@ -3,11 +3,44 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Tower Survival</title>
-  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <canvas id="game"></canvas>
-  <script src="dist/game.js"></script>
+  <script>
+    async function loadAssets() {
+      let assets = {
+        style: 'style.css',
+        script: 'dist/game.js',
+      };
+
+      try {
+        const manifestUrl = `dist/asset-manifest.json?ts=${Date.now()}`;
+        const response = await fetch(manifestUrl, { cache: 'no-store' });
+        if (response.ok) {
+          const manifest = await response.json();
+          if (manifest.style) assets.style = `dist/${manifest.style}`;
+          if (manifest.script) assets.script = `dist/${manifest.script}`;
+        }
+      } catch {
+        // Fall back to the dev/watch paths when no build manifest exists.
+      }
+
+      const style = document.createElement('link');
+      style.rel = 'stylesheet';
+      style.href = assets.style;
+      document.head.appendChild(style);
+
+      const gameScript = document.createElement('script');
+      gameScript.src = assets.script;
+      gameScript.defer = true;
+      document.body.appendChild(gameScript);
+    }
+
+    loadAssets();
+  </script>
 </body>
 </html>
