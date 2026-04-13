@@ -2311,6 +2311,7 @@ const CB_W = 148, CB_H = 215, CB_GAP = 10;
 const CB_SECTIONS = [
   {
     label: '⚔️  WEAPONS', color: '#e74c3c',
+    note: 'Every weapon unlock and level-up offer.',
     cards: () => {
       const out = [];
       for (const [id, def] of Object.entries(WEAPONS)) {
@@ -2323,33 +2324,55 @@ const CB_SECTIONS = [
   },
   {
     label: '🧍 PLAYER STATS', color: '#2ecc71',
+    note: 'Core player boosts that can appear throughout the run.',
     cards: () => STAT_UPGRADES
       .filter(s => !['towerRepair','towerBoost','towerRadar','towerSpeed','outpostRepair','outpostBoost','outpostCheap'].includes(s.id))
       .map(s => ({ type:'stat', statId:s.id, rarity:s.rarity||'common' })),
   },
   {
     label: '🏰 BASE CARDS', color: '#f39c12',
+    note: 'Base support cards. Some only roll when the base needs them.',
     cards: () => ['towerRepair','towerBoost','towerRadar','towerSpeed']
       .map(id => { const s = STAT_UPGRADES.find(x=>x.id===id); return s ? { type:'stat', statId:id, rarity:s.rarity||'uncommon' } : null; })
       .filter(Boolean),
   },
   {
     label: '🔵 TOWER CARDS', color: '#3498db',
+    note: 'Tower support cards. Utility rolls only show up when useful.',
     cards: () => ['outpostRepair','outpostBoost','outpostCheap']
       .map(id => { const s = STAT_UPGRADES.find(x=>x.id===id); return s ? { type:'stat', statId:id, rarity:s.rarity||'uncommon' } : null; })
       .filter(Boolean),
   },
 ];
 
+function makeCardBookPreviewGame(card) {
+  const preview = {
+    gold: 999,
+    outpostDiscount: 0,
+    tower: { hp: 850, maxHp: 1000, atkDmg: 40, atkRange: 280, atkSpeed: 1 },
+    outposts: [{ hp: 150, maxHp: 200, atkDmg: 18, atkRange: 190 }],
+    player: { weapons: [] },
+  };
+  if (card.type === 'weapon' && card.newLevel > 1) {
+    preview.player.weapons.push({ id: card.weaponId, level: card.newLevel - 1 });
+  }
+  return preview;
+}
+
 function renderCardBook() {
   ctx.fillStyle = '#070d1a'; ctx.fillRect(0,0,W,H);
   ctx.fillStyle = '#2980b9'; ctx.font = 'bold 26px monospace'; ctx.textAlign='center';
   ctx.fillText('📖 CARD BOOK', W/2, 36);
 
-  // Drop chance legend — shows real per-card probabilities at current luck
-  const lk = (game && game.player && game.player.luck) || 0;
-  const t = buildDropChanceTable(lk);
-  const legendY = 56;
+  const sections = CB_SECTIONS.map(section => ({ ...section, entries: section.cards() }));
+  const totalCards = sections.reduce((sum, section) => sum + section.entries.length, 0);
+
+  ctx.fillStyle = '#95a5a6'; ctx.font = '12px monospace';
+  ctx.fillText(`${totalCards} possible run cards and weapon upgrades`, W/2, 56);
+
+  const luckPreview = 0;
+  const t = buildDropChanceTable(luckPreview);
+  const legendY = 78;
   const items = [
     { label: 'Common',   color: '#3498db', pct: t.common   },
     { label: 'Uncommon', color: '#e67e22', pct: t.uncommon },
@@ -2370,124 +2393,62 @@ function renderCardBook() {
     ctx.fillText(`${it.pct}% / card`, lx + 70, legendY);
     lx += 142;
   }
-  if (lk > 0) {
-    ctx.fillStyle = '#f1c40f'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
-    ctx.fillText(`(Luck ${lk} active — rare/uncommon boosted)`, W/2, legendY + 16);
+  ctx.fillStyle = '#7f8c8d'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('Base odds before Lucky bonuses. Context cards only appear in runs when they can do something.', W/2, 98);
+
+  const clipTop = 114;
+  const clipBot = H - 48;
+  const cols = Math.max(1, Math.floor((W - 72) / (CB_W + CB_GAP)));
+  const gridW = cols * (CB_W + CB_GAP) - CB_GAP;
+  const startX = Math.round(W/2 - gridW/2);
+  const SEC_HEADER_H = 46;
+  const SEC_GAP = 18;
+
+  function drawBookCard(card, bx, by) {
+    const savedGame = game;
+    game = makeCardBookPreviewGame(card);
+    drawCard(card, bx, by, CB_W, CB_H, { dropChance: rarityDropChance(card.rarity, luckPreview) });
+    game = savedGame;
   }
 
-  // Weapon cards: always 4 per row (one row per weapon)
-  const WLEVELS = 4;
-  const weaponIds = Object.keys(WEAPONS);
-  // Fixed card width for weapons so exactly 4 fit with labels on left
-  const WCB_W = Math.min(CB_W, Math.floor((W - 180 - CB_GAP * (WLEVELS-1)) / WLEVELS));
-  const WCB_H = Math.round(WCB_W * (CB_H / CB_W));
-  const WPANEL_W = WLEVELS * WCB_W + (WLEVELS-1) * CB_GAP;
-  const WPANEL_X = W/2 - WPANEL_W/2;
-  const WLABEL_W = WPANEL_X - 12; // left label area width
-
-  // Stat card cols
-  const statCols = Math.max(1, Math.floor((W - 48) / (CB_W + CB_GAP)));
-  const statStartX = W/2 - (statCols*(CB_W+CB_GAP)-CB_GAP)/2;
-
-  const SEC_HEADER_H = 36;
-  const WPN_SUB_H = 24;  // per-weapon sub-header
-  const topY = 74;
-  const clipTop = topY;
-  const clipBot = H - 48;
-
-  const fakeGame = { player:{ weapons:[] }, outpostDiscount:0, outposts:[] };
-
-  // ── Build a flat list of "draw ops" with Y positions ──
-  // (compute curY twice: once to get totalH, once to draw)
   function layout(draw) {
-    let y = topY - cardBookScroll;
+    let y = clipTop - cardBookScroll;
 
-    // ── WEAPONS section ──────────────────────────────────
-    {
-      const sec = CB_SECTIONS[0]; // weapons
-      const secLabelY = y;
-      if (draw && secLabelY + SEC_HEADER_H >= clipTop && secLabelY < clipBot) {
-        ctx.fillStyle = sec.color + '1a';
-        rrect(WPANEL_X - 4, secLabelY, WPANEL_W + 8, SEC_HEADER_H, 6); ctx.fill();
-        ctx.strokeStyle = sec.color + '66'; ctx.lineWidth = 1.5;
-        rrect(WPANEL_X - 4, secLabelY, WPANEL_W + 8, SEC_HEADER_H, 6); ctx.stroke();
-        ctx.fillStyle = sec.color; ctx.font = 'bold 15px monospace'; ctx.textAlign = 'center';
-        ctx.fillText(sec.label, W/2, secLabelY + SEC_HEADER_H - 10);
-      }
-      y += SEC_HEADER_H + 6;
-
-      for (const wid of weaponIds) {
-        const def = WEAPONS[wid];
-        const rowH = WPN_SUB_H + WCB_H + CB_GAP;
-
-        if (draw && y + rowH >= clipTop && y < clipBot) {
-          // Weapon sub-header (left label)
-          const subY = y;
-          // Dim bg strip
-          ctx.fillStyle = def.color + '18';
-          rrect(WPANEL_X - 4, subY, WPANEL_W + 8, WPN_SUB_H, 4); ctx.fill();
-          // Icon + name
-          ctx.font = '14px monospace'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-          ctx.fillStyle = def.color;
-          ctx.fillText(`${def.icon} ${def.name}`, WPANEL_X + WPANEL_W, subY + WPN_SUB_H/2);
-          // Rarity tag
-          const rarityColor = def.rarity === 'rare' ? '#9b59b6' : def.rarity === 'uncommon' ? '#e67e22' : '#3498db';
-          ctx.fillStyle = rarityColor; ctx.font = '10px monospace'; ctx.textAlign = 'left';
-          ctx.fillText(def.rarity.toUpperCase(), WPANEL_X, subY + WPN_SUB_H/2 + 5);
-          ctx.textBaseline = 'alphabetic';
-
-          // 4 level cards in a row
-          const lvColors = ['#555','#27ae60','#e67e22','#9b59b6'];
-          for (let lv = 1; lv <= WLEVELS; lv++) {
-            const bx = WPANEL_X + (lv-1)*(WCB_W+CB_GAP);
-            const by = subY + WPN_SUB_H;
-            const card = { type:'weapon', weaponId:wid, newLevel:lv, rarity:def.rarity };
-            const savedGame = game; game = fakeGame;
-            drawCard(card, bx, by, WCB_W, WCB_H, { dropChance: rarityDropChance(card.rarity) });
-            game = savedGame;
-            // Level badge overlay
-            ctx.fillStyle = lvColors[lv-1];
-            ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center';
-            ctx.fillText(`LV ${lv}`, bx + WCB_W/2, by + WCB_H - 2);
-          }
-        }
-        y += WPN_SUB_H + WCB_H + CB_GAP + 6;
-      }
-      y += 14; // section bottom gap
-    }
-
-    // ── Stat sections ─────────────────────────────────────
-    for (let si = 1; si < CB_SECTIONS.length; si++) {
-      const sec = CB_SECTIONS[si];
-      const cards = sec.cards();
-      const rows = Math.ceil(cards.length / statCols);
-      const secH = SEC_HEADER_H + 6 + rows*(CB_H+CB_GAP) + 14;
+    for (const section of sections) {
+      const rows = Math.ceil(section.entries.length / cols);
+      const cardsH = rows > 0 ? rows * (CB_H + CB_GAP) - CB_GAP : 0;
+      const secH = SEC_HEADER_H + 12 + cardsH + SEC_GAP;
 
       if (draw && y + secH >= clipTop && y < clipBot) {
-        // Section header
-        const barY = y;
-        ctx.fillStyle = sec.color + '1a';
-        rrect(statStartX - 4, barY, statCols*(CB_W+CB_GAP)-CB_GAP+8, SEC_HEADER_H, 6); ctx.fill();
-        ctx.strokeStyle = sec.color + '66'; ctx.lineWidth = 1.5;
-        rrect(statStartX - 4, barY, statCols*(CB_W+CB_GAP)-CB_GAP+8, SEC_HEADER_H, 6); ctx.stroke();
-        ctx.fillStyle = sec.color; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'left';
-        ctx.fillText(sec.label, statStartX + 4, barY + SEC_HEADER_H - 10);
-        ctx.fillStyle = '#555'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
-        ctx.fillText(`${cards.length} cards`, statStartX + statCols*(CB_W+CB_GAP)-CB_GAP+2, barY + SEC_HEADER_H - 10);
+        ctx.fillStyle = section.color + '18';
+        rrect(startX - 8, y, gridW + 16, SEC_HEADER_H, 8); ctx.fill();
+        ctx.strokeStyle = section.color + '66'; ctx.lineWidth = 1.5;
+        rrect(startX - 8, y, gridW + 16, SEC_HEADER_H, 8); ctx.stroke();
 
-        const cardsY = barY + SEC_HEADER_H + 6;
-        cards.forEach((card, idx) => {
-          const col = idx % statCols;
-          const row = Math.floor(idx / statCols);
-          const bx = statStartX + col*(CB_W+CB_GAP);
-          const by = cardsY + row*(CB_H+CB_GAP);
+        ctx.fillStyle = section.color;
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(section.label, startX + 8, y + 18);
+
+        ctx.fillStyle = '#7f8c8d';
+        ctx.font = '10px monospace';
+        ctx.fillText(section.note, startX + 8, y + 34);
+
+        ctx.fillStyle = '#dfe6e9';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(`${section.entries.length} entries`, startX + gridW + 6, y + 28);
+
+        const cardsY = y + SEC_HEADER_H + 12;
+        section.entries.forEach((card, idx) => {
+          const col = idx % cols;
+          const row = Math.floor(idx / cols);
+          const bx = startX + col * (CB_W + CB_GAP);
+          const by = cardsY + row * (CB_H + CB_GAP);
           if (by + CB_H < clipTop || by > clipBot) return;
-          const savedGame = game; game = fakeGame;
-          drawCard(card, bx, by, CB_W, CB_H, { dropChance: rarityDropChance(card.rarity) });
-          game = savedGame;
+          drawBookCard(card, bx, by);
         });
       }
-
       y += secH;
     }
 
@@ -2496,8 +2457,8 @@ function renderCardBook() {
 
   // Clamp scroll
   const totalH = layout(false);
-  const maxScroll = Math.max(0, totalH - clipBot + 20);
-  cardBookScroll = Math.min(cardBookScroll, maxScroll);
+  const maxScroll = Math.max(0, totalH - clipBot + 18);
+  cardBookScroll = clamp(cardBookScroll, 0, maxScroll);
 
   ctx.save();
   ctx.beginPath(); ctx.rect(0, clipTop, W, clipBot - clipTop); ctx.clip();
@@ -2507,7 +2468,7 @@ function renderCardBook() {
   // Bottom bar
   ctx.fillStyle = 'rgba(7,13,26,0.9)'; ctx.fillRect(0, clipBot, W, H - clipBot);
   ctx.fillStyle = '#444'; ctx.font = '11px monospace'; ctx.textAlign='center';
-  ctx.fillText('↕  scroll with mouse wheel', W/2, clipBot + 16);
+  ctx.fillText('↕ scroll with mouse wheel', W/2, clipBot + 16);
   cardBookBackBtn = btn(W/2, H - 18, '← BACK TO MENU', '#555', 220, 28);
 }
 
