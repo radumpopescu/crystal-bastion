@@ -1,5 +1,5 @@
 import { R, metaVal } from './state';
-import { handleCardClick, handlePlayingClick, handleUpgradeMenuClick, startNextWave, toggleUpgradeMenu, tryDash, tryPlaceOutpost } from './systems';
+import { handleCardClick, handlePlayingClick, startNextWave, tryDash, tryPlaceOutpost } from './systems';
 import { handleDevMenuClick, handleGameoverClick, handleMenuClick, handleMetaClick, handlePauseClick } from './render';
 import { clamp } from './utils';
 
@@ -11,19 +11,18 @@ window.addEventListener('keydown', e => {
   if (!R.game) return;
   if (R.state === 'playing' || R.state === 'paused') {
     if (e.code === 'KeyP' || e.code === 'Escape') {
-      if (R.state === 'playing') { R.state = 'paused'; R.game.showUpgradeMenu = false; }
+      if (R.state === 'playing') { R.state = 'paused'; }
       else R.state = 'playing';
       return;
     }
   }
   if (R.state === 'playing') {
-    if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !e.repeat && !R.game.waveActive && !R.game.showUpgradeMenu) {
+    if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !e.repeat && !R.game.waveActive) {
       e.preventDefault();
       startNextWave(true);
       return;
     }
     if (e.code === 'KeyE') tryPlaceOutpost();
-    if (e.code === 'KeyU') toggleUpgradeMenu();
     if (e.code === 'Space') tryDash();
   }
 });
@@ -61,8 +60,5 @@ R.canvas.addEventListener('click', e => {
   else if (R.state === 'cardbook') { if (R.ui.cardBookBackBtn && mx >= R.ui.cardBookBackBtn.cx - R.ui.cardBookBackBtn.bw / 2 && mx <= R.ui.cardBookBackBtn.cx + R.ui.cardBookBackBtn.bw / 2 && my >= R.ui.cardBookBackBtn.cy - R.ui.cardBookBackBtn.bh / 2 && my <= R.ui.cardBookBackBtn.cy + R.ui.cardBookBackBtn.bh / 2) R.state = 'menu'; }
   else if (R.state === 'levelup') handleCardClick(mx, my);
   else if (R.state === 'paused') handlePauseClick(mx, my);
-  else if (R.state === 'playing') {
-    if (R.game.showUpgradeMenu) handleUpgradeMenuClick(mx, my);
-    else handlePlayingClick(mx, my);
-  }
+  else if (R.state === 'playing') handlePlayingClick(mx, my);
 });

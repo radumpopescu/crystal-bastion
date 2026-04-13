@@ -41,6 +41,7 @@ export interface RuntimeUI {
   devMenuBtns: any[];
   levelupWeaponBtns: any[];
   levelupShopLockBtns: any[];
+  levelupBaseUpgradeBtns: any[];
 }
 
 export interface RuntimeDev {

@@ -333,6 +333,34 @@ export function getLoadoutStats() {
   ];
 }
 
+export function getBaseStats() {
+  const t = R.game.tower;
+  return [
+    { icon:'🏰', name:'Base HP',       value: `${Math.ceil(t.hp)} / ${t.maxHp}` },
+    { icon:'🧱', name:'Build Zone',    value: `${Math.round(t.range)}` },
+    { icon:'🎯', name:'Turret Range',  value: `${Math.round(t.atkRange)}` },
+    { icon:'💥', name:'Turret Damage', value: `${Math.round(t.atkDmg)}` },
+    { icon:'⚡', name:'Fire Rate',     value: `${t.atkSpeed.toFixed(2)}/s` },
+    { icon:'🔥', name:'Aura DPS',      value: `${Math.round(t.auraDmg)}` },
+  ];
+}
+
+export function buyTowerUpgrade(upgradeId: string) {
+  const game = R.game;
+  const upg = TOWER_UPGRADES.find(entry => entry.id === upgradeId);
+  if (!upg) return false;
+  const lvl = game.tower.upgrades[upg.id] || 0;
+  if (lvl >= upg.max) return false;
+  const cost = upg.cost[lvl];
+  if (game.gold < cost) return false;
+  game.gold -= cost;
+  game.tower.upgrades[upg.id]++;
+  if (upg.id === 'hp')    { game.tower.maxHp += 150; game.tower.hp = Math.min(game.tower.hp + 150, game.tower.maxHp); }
+  if (upg.id === 'range') { game.tower.range += 60; }
+  if (upg.id === 'dmg')   { game.tower.atkDmg = Math.round(game.tower.atkDmg * 1.4); }
+  return true;
+}
+
 export function sellWeapon(slotIndex: number) {
   const game = R.game;
   const weapon = game.player.weapons[slotIndex];
@@ -371,20 +399,30 @@ export function luCardDims() {
 
 export function luPositions() {
   const { w: cW, h: cH, gap } = luCardDims();
-  const panelW = Math.min(220, R.W * 0.18);
-  const loadoutW = panelW + 16;
-  const centerX = (R.W - loadoutW) / 2;
+  const leftPanelW = Math.max(180, Math.min(220, R.W * 0.17));
+  const rightPanelW = Math.max(160, Math.min(230, R.W * 0.17));
+  const leftPanelX = 12;
+  const rightPanelX = R.W - rightPanelW - 12;
+  const centerLeft = leftPanelX + leftPanelW + 20;
+  const centerRight = rightPanelX - 20;
+  const centerX = (centerLeft + centerRight) / 2;
   const HEADER_H = 72;
   const BOT_H = 52;
   const SEC_GAP = 40;
   const freeTop = HEADER_H + 26;
   const shopTop = freeTop + cH + SEC_GAP + 24;
-  return { cW, cH, gap, centerX, freeTop, shopTop, BOT_H };
+  return { cW, cH, gap, centerX, freeTop, shopTop, BOT_H, leftPanelX, leftPanelW, rightPanelX, rightPanelW };
 }
 
 export function handleCardClick(mx: number, my: number) {
   const game = R.game;
   if (!game.levelUpCards) return;
+  for (const btn of R.ui.levelupBaseUpgradeBtns || []) {
+    if (mx >= btn.x && mx <= btn.x + btn.w && my >= btn.y && my <= btn.y + btn.h) {
+      buyTowerUpgrade(btn.upgradeId);
+      return;
+    }
+  }
   for (const btn of R.ui.levelupWeaponBtns || []) {
     if (mx >= btn.x && mx <= btn.x + btn.w && my >= btn.y && my <= btn.y + btn.h) {
       sellWeapon(btn.slotIndex);

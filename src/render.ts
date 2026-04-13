@@ -1,6 +1,6 @@
 import { ENTITY_H, ISO_SCALE, MAX_WEAPON_SLOTS, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES } from './constants';
 import { R, devCardColor, devCardLimit, finishDevSession, newGame, resetDevConfig, w2s } from './state';
-import { buildDropChanceTable, getAnchors, getLoadoutStats, getOutpostCost, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave, weaponCardNeedsSlot } from './systems';
+import { buildDropChanceTable, getAnchors, getBaseStats, getLoadoutStats, getOutpostCost, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave, weaponCardNeedsSlot } from './systems';
 import { clamp, dist, inBtn } from './utils';
 import { saveMeta } from './meta';
 import { GAME_VERSION } from './version';
@@ -55,7 +55,7 @@ export function render() {
   if (R.state === 'metascreen') { renderMetaScreen(); return; }
   if (R.state === 'cardbook')   { renderCardBook(); return; }
   if (R.state === 'levelup')    { renderGame(); R.hoverRegions = []; renderLevelUpCards(); renderRunCardTooltip(); return; }
-  if (R.state === 'paused')     { renderGame(); renderPauseScreen(); return; }
+  if (R.state === 'paused')     { renderGame(); renderPauseScreen(); renderRunCardTooltip(); return; }
   renderGame();
   renderRunCardTooltip();
 }
@@ -85,7 +85,6 @@ function renderGame() {
   renderParticlesWorld();
   renderDmgNums();
   renderHUD();
-  if (game.showUpgradeMenu) renderUpgradeMenu();
 }
 
 function renderFloor() {
@@ -638,7 +637,7 @@ function renderHUD() {
   rrect(W - 230, controlsBoxY, 220, controlsBoxH, 6); ctx.fill();
   ctx.fillStyle = '#666'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
   ctx.fillText('WASD move · SPACE dash', W - 14, controlsBoxY + 20);
-  ctx.fillText('E: tower · U: upgrades · ENTER: wave', W - 14, controlsBoxY + 36);
+  ctx.fillText('E: tower · ENTER: wave · P: pause', W - 14, controlsBoxY + 36);
   ctx.fillStyle = '#a855f7'; ctx.font = 'bold 13px monospace';
   ctx.fillText(`💎 ${meta.crystals} crystals`, W - 14, controlsBoxY + 56);
   ctx.fillStyle = autoConstructUnlocked ? '#7f8c8d' : '#4f5b66'; ctx.font = '11px monospace';
@@ -827,34 +826,87 @@ function drawCard(card: any, bx: number, by: number, cW: number, cH: number, opt
   ctx.textBaseline = 'alphabetic';
 }
 
-function renderLevelUpCards() {
-  const { ctx, W, H, ui } = R;
+function getRunCardGroupMeta(entry: any) {
+  if (entry.type === 'weapon') return { key:'weapons', label:'WEAPONS', color:'#e74c3c' };
+  if (entry.statId?.startsWith('tower')) return { key:'base', label:'BASE', color:'#f39c12' };
+  if (entry.statId?.startsWith('outpost')) return { key:'towers', label:'TOWERS', color:'#3498db' };
+  return { key:'player', label:'PLAYER', color:'#2ecc71' };
+}
+
+function renderGroupedRunCards(panelX: number, panelW: number, startY: number, bottomY: number) {
+  const { ctx } = R;
+  const runCards = getRunCardEntries();
+  if (runCards.length === 0) return startY;
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#3a4a5a';
+  ctx.font = 'bold 10px monospace';
+  ctx.fillText('CARDS THIS RUN', panelX + 10, startY);
+  let sideY = startY + 14;
+
+  const groups: Record<string, any[]> = { base: [], towers: [], player: [], weapons: [] };
+  runCards.forEach(entry => {
+    groups[getRunCardGroupMeta(entry).key].push(entry);
+  });
+
+  for (const key of ['base', 'towers', 'player', 'weapons']) {
+    const entries = groups[key];
+    if (!entries.length) continue;
+    if (sideY + 14 > bottomY) break;
+    const groupMeta = getRunCardGroupMeta(entries[0]);
+    ctx.fillStyle = groupMeta.color;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(groupMeta.label, panelX + 10, sideY);
+    sideY += 14;
+
+    for (const entry of entries) {
+      if (sideY + 16 > bottomY) return sideY;
+      const rowY = sideY;
+      const suffix = entry.count > 1 ? ` x${entry.count}` : '';
+      ctx.font = '11px monospace';
+      const maxNameW = panelW - 26 - ctx.measureText(suffix).width;
+      let label = `${entry.icon} ${entry.name}`;
+      while (ctx.measureText(label).width > maxNameW && label.length > 4) label = label.slice(0, -2).trimEnd() + '…';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = entry.color;
+      ctx.fillText(label, panelX + 10, rowY);
+      if (suffix) {
+        ctx.fillStyle = '#dfe6e9';
+        ctx.textAlign = 'right';
+        ctx.fillText(suffix, panelX + panelW - 4, rowY);
+      }
+      registerHoverRegion(panelX + 8, rowY - 12, panelW - 12, 16, { entry });
+      sideY += 18;
+    }
+
+    sideY += 4;
+  }
+
+  return sideY;
+}
+
+function renderLoadoutSidebar(panelX: number, panelW: number, options: { title?: string; hint?: string | null; allowSell?: boolean } = {}) {
+  const { ctx, H, ui } = R;
   const game = R.game;
-  const cards = game.levelUpCards;
-  if (!cards) return;
-  ui.levelupWeaponBtns = [];
-  ui.levelupShopLockBtns = [];
-  ctx.fillStyle = 'rgba(4,8,20,0.93)'; ctx.fillRect(0, 0, W, H);
-  const { w: cW, h: cH, gap } = luCardDims();
-  const { freeTop, shopTop } = luPositions();
-  const panelW = Math.max(160, Math.min(230, W * 0.17));
-  const panelX = W - panelW - 12;
+  const allowSell = options.allowSell !== false;
   ctx.fillStyle = '#0b1220';
   rrect(panelX, 0, panelW + 12, H, 0); ctx.fill();
   ctx.strokeStyle = '#1e2d44'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(panelX, 0); ctx.lineTo(panelX, H); ctx.stroke();
   ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('LOADOUT', panelX + panelW / 2, 28);
+  ctx.fillText(options.title || 'LOADOUT', panelX + panelW / 2, 28);
 
   let sideY = 46;
-  if (game._cardActionHint) {
-    const hintLines = wrapTextLines(game._cardActionHint, panelW - 20);
+  if (options.hint) {
+    const hintLines = wrapTextLines(options.hint, panelW - 20);
     ctx.fillStyle = '#f39c12';
     ctx.font = '10px monospace';
     ctx.textAlign = 'left';
     hintLines.forEach((line, index) => ctx.fillText(line, panelX + 10, sideY + index * 12));
     sideY += hintLines.length * 12 + 8;
   }
+
   ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
   ctx.fillText(`WEAPON SLOTS ${game.player.weapons.length}/${MAX_WEAPON_SLOTS}`, panelX + 10, sideY); sideY += 14;
   if (game.player.weapons.length >= MAX_WEAPON_SLOTS) {
@@ -863,6 +915,7 @@ function renderLevelUpCards() {
     ctx.fillText('Full loadout: sell one to take a new weapon.', panelX + 10, sideY);
     sideY += 14;
   }
+
   for (let slot = 0; slot < MAX_WEAPON_SLOTS; slot++) {
     const rowY = sideY;
     const weapon = game.player.weapons[slot];
@@ -893,16 +946,18 @@ function renderLevelUpCards() {
       ctx.fillStyle = '#cbd5e1';
       ctx.font = '10px monospace';
       ctx.textAlign = 'right';
-      ctx.fillText(`L${weapon.level}`, sellX - 8, rowY + 1);
-      ctx.fillStyle = '#5b1f1f';
-      rrect(sellX, sellY, sellW, sellH, 4); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-      rrect(sellX, sellY, sellW, sellH, 4); ctx.stroke();
-      ctx.fillStyle = '#f8d7da';
-      ctx.font = 'bold 9px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('SELL', sellX + sellW / 2, sellY + 11);
-      ui.levelupWeaponBtns.push({ x: sellX, y: sellY, w: sellW, h: sellH, slotIndex: slot });
+      ctx.fillText(`L${weapon.level}`, allowSell ? sellX - 8 : panelX + panelW - 12, rowY + 1);
+      if (allowSell) {
+        ctx.fillStyle = '#5b1f1f';
+        rrect(sellX, sellY, sellW, sellH, 4); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        rrect(sellX, sellY, sellW, sellH, 4); ctx.stroke();
+        ctx.fillStyle = '#f8d7da';
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('SELL', sellX + sellW / 2, sellY + 11);
+        ui.levelupWeaponBtns.push({ x: sellX, y: sellY, w: sellW, h: sellH, slotIndex: slot });
+      }
     } else {
       ctx.fillStyle = '#566573';
       ctx.font = '10px monospace';
@@ -911,6 +966,7 @@ function renderLevelUpCards() {
     }
     sideY += 24;
   }
+
   sideY += 4;
   ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
   ctx.fillText('CURRENT STATS', panelX + 10, sideY); sideY += 14;
@@ -921,37 +977,92 @@ function renderLevelUpCards() {
     ctx.fillText(stat.value, panelX + panelW - 4, sideY);
     sideY += 16;
   });
-  const runCards = getRunCardEntries();
-  if (runCards.length > 0) {
-    sideY += 8;
-    ctx.textAlign = 'left';
-    ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace';
-    ctx.fillText('CARDS THIS RUN', panelX + 10, sideY); sideY += 14;
-    const maxRunCardRows = Math.max(4, Math.floor((H - sideY - 18) / 18));
-    runCards.slice(-maxRunCardRows).forEach(entry => {
-      const rowY = sideY;
-      const suffix = entry.count > 1 ? ` x${entry.count}` : '';
-      const maxNameW = panelW - 26 - ctx.measureText(suffix).width;
-      let label = `${entry.icon} ${entry.name}`;
-      while (ctx.measureText(label).width > maxNameW && label.length > 4) label = label.slice(0, -2).trimEnd() + '…';
-      ctx.textAlign = 'left';
-      ctx.fillStyle = entry.color; ctx.font = '11px monospace';
-      ctx.fillText(label, panelX + 10, rowY);
-      if (suffix) {
-        ctx.fillStyle = '#dfe6e9'; ctx.textAlign = 'right';
-        ctx.fillText(suffix, panelX + panelW - 4, rowY);
-        ctx.textAlign = 'left';
-      }
-      registerHoverRegion(panelX + 8, rowY - 12, panelW - 12, 16, { entry });
-      sideY += 18;
-    });
-  }
 
-  const centerX = panelX / 2;
+  renderGroupedRunCards(panelX, panelW, sideY + 8, H - 18);
+}
+
+function renderBaseSidebar(panelX: number, panelW: number) {
+  const { ctx, H, ui } = R;
+  const game = R.game;
+  ctx.fillStyle = '#0b1220';
+  rrect(panelX, 0, panelW + 12, H, 0); ctx.fill();
+  ctx.strokeStyle = '#1e2d44'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(panelX + panelW + 12, 0); ctx.lineTo(panelX + panelW + 12, H); ctx.stroke();
+  ctx.fillStyle = '#f39c12'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('BASE', panelX + panelW / 2 + 6, 28);
+
+  let sideY = 46;
+  ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+  ctx.fillText('BASE STATS', panelX + 10, sideY); sideY += 14;
+  getBaseStats().forEach(stat => {
+    ctx.fillStyle = '#cbd5e1'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
+    ctx.fillText(`${stat.icon} ${stat.name}`, panelX + 10, sideY);
+    ctx.fillStyle = '#f5c26b'; ctx.textAlign = 'right';
+    ctx.fillText(stat.value, panelX + panelW + 6, sideY);
+    sideY += 16;
+  });
+
+  sideY += 10;
+  ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+  ctx.fillText('BASE UPGRADES', panelX + 10, sideY); sideY += 16;
+
+  TOWER_UPGRADES.forEach((upg, index) => {
+    const lvl = game.tower.upgrades[upg.id] || 0;
+    const maxed = lvl >= upg.max;
+    const cost = maxed ? 0 : upg.cost[lvl];
+    const canAfford = !maxed && game.gold >= cost;
+    const rowY = sideY + index * 54;
+    const rowX = panelX + 8;
+    const rowW = panelW - 4;
+    const rowH = 44;
+    ctx.fillStyle = maxed ? '#16261a' : canAfford ? '#101a29' : '#221315';
+    rrect(rowX, rowY - 12, rowW, rowH, 6); ctx.fill();
+    ctx.strokeStyle = maxed ? '#27ae60' : canAfford ? '#f39c12' : '#55383b';
+    ctx.lineWidth = 1;
+    rrect(rowX, rowY - 12, rowW, rowH, 6); ctx.stroke();
+    ctx.fillStyle = maxed ? '#27ae60' : '#ecf0f1';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(upg.label, rowX + 8, rowY + 1);
+    ctx.fillStyle = '#8c9aa8';
+    ctx.font = '10px monospace';
+    ctx.fillText('●'.repeat(lvl) + '○'.repeat(Math.max(0, upg.max - lvl)), rowX + 8, rowY + 17);
+    if (maxed) {
+      ctx.fillStyle = '#27ae60';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText('MAXED', rowX + rowW - 8, rowY + 1);
+    } else {
+      ctx.fillStyle = canAfford ? '#f1c40f' : '#e74c3c';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(`${cost}⬡`, rowX + rowW - 8, rowY + 1);
+      ui.levelupBaseUpgradeBtns.push({ x: rowX, y: rowY - 12, w: rowW, h: rowH, upgradeId: upg.id });
+    }
+  });
+}
+
+function renderLevelUpCards() {
+  const { ctx, W, H, ui } = R;
+  const game = R.game;
+  const cards = game.levelUpCards;
+  if (!cards) return;
+  ui.levelupWeaponBtns = [];
+  ui.levelupShopLockBtns = [];
+  ui.levelupBaseUpgradeBtns = [];
+  ctx.fillStyle = 'rgba(4,8,20,0.93)'; ctx.fillRect(0, 0, W, H);
+  const { w: cW, h: cH, gap } = luCardDims();
+  const { freeTop, shopTop, leftPanelX, leftPanelW, rightPanelX, rightPanelW, centerX } = luPositions();
+  const panelW = rightPanelW;
+  const panelX = rightPanelX;
+  renderBaseSidebar(leftPanelX, leftPanelW);
+  renderLoadoutSidebar(panelX, panelW, { hint: game._cardActionHint });
+
+  const centerStartX = leftPanelX + leftPanelW + 12;
   ctx.fillStyle = '#1a2540';
-  ctx.fillRect(0, 0, panelX, 66);
+  ctx.fillRect(centerStartX, 0, panelX - centerStartX, 66);
   ctx.strokeStyle = '#2a3a5a'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(0, 66); ctx.lineTo(panelX, 66); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(centerStartX, 66); ctx.lineTo(panelX, 66); ctx.stroke();
   ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 24px monospace'; ctx.textAlign = 'center';
   ctx.fillText(`⚡ WAVE ${game.wave} COMPLETE`, centerX, 32);
   ctx.fillStyle = '#aaa'; ctx.font = '13px monospace';
@@ -1274,7 +1385,9 @@ export function handleGameoverClick(mx: number, my: number) {
 function renderPauseScreen() {
   const { ctx, W, H, ui } = R;
   const game = R.game;
+  const { rightPanelX, rightPanelW } = luPositions();
   ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0, 0, W, H);
+  renderLoadoutSidebar(rightPanelX, rightPanelW, { title: 'RUN STATUS', allowSell: false });
   ctx.fillStyle = '#ecf0f1'; ctx.font = 'bold 40px monospace'; ctx.textAlign = 'center';
   ctx.fillText('PAUSED', W / 2, H / 2 - 80);
   ctx.fillStyle = '#aaa'; ctx.font = '14px monospace';

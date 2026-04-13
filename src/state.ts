@@ -47,6 +47,7 @@ export const R: Runtime = {
     devMenuBtns: [],
     levelupWeaponBtns: [],
     levelupShopLockBtns: [],
+    levelupBaseUpgradeBtns: [],
   },
   dev: {
     menuHoldStart: 0,
