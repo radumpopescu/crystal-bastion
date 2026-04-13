@@ -1118,7 +1118,7 @@ export function updateProjectiles(dt: number) {
       continue;
     }
 
-    if (p.owner === 'tower' || p.owner === 'structure' || p.owner === 'player') {
+    if (p.owner === 'base' || p.owner === 'tower' || p.owner === 'structure' || p.owner === 'player') {
       for (let j = game.monsters.length - 1; j >= 0; j--) {
         const m = game.monsters[j];
         if (p.hits && p.hits.has(m)) continue;
