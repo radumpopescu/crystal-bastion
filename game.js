@@ -167,17 +167,17 @@ const STAT_UPGRADES = [
   { id:'dash',       icon:'💨',  name:'Dash Charge',   desc:'+1 max dash charge',          apply:(p)  => { p.maxDashes=(p.maxDashes||1)+1; p.dashes=Math.min((p.dashes||1)+1,p.maxDashes); },
     max:4,  count:(p) => (p.maxDashes||1) - 1 },
   // Tower cards
-  { id:'towerRepair',  icon:'🏰',  name:'Tower Repair',    desc:'Restore 200 tower HP',         apply:(p,g)  => { g.tower.hp = Math.min(g.tower.hp+200, g.tower.maxHp); }, rarity:'uncommon',
+  { id:'towerRepair',  icon:'🏰',  name:'Base Repair',     desc:'Restore 200 base HP',          apply:(p,g)  => { g.tower.hp = Math.min(g.tower.hp+200, g.tower.maxHp); }, rarity:'uncommon',
     available:(p,g) => g.tower.hp < g.tower.maxHp },
-  { id:'towerBoost',   icon:'🗼',  name:'Tower Overcharge',desc:'+30% tower damage this run',   apply:(p,g)  => { g.tower.atkDmg = Math.round(g.tower.atkDmg*1.30); }, rarity:'uncommon' },
-  { id:'towerRadar',   icon:'📡',  name:'Tower Radar',     desc:'+120 tower attack range',      apply:(p,g)  => { g.tower.atkRange += 120; }, rarity:'uncommon' },
-  { id:'towerSpeed',   icon:'🌀',  name:'Tower Rapid Fire',desc:'+35% tower fire rate',         apply:(p,g)  => { g.tower.atkSpeed *= 1.35; }, rarity:'uncommon' },
-  // Outpost cards
-  { id:'outpostRepair',icon:'🔧',  name:'Repair Outposts', desc:'Fully heal all outposts',      apply:(p,g)  => { for(const op of g.outposts) op.hp = op.maxHp; }, rarity:'uncommon',
+  { id:'towerBoost',   icon:'🗼',  name:'Base Overcharge', desc:'+30% base damage this run',    apply:(p,g)  => { g.tower.atkDmg = Math.round(g.tower.atkDmg*1.30); }, rarity:'uncommon' },
+  { id:'towerRadar',   icon:'📡',  name:'Base Radar',      desc:'+120 base attack range',       apply:(p,g)  => { g.tower.atkRange += 120; }, rarity:'uncommon' },
+  { id:'towerSpeed',   icon:'🌀',  name:'Base Rapid Fire', desc:'+35% base fire rate',          apply:(p,g)  => { g.tower.atkSpeed *= 1.35; }, rarity:'uncommon' },
+  // Tower cards
+  { id:'outpostRepair',icon:'🔧',  name:'Repair Towers',   desc:'Fully heal all towers',        apply:(p,g)  => { for(const op of g.outposts) op.hp = op.maxHp; }, rarity:'uncommon',
     available:(p,g) => g.outposts.some(op => op.hp < op.maxHp) },
-  { id:'outpostBoost', icon:'⚔️',  name:'Outpost Arsenal', desc:'+40% outpost damage this run', apply:(p,g)  => { for(const op of g.outposts) op.atkDmg = Math.round(op.atkDmg*1.40); }, rarity:'uncommon',
+  { id:'outpostBoost', icon:'⚔️',  name:'Tower Arsenal',   desc:'+40% tower damage this run',   apply:(p,g)  => { for(const op of g.outposts) op.atkDmg = Math.round(op.atkDmg*1.40); }, rarity:'uncommon',
     available:(p,g) => g.outposts.length > 0 },
-  { id:'outpostCheap', icon:'💰',  name:'Supply Lines',    desc:'Outposts cost 5 less gold',    apply:(p,g)  => { g.outpostDiscount = (g.outpostDiscount||0) + 5; }, rarity:'uncommon',
+  { id:'outpostCheap', icon:'💰',  name:'Supply Lines',    desc:'Towers cost 5 less gold',      apply:(p,g)  => { g.outpostDiscount = (g.outpostDiscount||0) + 5; }, rarity:'uncommon',
     available:(p,g) => { const cur = OUTPOST_COST - (g.outpostDiscount||0); return cur > 10; } },
 ];
 
@@ -199,20 +199,20 @@ const META_UPGRADES = [
   { id:'startGold',     label:'Scavenger',           desc:'+50 starting gold',         cost:5,  max:6,  cat:'econ'   },
   { id:'crystalBonus',  label:'Crystal Magnet',      desc:'+25% crystals per run',     cost:12, max:5,  cat:'econ'   },
   { id:'earlyBonus',    label:'Blitzkrieg',          desc:'+30% early wave gold bonus',cost:10, max:4,  cat:'econ'   },
-  // ── Tower ──
-  { id:'towerHp',       label:'Fortified Tower',     desc:'+200 tower HP',             cost:8,  max:6,  cat:'tower'  },
-  { id:'towerAtk',      label:'Tower Arsenal',       desc:'+25% tower damage',         cost:10, max:5,  cat:'tower'  },
-  { id:'towerRange',    label:'Tower Radar',         desc:'+100 tower attack range',   cost:9,  max:4,  cat:'tower'  },
-  { id:'towerAtkSpd',   label:'Rapid Fire',          desc:'+20% tower fire rate',      cost:10, max:4,  cat:'tower'  },
-  // ── Outposts ──
-  { id:'outpostHp',     label:'Reinforced Outposts', desc:'+80 outpost HP',            cost:9,  max:5,  cat:'outpost'},
-  { id:'outpostAtk',    label:'Outpost Cannons',     desc:'+30% outpost damage',       cost:10, max:4,  cat:'outpost'},
-  { id:'outpostRange',  label:'Extended Network',    desc:'+100 outpost zone range',   cost:9,  max:4,  cat:'outpost'},
+  // ── Base ──
+  { id:'towerHp',       label:'Fortified Base',      desc:'+200 base HP',              cost:8,  max:6,  cat:'tower'  },
+  { id:'towerAtk',      label:'Base Arsenal',        desc:'+25% base damage',          cost:10, max:5,  cat:'tower'  },
+  { id:'towerRange',    label:'Base Radar',          desc:'+100 base attack range',    cost:9,  max:4,  cat:'tower'  },
+  { id:'towerAtkSpd',   label:'Rapid Fire',          desc:'+20% base fire rate',       cost:10, max:4,  cat:'tower'  },
+  // ── Towers ──
+  { id:'outpostHp',     label:'Reinforced Towers',   desc:'+80 tower HP',              cost:9,  max:5,  cat:'outpost'},
+  { id:'outpostAtk',    label:'Tower Cannons',       desc:'+30% tower damage',         cost:10, max:4,  cat:'outpost'},
+  { id:'outpostRange',  label:'Extended Network',    desc:'+100 tower zone range',     cost:9,  max:4,  cat:'outpost'},
   // ── Unlocks ──
   { id:'startWpn',      label:'Head Start',          desc:'Start with Assault Rifle',  cost:12, max:1,  cat:'unlock' },
   { id:'waveDelay',     label:'Respite',             desc:'+8s between waves',         cost:8,  max:4,  cat:'unlock' },
   { id:'freeDeploy',    label:'Engineer Corps',      desc:'Start with extra gold',     cost:15, max:3,  cat:'unlock' },
-  { id:'autoConstruct', label:'Auto-Construct',       desc:'Hold Shift to auto-place outposts while walking', cost:20, max:1,  cat:'unlock' },
+  { id:'autoConstruct', label:'Auto-Construct',       desc:'Shift cycles auto-build tower spacing while walking', cost:20, max:1,  cat:'unlock' },
 ];
 
 let meta = loadMeta();
@@ -477,9 +477,9 @@ function tryPlaceOutpost() {
 
 // ─── TOWER UPGRADES ──────────────────────────────────────────────────────────
 const TOWER_UPGRADES = [
-  { id:'hp',    label:'Tower HP +150',    cost:[60,100,150], max:3 },
-  { id:'range', label:'Tower Range +60',  cost:[70,120],     max:2 },
-  { id:'dmg',   label:'Tower Damage +40%',cost:[80,130],     max:2 },
+  { id:'hp',    label:'Base HP +150',     cost:[60,100,150], max:3 },
+  { id:'range', label:'Base Range +60',   cost:[70,120],     max:2 },
+  { id:'dmg',   label:'Base Damage +40%', cost:[80,130],     max:2 },
 ];
 
 function toggleUpgradeMenu() {
@@ -1737,7 +1737,7 @@ function renderHUD() {
   ctx.fillStyle = 'rgba(0,0,0,0.72)';
   rrect(W/2 - tBarW/2 - 10, 8, tBarW + 20, tBarH, 8); ctx.fill();
   ctx.fillStyle = '#f39c12'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('🏰 TOWER', W/2, 24);
+  ctx.fillText('🏰 BASE', W/2, 24);
   drawHpBar(W/2 - tBarW/2, 28, tBarW, 16, t.hp, t.maxHp, '#c0392b', '#e74c3c');
   ctx.fillStyle = '#ddd'; ctx.font = 'bold 11px monospace';
   ctx.fillText(`${Math.ceil(t.hp)} / ${t.maxHp}`, W/2, 56);
@@ -1801,46 +1801,48 @@ function renderHUD() {
   const cardsPanelX = W - 230;
   const cardsPanelY = 58;
   const cardsPanelH = Math.max(72, controlsBoxY - cardsPanelY - 12);
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  rrect(cardsPanelX, cardsPanelY, 220, cardsPanelH, 6); ctx.fill();
-  ctx.fillStyle = '#7aa2ff';
-  ctx.font = 'bold 11px monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText('RUN CARDS', cardsPanelX + 10, cardsPanelY + 18);
-  if (runCards.length === 0) {
-    ctx.fillStyle = '#556';
-    ctx.font = '11px monospace';
-    ctx.fillText('No cards picked yet', cardsPanelX + 10, cardsPanelY + 40);
-  } else {
-    const rowH = 18;
-    const maxRows = Math.max(1, Math.floor((cardsPanelH - 28) / rowH));
-    const visible = runCards.slice(-maxRows);
-    visible.forEach((entry, index) => {
-      const rowY = cardsPanelY + 38 + index * rowH;
-      const suffix = entry.count > 1 ? ` x${entry.count}` : '';
-      const name = `${entry.icon} ${entry.name}`;
-      const maxNameW = 220 - 24 - ctx.measureText(suffix).width;
-      let label = name;
-      while (ctx.measureText(label).width > maxNameW && label.length > 4) {
-        label = label.slice(0, -2).trimEnd() + '…';
-      }
-      ctx.fillStyle = entry.color;
+  if (!game.waveActive) {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    rrect(cardsPanelX, cardsPanelY, 220, cardsPanelH, 6); ctx.fill();
+    ctx.fillStyle = '#7aa2ff';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('RUN CARDS', cardsPanelX + 10, cardsPanelY + 18);
+    if (runCards.length === 0) {
+      ctx.fillStyle = '#556';
       ctx.font = '11px monospace';
-      ctx.fillText(label, cardsPanelX + 10, rowY);
-      if (suffix) {
-        ctx.fillStyle = '#dfe6e9';
-        ctx.textAlign = 'right';
-        ctx.fillText(suffix, cardsPanelX + 206, rowY);
-        ctx.textAlign = 'left';
-      }
-      registerHoverRegion(cardsPanelX + 8, rowY - 12, 204, 16, { entry });
-    });
+      ctx.fillText('No cards picked yet', cardsPanelX + 10, cardsPanelY + 40);
+    } else {
+      const rowH = 18;
+      const maxRows = Math.max(1, Math.floor((cardsPanelH - 28) / rowH));
+      const visible = runCards.slice(-maxRows);
+      visible.forEach((entry, index) => {
+        const rowY = cardsPanelY + 38 + index * rowH;
+        const suffix = entry.count > 1 ? ` x${entry.count}` : '';
+        const name = `${entry.icon} ${entry.name}`;
+        const maxNameW = 220 - 24 - ctx.measureText(suffix).width;
+        let label = name;
+        while (ctx.measureText(label).width > maxNameW && label.length > 4) {
+          label = label.slice(0, -2).trimEnd() + '…';
+        }
+        ctx.fillStyle = entry.color;
+        ctx.font = '11px monospace';
+        ctx.fillText(label, cardsPanelX + 10, rowY);
+        if (suffix) {
+          ctx.fillStyle = '#dfe6e9';
+          ctx.textAlign = 'right';
+          ctx.fillText(suffix, cardsPanelX + 206, rowY);
+          ctx.textAlign = 'left';
+        }
+        registerHoverRegion(cardsPanelX + 8, rowY - 12, 204, 16, { entry });
+      });
+    }
   }
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
   rrect(W - 230, controlsBoxY, 220, controlsBoxH, 6); ctx.fill();
   ctx.fillStyle = '#666'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
   ctx.fillText('WASD move · SPACE dash', W - 14, controlsBoxY + 20);
-  ctx.fillText('E: outpost · U: upgrades · P: pause', W - 14, controlsBoxY + 36);
+  ctx.fillText('E: tower · U: upgrades · P: pause', W - 14, controlsBoxY + 36);
   ctx.fillStyle = '#a855f7'; ctx.font = 'bold 13px monospace';
   ctx.fillText(`💎 ${meta.crystals} crystals`, W - 14, controlsBoxY + 56);
   if (autoConstructUnlocked) {
@@ -1853,7 +1855,7 @@ function renderHUD() {
   }
 
   // ── Bottom run-card strip ──
-  if (runCards.length > 0) {
+  if (!game.waveActive && runCards.length > 0) {
     const stripX = 250;
     const stripW = Math.max(180, W - stripX - 210);
     const stripY = H - 142;
@@ -1999,7 +2001,7 @@ function renderUpgradeMenu() {
   ctx.fillStyle = 'rgba(0,0,0,0.88)'; rrect(mX-12, mY-12, 354, 300, 10); ctx.fill();
   ctx.strokeStyle = '#f39c12'; ctx.lineWidth = 2; rrect(mX-12, mY-12, 354, 300, 10); ctx.stroke();
   ctx.fillStyle = '#f39c12'; ctx.font = 'bold 16px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('TOWER UPGRADES  (press U to close)', W/2, mY+14);
+  ctx.fillText('BASE UPGRADES  (press U to close)', W/2, mY+14);
   TOWER_UPGRADES.forEach((upg, i) => {
     const lvl = game.tower.upgrades[upg.id]||0;
     const maxed = lvl>=upg.max;
@@ -2349,7 +2351,7 @@ let gameoverBtns = [];
 function renderGameover() {
   ctx.fillStyle = 'rgba(0,0,0,0.95)'; ctx.fillRect(0,0,W,H);
   ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 52px monospace'; ctx.textAlign = 'center';
-  ctx.fillText(game.player.dead ? 'YOU DIED' : 'TOWER DESTROYED', W/2, H/2-140);
+  ctx.fillText(game.player.dead ? 'YOU DIED' : 'BASE DESTROYED', W/2, H/2-140);
   ctx.fillStyle = '#ecf0f1'; ctx.font = '22px monospace';
   ctx.fillText(`Waves survived: ${game.wave}`, W/2, H/2-80);
   ctx.fillStyle = '#f1c40f'; ctx.font = '20px monospace';
@@ -2411,13 +2413,13 @@ const CB_SECTIONS = [
       .map(s => ({ type:'stat', statId:s.id, rarity:s.rarity||'common' })),
   },
   {
-    label: '🏰 TOWER CARDS', color: '#f39c12',
+    label: '🏰 BASE CARDS', color: '#f39c12',
     cards: () => ['towerRepair','towerBoost','towerRadar','towerSpeed']
       .map(id => { const s = STAT_UPGRADES.find(x=>x.id===id); return s ? { type:'stat', statId:id, rarity:s.rarity||'uncommon' } : null; })
       .filter(Boolean),
   },
   {
-    label: '🔵 OUTPOST CARDS', color: '#3498db',
+    label: '🔵 TOWER CARDS', color: '#3498db',
     cards: () => ['outpostRepair','outpostBoost','outpostCheap']
       .map(id => { const s = STAT_UPGRADES.find(x=>x.id===id); return s ? { type:'stat', statId:id, rarity:s.rarity||'uncommon' } : null; })
       .filter(Boolean),
@@ -2604,7 +2606,7 @@ let metaBtns = [], metaBackBtn2 = null;
 let metaScroll = 0;
 let maxMetaScroll = 0;
 const CAT_COLORS = { player:'#e74c3c', econ:'#f1c40f', tower:'#f39c12', outpost:'#3498db', unlock:'#8e44ad' };
-const CAT_LABELS = { player:'⚔️ PLAYER', econ:'💰 ECONOMY', tower:'🏰 TOWER', outpost:'🔵 OUTPOSTS', unlock:'🔓 UNLOCKS' };
+const CAT_LABELS = { player:'⚔️ PLAYER', econ:'💰 ECONOMY', tower:'🏰 BASE', outpost:'🔵 TOWERS', unlock:'🔓 UNLOCKS' };
 
 function renderMetaScreen() {
   ctx.fillStyle = '#0a0f1e'; ctx.fillRect(0,0,W,H);
