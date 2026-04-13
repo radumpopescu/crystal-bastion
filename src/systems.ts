@@ -328,6 +328,7 @@ export function getLoadoutStats() {
     { icon:'💵', name:'Gold Find',    value: `${Math.round((p.goldFinder || 0) * 100)}%` },
     { icon:'🗼', name:'Tower Cost',   value: towerDiscount > 0 ? `${towerCost}g (-${towerDiscount})` : `${towerCost}g` },
     { icon:'🍀', name:'Luck',         value: `${p.luck || 0}` },
+    { icon:'🌀', name:'Dash Level',   value: `${p.dashLevel || 0}/5` },
     { icon:'💨', name:'Dash Charges', value: `${p.maxDashes || 0}` },
   ];
 }
@@ -1188,13 +1189,15 @@ export function updateDmgNums(dt: number) {
 export function tryDash() {
   const p = R.game.player;
   if (p.dashing || p.dashes <= 0) return;
+  const dashDuration = p.dashDuration || DASH_DURATION;
+  const dashSpeed = p.dashSpeed || DASH_SPEED;
   p.dashing = true;
-  p.dashTimer = DASH_DURATION;
+  p.dashTimer = dashDuration;
   p.dashes--;
   if (p.dashCooldown <= 0) p.dashCooldown = DASH_COOLDOWN;
-  p.invincible = DASH_DURATION + 0.05;
-  p.dashVx = p.facing.x * DASH_SPEED;
-  p.dashVy = p.facing.y * DASH_SPEED;
+  p.invincible = dashDuration + 0.05;
+  p.dashVx = p.facing.x * dashSpeed;
+  p.dashVy = p.facing.y * dashSpeed;
   spawnParticles(p.x, p.y, '#3498db', 8, 80);
 }
 

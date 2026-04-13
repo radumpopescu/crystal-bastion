@@ -1,5 +1,5 @@
 import type { Runtime } from './types';
-import { AUTO_CONSTRUCT_MODES, ISO_SCALE, META_UPGRADES, OUTPOST_HP_BASE, OUTPOST_RANGE, PLAYER_HP_BASE, PLAYER_SPEED, STAT_UPGRADES, TOWER_ATK_DMG, TOWER_ATK_RANGE, TOWER_ATK_SPEED, TOWER_AURA_DMG, TOWER_AURA_R, TOWER_HP_BASE, TOWER_RANGE, WEAPONS, WAVE_INTERVAL } from './constants';
+import { AUTO_CONSTRUCT_MODES, DASH_DURATION, DASH_SPEED, ISO_SCALE, META_UPGRADES, OUTPOST_HP_BASE, OUTPOST_RANGE, PLAYER_HP_BASE, PLAYER_SPEED, STAT_UPGRADES, TOWER_ATK_DMG, TOWER_ATK_RANGE, TOWER_ATK_SPEED, TOWER_AURA_DMG, TOWER_AURA_R, TOWER_HP_BASE, TOWER_RANGE, WEAPONS, WAVE_INTERVAL } from './constants';
 import { clamp } from './utils';
 import { loadMeta, metaValue, saveMeta } from './meta';
 
@@ -85,6 +85,7 @@ export function makeWeapon(id: string) {
 export function newGame(opts: any = {}) {
   const playerHpBonus = metaVal('playerHp');
   const startGold = opts.startGold ?? (30 + metaVal('startGold'));
+  const baseDashCharges = 2 + metaVal('extraDash');
   const towerHpBonus = metaVal('towerHp');
   const opHpBonus = metaVal('outpostHp');
   const towerAtkMult = metaVal('towerAtk') || 1;
@@ -143,8 +144,12 @@ export function newGame(opts: any = {}) {
       lifesteal: 0,
       regen: metaVal('playerRegen') || 0,
       luck: 0, goldFinder: 0,
-      maxDashes: 2 + metaVal('extraDash'),
-      dashes: 2 + metaVal('extraDash'),
+      maxDashes: baseDashCharges,
+      dashes: baseDashCharges,
+      _baseMaxDashes: baseDashCharges,
+      dashLevel: 0,
+      dashSpeed: DASH_SPEED,
+      dashDuration: DASH_DURATION,
       dashCooldown: 0,
       dashing: false, dashTimer: 0,
       dashVx: 0, dashVy: 0,

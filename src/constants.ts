@@ -130,8 +130,14 @@ export const STAT_UPGRADES: any[] = [
     max:5,  count:(p: any) => Math.round((p.goldFinder || 0) / 0.20) },
   { id:'luck',       icon:'🍀',  name:'Lucky',         desc:'+1 luck: rarer cards more often', apply:(p: any) => { p.luck = (p.luck || 0) + 1; }, rarity:'uncommon',
     max:4,  count:(p: any) => p.luck || 0 },
+  { id:'dashLevel',  icon:'🌀',  name:'Dash Level',    desc:'+15% dash speed and +12% dash length', apply:(p: any)  => {
+      p.dashLevel = (p.dashLevel || 0) + 1;
+      p.dashSpeed = (p.dashSpeed || DASH_SPEED) * 1.15;
+      p.dashDuration = (p.dashDuration || DASH_DURATION) * 1.12;
+    },
+    max:5,  count:(p: any) => p.dashLevel || 0 },
   { id:'dash',       icon:'💨',  name:'Dash Charge',   desc:'+1 max dash charge',          apply:(p: any)  => { p.maxDashes = (p.maxDashes || 1) + 1; p.dashes = Math.min((p.dashes || 1) + 1, p.maxDashes); },
-    max:4,  count:(p: any) => (p.maxDashes || 1) - 1 },
+    max:5,  count:(p: any) => Math.max(0, (p.maxDashes || 0) - (p._baseMaxDashes || 0)) },
   { id:'towerRepair',  icon:'🏰',  name:'Base Repair',     desc:'Restore 200 base HP',          apply:(_p: any, g: any)  => { g.tower.hp = Math.min(g.tower.hp + 200, g.tower.maxHp); }, rarity:'uncommon',
     available:(_p: any, g: any) => g.tower.hp < g.tower.maxHp },
   { id:'towerBoost',   icon:'🗼',  name:'Base Overcharge', desc:'+30% base damage this run',    apply:(_p: any, g: any)  => { g.tower.atkDmg = Math.round(g.tower.atkDmg * 1.30); }, rarity:'uncommon' },
@@ -168,9 +174,9 @@ export const META_UPGRADES: any[] = [
 ];
 
 export const TOWER_UPGRADES: any[] = [
-  { id:'hp',    label:'Base HP +150',     cost:[60,100,150], max:3 },
-  { id:'range', label:'Base Range +60',   cost:[70,120],     max:2 },
-  { id:'dmg',   label:'Base Damage +40%', cost:[80,130],     max:2 },
+  { id:'hp',    label:'Base HP +150',     cost:[60,100,150,210,280], max:5 },
+  { id:'range', label:'Base Range +60',   cost:[70,120,180,250,330], max:5 },
+  { id:'dmg',   label:'Base Damage +40%', cost:[80,130,190,260,340], max:5 },
 ];
 
 export const MONSTER_DEF: Record<string, any> = {
