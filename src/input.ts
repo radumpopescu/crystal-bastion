@@ -1,4 +1,3 @@
-import { AUTO_CONSTRUCT_MODES } from './constants';
 import { R, metaVal } from './state';
 import { handleCardClick, handlePlayingClick, handleUpgradeMenuClick, toggleUpgradeMenu, tryDash, tryPlaceOutpost } from './systems';
 import { handleDevMenuClick, handleGameoverClick, handleMenuClick, handleMetaClick, handlePauseClick } from './render';
@@ -10,15 +9,6 @@ window.addEventListener('keydown', e => {
   }
   if (R.game) R.game.keys[e.code] = true;
   if (!R.game) return;
-  if (
-    R.state === 'playing' &&
-    !e.repeat &&
-    (e.code === 'ShiftLeft' || e.code === 'ShiftRight') &&
-    (R.meta.upgrades['autoConstruct'] || 0) > 0
-  ) {
-    R.game.autoConstructMode = ((R.game.autoConstructMode || 0) + 1) % AUTO_CONSTRUCT_MODES.length;
-    return;
-  }
   if (R.state === 'playing' || R.state === 'paused') {
     if (e.code === 'KeyP' || e.code === 'Escape') {
       if (R.state === 'playing') { R.state = 'paused'; R.game.showUpgradeMenu = false; }

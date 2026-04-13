@@ -13,8 +13,8 @@ export function saveMeta(meta: any) {
 export function metaValue(meta: any, id: string) {
   const lvl = meta.upgrades[id] || 0;
   switch (id) {
-    case 'playerHp':     return lvl * 30;
-    case 'playerRegen':  return lvl * 0.75;
+    case 'playerHp':     return lvl * 20;
+    case 'playerRegen':  return lvl * 0.1;
     case 'playerArmor':  return lvl * 0.06;
     case 'playerDmg':    return 1 + lvl * 0.15;
     case 'extraDash':    return lvl;

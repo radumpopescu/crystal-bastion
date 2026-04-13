@@ -46,6 +46,7 @@ export const R: Runtime = {
     maxMetaScroll: 0,
     devMenuBtns: [],
     levelupWeaponBtns: [],
+    levelupShopLockBtns: [],
   },
   dev: {
     menuHoldStart: 0,
@@ -165,8 +166,7 @@ export function newGame(opts: any = {}) {
     keys: {},
     showUpgradeMenu: false,
     upgradeMenuCooldown: 0,
-    autoConstructMode: 0,
-    runCardCounts: {},
+      runCardCounts: {},
     runCardOrder: [],
     devSession: !!opts.devSession,
   };

@@ -1,4 +1,4 @@
-import { AUTO_CONSTRUCT_MODES, BASE_MONSTERS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, LEASH_DMG, MAX_WEAPON_SLOTS, MONSTER_DEF, MONSTER_SCALE, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_RANGE, PLAYER_RADIUS, PLAYER_SPEED, STAT_UPGRADES, TILE_SIZE, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS } from './constants';
+import { AUTO_CONSTRUCT_SPACING, BASE_MONSTERS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, LEASH_DMG, MAX_WEAPON_SLOTS, MONSTER_DEF, MONSTER_SCALE, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_RANGE, PLAYER_RADIUS, PLAYER_SPEED, STAT_UPGRADES, TILE_SIZE, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS } from './constants';
 import { DEV_WEAPON_IDS, R, devCardLimit, finishDevSession, makeWeapon, metaVal, newGame } from './state';
 import { clamp, dist, inBtn, shuffle } from './utils';
 import { saveMeta } from './meta';
@@ -109,9 +109,9 @@ export function startNextWave(early = false) {
 
   game.wave++;
   const count = Math.floor(BASE_MONSTERS + game.wave * 2 + Math.pow(game.wave, 1.25));
-  const hpScale = 1 + (game.wave - 1) * 0.18;
+  const hpScale = 1 + (game.wave - 1) * 0.2;
   const spdScale = 1 + (game.wave - 1) * 0.04;
-  const dmgScale = 1 + (game.wave - 1) * 0.05;
+  const dmgScale = 1 + (game.wave - 1) * 0.07;
 
   let maxAnchorDist = game.tower.range;
   for (const op of game.outposts) {
@@ -216,6 +216,10 @@ export function generateShopCards(n = 4) {
   const game = R.game;
   const pool: any[] = [];
   const p = game.player;
+  const lockedCards = (game.shopCards || [])
+    .filter((card: any) => card && card._locked && !card._bought)
+    .map((card: any) => ({ ...card, _locked: true, _bought: false }));
+  const lockedKeys = new Set(lockedCards.map((card: any) => (card.type === 'weapon' ? card.weaponId : card.statId)));
   pool.push(...getWeaponCardPool(game));
   for (const s of STAT_UPGRADES) {
     if (!isStatUpgradeAvailable(s, game.player, game)) continue;
@@ -229,9 +233,10 @@ export function generateShopCards(n = 4) {
   const weighted = pool.flatMap(c => c.rarity === 'rare' ? Array(wR2).fill(c) : c.rarity === 'uncommon' ? Array(wU2).fill(c) : Array(wC2).fill(c));
   shuffle(weighted);
   const seen = new Set();
-  const cards: any[] = [];
+  const cards: any[] = [...lockedCards];
   for (const c of weighted) {
     const key = c.type === 'weapon' ? c.weaponId : c.statId;
+    if (lockedKeys.has(key)) continue;
     const inFree = game.levelUpCards && game.levelUpCards.some((fc: any) => {
       const fkey = fc.type === 'weapon' ? fc.weaponId : fc.statId;
       return fkey === key;
@@ -303,7 +308,7 @@ export function getLoadoutStats() {
   return [
     { icon:'❤️', name:'Max HP',       value: `${Math.round(p.maxHp)}` },
     { icon:'💚', name:'Regen',        value: `${(p.regen || 0).toFixed(1)}/s` },
-    { icon:'🩸', name:'Lifesteal',    value: `${Math.round((p.lifesteal || 0) * 100)}%` },
+    { icon:'🩸', name:'Lifesteal',    value: `${(p.lifesteal || 0).toFixed(2)}/hit` },
     { icon:'💢', name:'Damage',       value: `${Math.round((p.dmgMult || 1) * 100)}%` },
     { icon:'⚡', name:'Atk Speed',    value: `${Math.round((p.atkSpdMult || 1) * 100)}%` },
     { icon:'👟', name:'Move Speed',   value: `${Math.round(p.speed || 0)}` },
@@ -374,6 +379,20 @@ export function handleCardClick(mx: number, my: number) {
       return;
     }
   }
+  for (const btn of R.ui.levelupShopLockBtns || []) {
+    if (mx >= btn.x && mx <= btn.x + btn.w && my >= btn.y && my <= btn.y + btn.h) {
+      const card = game.shopCards?.[btn.cardIndex];
+      if (!card || card._bought) return;
+      const lockLabel = card.type === 'weapon'
+        ? WEAPONS[card.weaponId].name
+        : (STAT_UPGRADES.find((stat: any) => stat.id === card.statId)?.name || 'Card');
+      card._locked = !card._locked;
+      game._cardActionHint = card._locked
+        ? `${lockLabel} locked for the next wave-end shop.`
+        : 'Card unlocked.';
+      return;
+    }
+  }
   const { cW, cH, gap, centerX, freeTop, shopTop } = luPositions();
 
   const freeN = game.levelUpCards.length;
@@ -415,6 +434,7 @@ export function handleCardClick(mx: number, my: number) {
           game.gold += card.cost;
           return;
         }
+        card._locked = false;
         card._bought = true;
         game._anyBought = true;
       }
@@ -903,14 +923,14 @@ export function updateMonsters(dt: number) {
 
     if (m.atkCooldown > 0) { m.atkCooldown -= dt; continue; }
     if (d > contactR + 8) continue;
-    m.atkCooldown = 1.1;
+    m.atkCooldown = 0.95;
 
     if (!tgt.isStruct) {
       if (game.player.invincible <= 0 && !game.player.dashing) {
         const dmg = m.dmg * (1 - (game.player.armor || 0));
         game.player.hp -= dmg;
         game.player.flashTimer = 0.15;
-        game.player.invincible = 0.25;
+        game.player.invincible = 0.16;
         spawnDmgNum(game.player.x, game.player.y - 24, Math.round(dmg), '#ff6b6b');
       }
     } else {
@@ -927,15 +947,14 @@ export function updateMonsters(dt: number) {
 export function updateAutoConstruct() {
   const game = R.game;
   if (!(R.meta.upgrades['autoConstruct'] > 0)) return;
-  const mode = AUTO_CONSTRUCT_MODES[game.autoConstructMode || 0] || AUTO_CONSTRUCT_MODES[0];
-  if (mode.spacing <= 0) return;
   const p = game.player;
+  if (!(game.keys['ShiftLeft'] || game.keys['ShiftRight'])) return;
   if (p.dashing || !p._walkMoved) return;
   const { anchor, dist: anchorDist } = nearestAnchor(p.x, p.y);
   if (!anchor) return;
-  if (anchorDist < mode.spacing) return;
+  if (anchorDist < AUTO_CONSTRUCT_SPACING) return;
   if (tryPlaceOutpostAt(p.x, p.y)) {
-    spawnDmgNum(p.x, p.y - 28, `AUTO ${mode.label}`, '#27ae60');
+    spawnDmgNum(p.x, p.y - 28, 'AUTO 1m', '#27ae60');
   }
 }
 
@@ -1063,7 +1082,7 @@ function dealDamage(monster: any, rawDmg: number, owner: any) {
   monster.hp -= rawDmg;
   spawnDmgNum(monster.x, monster.y - monster.radius, Math.round(rawDmg), '#fff');
   if (owner && owner.lifesteal) {
-    owner.hp = Math.min(owner.hp + rawDmg * owner.lifesteal, owner.maxHp);
+    owner.hp = Math.min(owner.hp + owner.lifesteal, owner.maxHp);
   }
   return monster.hp <= 0;
 }

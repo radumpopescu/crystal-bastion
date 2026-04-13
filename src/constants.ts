@@ -6,13 +6,7 @@ export const ISO_SCALE = TW / 80;
 
 export const WORLD_TILES = 28;
 export const TILE_SIZE = 80;
-export const AUTO_CONSTRUCT_MODES = [
-  { label:'OFF', spacing:0 },
-  { label:'1m',  spacing:TILE_SIZE * 1 },
-  { label:'2m',  spacing:TILE_SIZE * 2 },
-  { label:'5m',  spacing:TILE_SIZE * 5 },
-  { label:'10m', spacing:TILE_SIZE * 10 },
-];
+export const AUTO_CONSTRUCT_SPACING = TILE_SIZE;
 
 export const TOWER_RANGE = 700;
 export const OUTPOST_RANGE = 550;
@@ -26,7 +20,7 @@ export const TOWER_ATK_SPEED = 0.9;
 export const TOWER_AURA_R = 140;
 export const TOWER_AURA_DMG = 4;
 
-export const PLAYER_HP_BASE = 130;
+export const PLAYER_HP_BASE = 100;
 export const PLAYER_SPEED = 280;
 export const PLAYER_RADIUS = 18;
 export const DASH_SPEED = 480;
@@ -37,7 +31,7 @@ export const OUTPOST_HP_BASE = 100;
 export const OUTPOST_COST = 55;
 export const MAX_WEAPON_SLOTS = 6;
 
-export const WAVE_INTERVAL = 34;
+export const WAVE_INTERVAL = 32;
 export const BASE_MONSTERS = 4;
 export const MONSTER_SCALE = 1.22;
 
@@ -115,12 +109,12 @@ export const WEAPONS: Record<string, any> = {
 };
 
 export const STAT_UPGRADES: any[] = [
-  { id:'maxHp',      icon:'❤️',  name:'Max HP',        desc:'+40 max health',              apply:(p: any)  => { p.maxHp += 40; p.hp = Math.min(p.hp + 40, p.maxHp); },
-    max:8,  count:(p: any) => Math.round((p.maxHp - (p._baseMaxHp || p.maxHp)) / 40) },
-  { id:'regen',      icon:'💚',  name:'Regeneration',  desc:'+1.5 HP/sec regen',           apply:(p: any)  => { p.regen = (p.regen || 0) + 1.5; },
-    max:6,  count:(p: any) => Math.round((p.regen || 0) / 1.5) },
-  { id:'lifesteal',  icon:'🩸',  name:'Life Steal',    desc:'+10% lifesteal on hit',       apply:(p: any)  => { p.lifesteal = (p.lifesteal || 0) + 0.10; },
-    max:5,  count:(p: any) => Math.round((p.lifesteal || 0) / 0.10) },
+  { id:'maxHp',      icon:'❤️',  name:'Max HP',        desc:'+30 max health',              apply:(p: any)  => { p.maxHp += 30; p.hp = Math.min(p.hp + 30, p.maxHp); },
+    max:8,  count:(p: any) => Math.round((p.maxHp - (p._baseMaxHp || p.maxHp)) / 30) },
+  { id:'regen',      icon:'💚',  name:'Regeneration',  desc:'+0.1 HP/sec regen',           apply:(p: any)  => { p.regen = (p.regen || 0) + 0.1; },
+    max:6,  count:(p: any) => Math.round((p.regen || 0) / 0.1) },
+  { id:'lifesteal',  icon:'🩸',  name:'Life Steal',    desc:'+0.15 HP on hit',             apply:(p: any)  => { p.lifesteal = (p.lifesteal || 0) + 0.15; },
+    max:5,  count:(p: any) => Math.round((p.lifesteal || 0) / 0.15) },
   { id:'damage',     icon:'💢',  name:'Raw Damage',    desc:'+22% all weapon damage',      apply:(p: any)  => { p.dmgMult = (p.dmgMult || 1) * 1.22; },
     max:6,  count:(p: any) => Math.round(Math.log((p.dmgMult || 1)) / Math.log(1.22)) },
   { id:'atkspd',     icon:'⚡',  name:'Attack Speed',  desc:'+22% attack speed',           apply:(p: any)  => { p.atkSpdMult = (p.atkSpdMult || 1) * 1.22; },
@@ -152,8 +146,8 @@ export const STAT_UPGRADES: any[] = [
 ];
 
 export const META_UPGRADES: any[] = [
-  { id:'playerHp',      label:'Reinforced Body',    desc:'+30 max HP',                cost:6,  max:8,  cat:'player' },
-  { id:'playerRegen',   label:'Regeneration',       desc:'+0.75 HP/sec regen',        cost:8,  max:5,  cat:'player' },
+  { id:'playerHp',      label:'Reinforced Body',    desc:'+20 max HP',                cost:6,  max:8,  cat:'player' },
+  { id:'playerRegen',   label:'Regeneration',       desc:'+0.1 HP/sec regen',         cost:8,  max:5,  cat:'player' },
   { id:'playerArmor',   label:'Battle Armor',       desc:'+6% damage reduction',      cost:10, max:5,  cat:'player' },
   { id:'playerDmg',     label:'Raw Power',          desc:'+15% all damage',           cost:10, max:6,  cat:'player' },
   { id:'extraDash',     label:'Nimble',             desc:'+1 starting dash',          cost:8,  max:3,  cat:'player' },
@@ -170,7 +164,7 @@ export const META_UPGRADES: any[] = [
   { id:'startWpn',      label:'Head Start',         desc:'Start with Assault Rifle',  cost:12, max:1,  cat:'unlock' },
   { id:'waveDelay',     label:'Respite',            desc:'+8s between waves',         cost:8,  max:4,  cat:'unlock' },
   { id:'freeDeploy',    label:'Engineer Corps',     desc:'Start with extra gold',     cost:15, max:3,  cat:'unlock' },
-  { id:'autoConstruct', label:'Auto-Construct',     desc:'Shift cycles auto-build tower spacing while walking', cost:20, max:1, cat:'unlock' },
+  { id:'autoConstruct', label:'Auto-Construct',     desc:'Hold Shift to auto-build towers every 1m while walking', cost:20, max:1, cat:'unlock' },
 ];
 
 export const TOWER_UPGRADES: any[] = [

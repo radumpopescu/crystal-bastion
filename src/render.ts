@@ -1,4 +1,4 @@
-import { AUTO_CONSTRUCT_MODES, ENTITY_H, ISO_SCALE, MAX_WEAPON_SLOTS, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES } from './constants';
+import { ENTITY_H, ISO_SCALE, MAX_WEAPON_SLOTS, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES } from './constants';
 import { R, devCardColor, devCardLimit, finishDevSession, newGame, resetDevConfig, w2s } from './state';
 import { buildDropChanceTable, getAnchors, getLoadoutStats, getOutpostCost, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave, weaponCardNeedsSlot } from './systems';
 import { clamp, dist, inBtn } from './utils';
@@ -641,13 +641,13 @@ function renderHUD() {
   ctx.fillStyle = '#a855f7'; ctx.font = 'bold 13px monospace';
   ctx.fillText(`💎 ${meta.crystals} crystals`, W - 14, controlsBoxY + 56);
   ctx.fillStyle = autoConstructUnlocked ? '#7f8c8d' : '#4f5b66'; ctx.font = '11px monospace';
-  ctx.fillText(autoConstructUnlocked ? 'SHIFT cycles auto spacing' : 'Meta unlock: Auto-Construct', W - 14, controlsBoxY + 74);
-  const autoMode = AUTO_CONSTRUCT_MODES[game.autoConstructMode || 0] || AUTO_CONSTRUCT_MODES[0];
+  ctx.fillText(autoConstructUnlocked ? 'Hold SHIFT to auto-build towers' : 'Meta unlock: Auto-Construct', W - 14, controlsBoxY + 74);
+  const shiftHeld = game.keys['ShiftLeft'] || game.keys['ShiftRight'];
   ctx.fillStyle = autoConstructUnlocked
-    ? (autoMode.spacing > 0 ? '#27ae60' : '#95a5a6')
+    ? (shiftHeld ? '#27ae60' : '#95a5a6')
     : '#6b7280';
   ctx.font = 'bold 12px monospace';
-  ctx.fillText(autoConstructUnlocked ? `Auto: ${autoMode.label}` : 'Auto: LOCKED', W - 14, controlsBoxY + 90);
+  ctx.fillText(autoConstructUnlocked ? `Auto: ${shiftHeld ? 'HOLD SHIFT' : 'READY'}` : 'Auto: LOCKED', W - 14, controlsBoxY + 90);
   if (!autoConstructUnlocked) {
     ctx.fillStyle = '#6b7280';
     ctx.font = '10px monospace';
@@ -655,7 +655,7 @@ function renderHUD() {
   } else {
     ctx.fillStyle = '#7f8c8d';
     ctx.font = '10px monospace';
-    ctx.fillText('Walk to chain towers automatically', W - 14, controlsBoxY + 104);
+    ctx.fillText('Builds every 1m while you walk', W - 14, controlsBoxY + 104);
   }
   renderMinimap();
 }
@@ -765,8 +765,8 @@ function drawCard(card: any, bx: number, by: number, cW: number, cH: number, opt
   const rarity = def?.rarity || stat?.rarity || 'common';
   const rarityColor = rarity === 'rare' ? '#9b59b6' : rarity === 'uncommon' ? '#e67e22' : '#3498db';
   const accentColor = isWeapon ? def.color : (opts.shopCard ? '#e67e22' : '#2ecc71');
-  const bgColor = opts.picked ? '#0d2210' : opts.dimmed ? '#0a0a14' : '#0f1a2e';
-  const borderColor = opts.picked ? '#27ae60' : opts.dimmed ? '#333' : accentColor;
+  const bgColor = opts.picked ? '#0d2210' : opts.dimmed ? '#0a0a14' : opts.locked ? '#1b1620' : '#0f1a2e';
+  const borderColor = opts.picked ? '#27ae60' : opts.locked ? '#f1c40f' : opts.dimmed ? '#333' : accentColor;
   ctx.fillStyle = bgColor;
   rrect(bx, by, cW, cH, 10); ctx.fill();
   ctx.strokeStyle = borderColor; ctx.lineWidth = opts.picked ? 2.5 : 2;
@@ -806,6 +806,11 @@ function drawCard(card: any, bx: number, by: number, cW: number, cH: number, opt
     ctx.font = 'bold 10px monospace';
     ctx.fillText('SELL A SLOT FIRST', bx + cW / 2, by + cH - 44);
   }
+  if (opts.locked) {
+    ctx.fillStyle = '#f1c40f';
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText('LOCKED FOR NEXT SHOP', bx + cW / 2, by + cH - 58);
+  }
   if (opts.costLabel) {
     const canAfford = game.gold >= card.cost;
     ctx.fillStyle = canAfford ? '#f1c40f' : '#e74c3c';
@@ -827,6 +832,7 @@ function renderLevelUpCards() {
   const cards = game.levelUpCards;
   if (!cards) return;
   ui.levelupWeaponBtns = [];
+  ui.levelupShopLockBtns = [];
   ctx.fillStyle = 'rgba(4,8,20,0.93)'; ctx.fillRect(0, 0, W, H);
   const { w: cW, h: cH, gap } = luCardDims();
   const { freeTop, shopTop } = luPositions();
@@ -988,8 +994,24 @@ function renderLevelUpCards() {
   sCards.forEach((card: any, i: number) => {
     const bx = sStartX + i * (cW + gap);
     const needsSlot = weaponCardNeedsSlot(card, game);
-    if (card._bought) drawCard(card, bx, shopTop, cW, cH, { picked: true, costLabel: '✓ BOUGHT', needsSlot });
-    else drawCard(card, bx, shopTop, cW, cH, { shopCard: true, dimmed: game.gold < card.cost, costLabel: `${card.cost}🪙`, needsSlot });
+    if (card._bought) drawCard(card, bx, shopTop, cW, cH, { picked: true, costLabel: '✓ BOUGHT', needsSlot, locked: card._locked });
+    else drawCard(card, bx, shopTop, cW, cH, { shopCard: true, dimmed: game.gold < card.cost, costLabel: `${card.cost}🪙`, needsSlot, locked: card._locked });
+    if (!card._bought) {
+      const lockX = bx + cW - 48;
+      const lockY = shopTop + 10;
+      const lockW = 38;
+      const lockH = 16;
+      ctx.fillStyle = card._locked ? '#6b5200' : '#1f2937';
+      rrect(lockX, lockY, lockW, lockH, 4); ctx.fill();
+      ctx.strokeStyle = card._locked ? '#f1c40f' : 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = 1;
+      rrect(lockX, lockY, lockW, lockH, 4); ctx.stroke();
+      ctx.fillStyle = card._locked ? '#f8e27a' : '#cbd5e1';
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(card._locked ? 'HELD' : 'LOCK', lockX + lockW / 2, lockY + 11);
+      ui.levelupShopLockBtns.push({ x: lockX, y: lockY, w: lockW, h: lockH, cardIndex: i });
+    }
   });
 
   const botY = H - 52;
@@ -1016,10 +1038,10 @@ function renderMenu() {
   ctx.fillText(`💎 ${meta.crystals} crystals`, W / 2, H / 2 - 56);
   ctx.fillStyle = autoConstructUnlocked ? '#2ecc71' : '#7f8c8d';
   ctx.font = '12px monospace';
-  ctx.fillText(autoConstructUnlocked ? 'Unlocked: SHIFT cycles tower auto-build spacing in-run.' : 'Meta unlock: Auto-Construct lets SHIFT auto-chain towers in-run.', W / 2, H / 2 - 28);
+  ctx.fillText(autoConstructUnlocked ? 'Unlocked: hold SHIFT to auto-build towers while walking.' : 'Meta unlock: Auto-Construct lets SHIFT auto-chain towers in-run.', W / 2, H / 2 - 28);
   ctx.fillStyle = '#566573';
   ctx.font = '11px monospace';
-  ctx.fillText(autoConstructUnlocked ? 'Walk to place towers automatically at your chosen spacing.' : 'You can buy it in Meta Upgrades even before you ever use it.', W / 2, H / 2 - 8);
+  ctx.fillText(autoConstructUnlocked ? 'It places them every 1m only while SHIFT is held.' : 'You can buy it in Meta Upgrades even before you ever use it.', W / 2, H / 2 - 8);
   ui.menuBtns = [
     btn(W / 2, H / 2 + 28, 'PLAY', '#27ae60'),
     btn(W / 2, H / 2 + 92, 'META UPGRADES 💎', '#8e44ad'),
