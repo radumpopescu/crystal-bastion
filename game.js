@@ -250,13 +250,13 @@ function metaVal(id) {
 const cam = { sx: 0, sy: 0 };
 
 // ─── GAME STATE ──────────────────────────────────────────────────────────────
-let state = 'menu'; // menu | playing | levelup | gameover | metascreen | paused
+let state = 'menu'; // menu | devmenu | playing | levelup | gameover | metascreen | paused
 let game;
 let prevState = 'menu';
 
-function newGame() {
+function newGame(opts = {}) {
   const playerHpBonus   = metaVal('playerHp');
-  const startGold       = 60 + metaVal('startGold');
+  const startGold       = opts.startGold ?? (60 + metaVal('startGold'));
   const towerHpBonus    = metaVal('towerHp');
   const opHpBonus       = metaVal('outpostHp');
   const towerAtkMult    = metaVal('towerAtk') || 1;
@@ -267,8 +267,15 @@ function newGame() {
   const waveDelayBonus  = metaVal('waveDelay');
   const freeOutposts    = metaVal('freeDeploy');
 
-  const startWeapons = [makeWeapon('pistol')];
-  if (metaVal('startWpn') > 0) startWeapons.push(makeWeapon('rifle'));
+  const startWeapons = Array.isArray(opts.startWeapons)
+    ? opts.startWeapons
+      .filter(w => w?.id && WEAPONS[w.id] && (w.level || 0) > 0)
+      .map(w => ({ ...makeWeapon(w.id), level: clamp(w.level || 1, 1, 4) }))
+    : (() => {
+        const defaults = [makeWeapon('pistol')];
+        if (metaVal('startWpn') > 0) defaults.push(makeWeapon('rifle'));
+        return defaults;
+      })();
 
   game = {
     tick: 0,
@@ -336,10 +343,11 @@ function newGame() {
     autoConstructMode: 0,
     runCardCounts: {},
     runCardOrder: [],
+    devSession: !!opts.devSession,
   };
 
   // Engineer Corps: bonus starting gold per level (enough to place outposts)
-  game.gold += freeOutposts * 50;
+  if (opts.startGold == null) game.gold += freeOutposts * 50;
   if (false) { // old free-outpost placement (kept for reference)
     const ang = 0;
     const maxHp = OUTPOST_HP_BASE + opHpBonus;
@@ -356,10 +364,92 @@ function makeWeapon(id) {
   return { id, level:1, cooldown:0, spinup:0 };
 }
 
+// ─── DEV MENU ────────────────────────────────────────────────────────────────
+const DEV_MENU_HOLD_MS = 2000;
+const DEV_WEAPON_IDS = Object.keys(WEAPONS);
+const DEV_CARD_IDS = STAT_UPGRADES.map(stat => stat.id);
+let devMenuHoldStart = 0;
+let devMenuBtns = [];
+let devMenuStatus = 'Configure a sandbox loadout, then start a test wave.';
+
+function createDefaultDevConfig() {
+  const weaponLevels = Object.fromEntries(DEV_WEAPON_IDS.map(id => [id, 0]));
+  weaponLevels.pistol = 1;
+  if (metaVal('startWpn') > 0) weaponLevels.rifle = Math.max(weaponLevels.rifle, 1);
+  return {
+    gold: 60 + metaVal('startGold') + metaVal('freeDeploy') * 50,
+    wave: 1,
+    weaponLevels,
+    cardCounts: Object.fromEntries(DEV_CARD_IDS.map(id => [id, 0])),
+  };
+}
+
+let devConfig = createDefaultDevConfig();
+
+function resetDevConfig() {
+  devConfig = createDefaultDevConfig();
+}
+
+function devCardLimit(stat) {
+  return stat.max ?? 8;
+}
+
+function devCardColor(stat) {
+  if (stat.id.startsWith('tower')) return '#f39c12';
+  if (stat.id.startsWith('outpost')) return '#3498db';
+  return stat.rarity === 'rare' ? '#9b59b6' : stat.rarity === 'uncommon' ? '#2ecc71' : '#95a5a6';
+}
+
+function finishDevSession(message) {
+  if (!game?.devSession) return false;
+  game.waveActive = false;
+  game.waveTimer = WAVE_INTERVAL + (game.waveDelayBonus || 0);
+  game.monsters = [];
+  game.projectiles = [];
+  game.particles = [];
+  game.dmgNumbers = [];
+  game.levelUpCards = null;
+  game.shopCards = null;
+  game._pickedFreeCard = null;
+  game._anyBought = false;
+  game.showUpgradeMenu = false;
+  waveStartBtn = null;
+  devMenuStatus = message;
+  state = 'devmenu';
+  return true;
+}
+
+function startDevWave() {
+  const startWeapons = DEV_WEAPON_IDS
+    .filter(id => (devConfig.weaponLevels[id] || 0) > 0)
+    .map(id => ({ id, level: clamp(devConfig.weaponLevels[id] || 1, 1, 4) }));
+  newGame({
+    devSession: true,
+    startGold: clamp(Math.round(devConfig.gold || 0), 0, 999999),
+    startWeapons,
+  });
+  for (const stat of STAT_UPGRADES) {
+    const count = clamp(Math.round(devConfig.cardCounts[stat.id] || 0), 0, devCardLimit(stat));
+    for (let i = 0; i < count; i++) {
+      applyCard({ type:'stat', statId: stat.id, rarity: stat.rarity || 'common' });
+    }
+  }
+  game.wave = clamp(Math.round(devConfig.wave || 1), 1, 999) - 1;
+  game.waveTimer = 0;
+  game.levelUpCards = null;
+  game.shopCards = null;
+  state = 'playing';
+  startNextWave(false);
+  devMenuStatus = `Testing wave ${game.wave}. Finish it to return here.`;
+}
+
 // ─── INPUT ───────────────────────────────────────────────────────────────────
 window.addEventListener('keydown', e => {
+  if (state === 'menu' && e.code === 'KeyG' && !e.repeat) {
+    devMenuHoldStart = performance.now();
+  }
+  if (game) game.keys[e.code] = true;
   if (!game) return;
-  game.keys[e.code] = true;
   if (
     state === 'playing' &&
     !e.repeat &&
@@ -384,7 +474,10 @@ window.addEventListener('keydown', e => {
     if (e.code === 'Space') tryDash();
   }
 });
-window.addEventListener('keyup', e => { if (game) game.keys[e.code] = false; });
+window.addEventListener('keyup', e => {
+  if (game) game.keys[e.code] = false;
+  if (e.code === 'KeyG') devMenuHoldStart = 0;
+});
 canvas.addEventListener('mousemove', e => {
   const rect = canvas.getBoundingClientRect();
   mouseX = e.clientX - rect.left;
@@ -406,6 +499,7 @@ canvas.addEventListener('click', e => {
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX - rect.left, my = e.clientY - rect.top;
   if (state === 'menu')       handleMenuClick(mx, my);
+  else if (state === 'devmenu')    handleDevMenuClick(mx, my);
   else if (state === 'gameover')   handleGameoverClick(mx, my);
   else if (state === 'metascreen') handleMetaClick(mx, my);
   else if (state === 'cardbook')   { if (cardBookBackBtn && inBtn(mx,my,cardBookBackBtn)) state='menu'; }
@@ -1561,6 +1655,10 @@ function checkWaveEnd() {
   if (game.waveActive && game.monsters.length === 0) {
     game.waveActive = false;
     game.waveTimer = WAVE_INTERVAL + (game.waveDelayBonus || 0); // always reset, even before card screen
+    if (game.devSession) {
+      finishDevSession(`Wave ${game.wave} cleared. Adjust the preset and run again.`);
+      return;
+    }
     game.rerollsLeft = 1;
     game.levelUpCards = generateCards();
     game.shopCards = generateShopCards(4);
@@ -1638,6 +1736,11 @@ function loop(ts) {
   const dt = Math.min((ts - lastTime) / 1000, 0.05);
   lastTime = ts;
 
+  if (state === 'menu' && devMenuHoldStart > 0 && performance.now() - devMenuHoldStart >= DEV_MENU_HOLD_MS) {
+    devMenuHoldStart = 0;
+    state = 'devmenu';
+  }
+
   if (state === 'playing') {
     game.tick += dt;
     if (game.upgradeMenuCooldown > 0) game.upgradeMenuCooldown -= dt;
@@ -1663,6 +1766,12 @@ function loop(ts) {
     cam.sy += (targetSy - cam.sy) * 7 * dt;
 
     if (game.tower.hp <= 0 || game.player.dead) {
+      if (game.devSession) {
+        finishDevSession(game.player.dead ? `Player died on wave ${game.wave}.` : `Base destroyed on wave ${game.wave}.`);
+        render();
+        requestAnimationFrame(loop);
+        return;
+      }
       meta.crystals += game.crystalsEarned;
       saveMeta(meta);
       state = 'gameover';
@@ -1678,6 +1787,7 @@ function render() {
   hoverRegions = [];
   ctx.clearRect(0, 0, W, H);
   if (state === 'menu')       { renderMenu(); return; }
+  if (state === 'devmenu')    { renderDevMenu(); return; }
   if (state === 'gameover')   { renderGameover(); return; }
   if (state === 'metascreen') { renderMetaScreen(); return; }
   if (state === 'cardbook')   { renderCardBook(); return; }
@@ -2815,12 +2925,219 @@ function renderMenu() {
     btn(W/2, H/2+72, 'META UPGRADES 💎', '#8e44ad'),
     btn(W/2, H/2+136,'CARD BOOK 📖', '#2980b9'),
   ];
+
+  if (devMenuHoldStart > 0) {
+    const progress = clamp((performance.now() - devMenuHoldStart) / DEV_MENU_HOLD_MS, 0, 1);
+    const holdW = 240;
+    const holdX = W / 2 - holdW / 2;
+    const holdY = H / 2 + 204;
+    ctx.fillStyle = 'rgba(5,10,20,0.9)';
+    rrect(holdX, holdY, holdW, 34, 8); ctx.fill();
+    ctx.strokeStyle = '#34495e';
+    rrect(holdX, holdY, holdW, 34, 8); ctx.stroke();
+    ctx.fillStyle = '#95a5a6'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('HOLD G FOR DEV MENU', W/2, holdY + 13);
+    ctx.fillStyle = '#27ae60';
+    rrect(holdX + 10, holdY + 19, (holdW - 20) * progress, 7, 3); ctx.fill();
+  }
 }
 
 function handleMenuClick(mx, my) {
+  devMenuHoldStart = 0;
   if (menuBtns[0] && inBtn(mx,my,menuBtns[0])) { newGame(); state='playing'; }
   if (menuBtns[1] && inBtn(mx,my,menuBtns[1])) { prevState='menu'; metaScroll=0; state='metascreen'; }
   if (menuBtns[2] && inBtn(mx,my,menuBtns[2])) { cardBookScroll=0; state='cardbook'; }
+}
+
+function drawDevMenuButton(x, y, w, h, label, color, data, font = 'bold 11px monospace') {
+  ctx.fillStyle = color;
+  rrect(x, y, w, h, 6); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+  ctx.lineWidth = 1;
+  rrect(x, y, w, h, 6); ctx.stroke();
+  ctx.fillStyle = '#ecf0f1';
+  ctx.font = font;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + w / 2, y + h / 2 + 0.5);
+  ctx.textBaseline = 'alphabetic';
+  devMenuBtns.push({ x, y, w, h, ...data });
+}
+
+function renderDevStepperRow(x, y, w, label, value, color, minusData, plusData, extraLabel = '') {
+  ctx.fillStyle = 'rgba(8,14,24,0.9)';
+  rrect(x, y, w, 20, 6); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  rrect(x, y, w, 20, 6); ctx.stroke();
+
+  ctx.fillStyle = color;
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(label, x + 8, y + 14);
+
+  ctx.fillStyle = '#dfe6e9';
+  ctx.textAlign = 'right';
+  ctx.fillText(value, x + w - 70, y + 14);
+
+  const btnY = y + 1;
+  drawDevMenuButton(x + w - 58, btnY, 24, 18, '−', '#223047', minusData, 'bold 13px monospace');
+  drawDevMenuButton(x + w - 30, btnY, 24, 18, '+', '#223047', plusData, 'bold 13px monospace');
+
+  if (extraLabel) {
+    ctx.fillStyle = '#7f8c8d';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(extraLabel, x + w - 92, y + 14);
+  }
+}
+
+function renderDevMenu() {
+  const panelW = Math.min(1040, W - 40);
+  const panelX = Math.round(W / 2 - panelW / 2);
+  const panelY = 24;
+  const panelH = H - 48;
+  const rowH = 20;
+  const leftX = panelX + 24;
+  const rightX = panelX + panelW / 2 + 10;
+  const colW = panelW / 2 - 34;
+  const baseY = panelY + 142;
+
+  devMenuBtns = [];
+
+  ctx.fillStyle = '#07101c';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  for (let i = 0; i < 70; i++) ctx.fillRect((i * 173) % W, (i * 61) % H, 2, 2);
+
+  ctx.fillStyle = 'rgba(4,8,18,0.94)';
+  rrect(panelX, panelY, panelW, panelH, 16); ctx.fill();
+  ctx.strokeStyle = '#1f3a52';
+  ctx.lineWidth = 2;
+  rrect(panelX, panelY, panelW, panelH, 16); ctx.stroke();
+
+  ctx.fillStyle = '#1a2a3e';
+  ctx.fillRect(panelX, panelY + 76, panelW, 1);
+
+  ctx.fillStyle = '#00d2ff';
+  ctx.font = 'bold 28px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('DEV SANDBOX', W / 2, panelY + 34);
+  ctx.fillStyle = '#8aa6bf';
+  ctx.font = '12px monospace';
+  ctx.fillText('Preset weapons, money, cards, and the exact wave to test.', W / 2, panelY + 56);
+  ctx.fillStyle = '#f1c40f';
+  ctx.font = '11px monospace';
+  ctx.fillText(devMenuStatus, W / 2, panelY + 70);
+
+  const topRowY = panelY + 90;
+  ctx.fillStyle = '#95a5a6';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('STARTING GOLD', leftX, topRowY + 14);
+  ctx.fillStyle = '#f1c40f';
+  ctx.font = 'bold 16px monospace';
+  ctx.fillText(`${Math.round(devConfig.gold)}`, leftX, topRowY + 38);
+  drawDevMenuButton(leftX + 110, topRowY + 20, 42, 22, '-100', '#2c3e50', { action:'gold', delta:-100 }, 'bold 10px monospace');
+  drawDevMenuButton(leftX + 158, topRowY + 20, 34, 22, '-10', '#2c3e50', { action:'gold', delta:-10 }, 'bold 10px monospace');
+  drawDevMenuButton(leftX + 198, topRowY + 20, 34, 22, '+10', '#2c3e50', { action:'gold', delta:10 }, 'bold 10px monospace');
+  drawDevMenuButton(leftX + 238, topRowY + 20, 42, 22, '+100', '#2c3e50', { action:'gold', delta:100 }, 'bold 10px monospace');
+
+  ctx.fillStyle = '#95a5a6';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('TARGET WAVE', rightX, topRowY + 14);
+  ctx.fillStyle = '#e74c3c';
+  ctx.font = 'bold 16px monospace';
+  ctx.fillText(`${Math.round(devConfig.wave)}`, rightX, topRowY + 38);
+  drawDevMenuButton(rightX + 92, topRowY + 20, 34, 22, '-5', '#2c3e50', { action:'wave', delta:-5 }, 'bold 10px monospace');
+  drawDevMenuButton(rightX + 132, topRowY + 20, 34, 22, '-1', '#2c3e50', { action:'wave', delta:-1 }, 'bold 10px monospace');
+  drawDevMenuButton(rightX + 172, topRowY + 20, 34, 22, '+1', '#2c3e50', { action:'wave', delta:1 }, 'bold 10px monospace');
+  drawDevMenuButton(rightX + 212, topRowY + 20, 34, 22, '+5', '#2c3e50', { action:'wave', delta:5 }, 'bold 10px monospace');
+
+  ctx.fillStyle = '#e67e22';
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('WEAPONS', leftX, baseY - 12);
+  DEV_WEAPON_IDS.forEach((id, index) => {
+    const def = WEAPONS[id];
+    const value = devConfig.weaponLevels[id] > 0 ? `LV ${devConfig.weaponLevels[id]}` : 'OFF';
+    const rowY = baseY + index * rowH;
+    renderDevStepperRow(
+      leftX,
+      rowY,
+      colW,
+      `${def.icon} ${def.name}`,
+      value,
+      def.color,
+      { action:'weapon', id, delta:-1 },
+      { action:'weapon', id, delta:1 },
+      `${def.rarity.toUpperCase()}`
+    );
+  });
+
+  ctx.fillStyle = '#2ecc71';
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('CARDS', rightX, baseY - 12);
+  STAT_UPGRADES.forEach((stat, index) => {
+    const rowY = baseY + index * rowH;
+    renderDevStepperRow(
+      rightX,
+      rowY,
+      colW,
+      `${stat.icon} ${stat.name}`,
+      `x${devConfig.cardCounts[stat.id] || 0}`,
+      devCardColor(stat),
+      { action:'card', id:stat.id, delta:-1 },
+      { action:'card', id:stat.id, delta:1 },
+      stat.max ? `max ${stat.max}` : 'custom'
+    );
+  });
+
+  const footY = panelY + panelH - 48;
+  drawDevMenuButton(panelX + 28, footY, 190, 30, '← MAIN MENU', '#34495e', { action:'menu' }, 'bold 12px monospace');
+  drawDevMenuButton(panelX + panelW / 2 - 95, footY, 190, 30, '↺ RESET PRESET', '#7f8c8d', { action:'reset' }, 'bold 12px monospace');
+  drawDevMenuButton(panelX + panelW - 228, footY, 200, 30, '▶ START TEST WAVE', '#16a085', { action:'start' }, 'bold 12px monospace');
+}
+
+function handleDevMenuClick(mx, my) {
+  const hit = devMenuBtns.find(btnMeta =>
+    mx >= btnMeta.x && mx <= btnMeta.x + btnMeta.w &&
+    my >= btnMeta.y && my <= btnMeta.y + btnMeta.h
+  );
+  if (!hit) return;
+
+  if (hit.action === 'menu') {
+    state = 'menu';
+    return;
+  }
+  if (hit.action === 'reset') {
+    resetDevConfig();
+    devMenuStatus = 'Preset reset to the current default run baseline.';
+    return;
+  }
+  if (hit.action === 'start') {
+    startDevWave();
+    return;
+  }
+  if (hit.action === 'gold') {
+    devConfig.gold = clamp(Math.round(devConfig.gold + hit.delta), 0, 999999);
+    return;
+  }
+  if (hit.action === 'wave') {
+    devConfig.wave = clamp(Math.round(devConfig.wave + hit.delta), 1, 999);
+    return;
+  }
+  if (hit.action === 'weapon') {
+    devConfig.weaponLevels[hit.id] = clamp((devConfig.weaponLevels[hit.id] || 0) + hit.delta, 0, 4);
+    return;
+  }
+  if (hit.action === 'card') {
+    const stat = STAT_UPGRADES.find(entry => entry.id === hit.id);
+    if (!stat) return;
+    devConfig.cardCounts[hit.id] = clamp((devConfig.cardCounts[hit.id] || 0) + hit.delta, 0, devCardLimit(stat));
+  }
 }
 
 // ─── GAME OVER ────────────────────────────────────────────────────────────────
@@ -2854,14 +3171,18 @@ function renderPauseScreen() {
   ctx.fillText('PAUSED', W/2, H/2 - 80);
   ctx.fillStyle = '#aaa'; ctx.font = '14px monospace';
   ctx.fillText('Press P or Escape to resume', W/2, H/2 - 44);
+  const quitLabel = game?.devSession ? '🛠 RETURN TO DEV MENU' : '🏠 QUIT TO MENU';
   pauseBtns = [
     btn(W/2, H/2+10,  '▶ RESUME', '#27ae60', 220, 44),
-    btn(W/2, H/2+70, '🏠 QUIT TO MENU', '#c0392b', 220, 44),
+    btn(W/2, H/2+70, quitLabel, '#c0392b', 220, 44),
   ];
 }
 function handlePauseClick(mx,my) {
   if (pauseBtns[0] && inBtn(mx,my,pauseBtns[0])) state='playing';
-  if (pauseBtns[1] && inBtn(mx,my,pauseBtns[1])) { state='menu'; }
+  if (pauseBtns[1] && inBtn(mx,my,pauseBtns[1])) {
+    if (game?.devSession) finishDevSession(`Returned from wave ${game.wave} without finishing it.`);
+    else state='menu';
+  }
 }
 
 // ─── CARD BOOK ────────────────────────────────────────────────────────────────
