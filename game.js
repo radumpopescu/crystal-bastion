@@ -2120,6 +2120,7 @@ function renderLevelUpCards() {
   const runCards = getRunCardEntries();
   if (runCards.length > 0) {
     sideY += 8;
+    ctx.textAlign = 'left';
     ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace';
     ctx.fillText('CARDS THIS RUN', panelX + 10, sideY); sideY += 14;
     runCards.slice(-8).forEach(entry => {
@@ -2130,6 +2131,7 @@ function renderLevelUpCards() {
       while (ctx.measureText(label).width > maxNameW && label.length > 4) {
         label = label.slice(0, -2).trimEnd() + '…';
       }
+      ctx.textAlign = 'left';
       ctx.fillStyle = entry.color; ctx.font = '11px monospace';
       ctx.fillText(label, panelX + 10, rowY);
       if (suffix) {
