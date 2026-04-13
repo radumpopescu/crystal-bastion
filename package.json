@@ -1,5 +1,5 @@
 {
-  "name": "tower-survival",
+  "name": "crystal-bastion",
   "version": "1.0.0",
   "scripts": {
     "build": "bun run scripts/build.ts",

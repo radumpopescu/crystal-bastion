@@ -1170,7 +1170,7 @@ function renderMenu() {
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
   for (let i = 0; i < 100; i++) ctx.fillRect(i * 137.5 % W, i * 73.3 % H, 1.5, 1.5);
   ctx.fillStyle = '#f39c12'; ctx.font = 'bold 56px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('TOWER SURVIVAL', W / 2, H / 2 - 130);
+  ctx.fillText('CRYSTAL BASTION', W / 2, H / 2 - 130);
   ctx.fillStyle = '#7f8c8d'; ctx.font = '16px monospace';
   ctx.fillText('3D — Defend · Expand · Survive', W / 2, H / 2 - 88);
   ctx.fillStyle = '#f1c40f'; ctx.font = '14px monospace';
