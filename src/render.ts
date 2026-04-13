@@ -1163,32 +1163,234 @@ function renderLevelUpCards() {
   ui.continueBtn = btn(panelX - 110, botY + 26, '▶  DONE', '#27ae60', 180, 36);
 }
 
+function drawMenuChip(x: number, y: number, label: string, fill: string, stroke = 'rgba(255,255,255,0.12)') {
+  const { ctx } = R;
+  ctx.fillStyle = fill;
+  rrect(x, y, ctx.measureText(label).width + 22, 24, 12); ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 1;
+  rrect(x, y, ctx.measureText(label).width + 22, 24, 12); ctx.stroke();
+  ctx.fillStyle = '#ecf0f1';
+  ctx.font = 'bold 11px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(label, x + 11, y + 16);
+}
+
+function drawMenuActionCard(rect: BtnRect, title: string, subtitle: string, color: string, hovered: boolean) {
+  const { ctx } = R;
+  const bx = rect.cx - rect.bw / 2;
+  const by = rect.cy - rect.bh / 2;
+  const bg = ctx.createLinearGradient(bx, by, bx + rect.bw, by + rect.bh);
+  bg.addColorStop(0, hovered ? '#15243b' : '#101a2b');
+  bg.addColorStop(1, hovered ? '#0f1b31' : '#0b1321');
+  ctx.fillStyle = bg;
+  ctx.shadowColor = hovered ? color + '88' : 'rgba(0,0,0,0.25)';
+  ctx.shadowBlur = hovered ? 18 : 10;
+  rrect(bx, by, rect.bw, rect.bh, 14); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = hovered ? color : 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = hovered ? 2 : 1.2;
+  rrect(bx, by, rect.bw, rect.bh, 14); ctx.stroke();
+
+  ctx.fillStyle = color;
+  rrect(bx, by, 8, rect.bh, 10); ctx.fill();
+  ctx.fillStyle = hovered ? '#ffffff' : '#ecf0f1';
+  ctx.font = 'bold 18px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(title, bx + 22, by + 32);
+  ctx.fillStyle = hovered ? '#c7d4e3' : '#7f8c9a';
+  ctx.font = '11px monospace';
+  ctx.fillText(subtitle, bx + 22, by + 53);
+  ctx.fillStyle = hovered ? color : '#54657b';
+  ctx.font = 'bold 18px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText('›', bx + rect.bw - 18, by + 38);
+}
+
 function renderMenu() {
-  const { ctx, W, H, meta, ui } = R;
+  const { ctx, W, H, meta, ui, mouseX, mouseY } = R;
   const autoConstructUnlocked = (meta.upgrades['autoConstruct'] || 0) > 0;
-  ctx.fillStyle = '#0a0f1e'; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  for (let i = 0; i < 100; i++) ctx.fillRect(i * 137.5 % W, i * 73.3 % H, 1.5, 1.5);
-  ctx.fillStyle = '#f39c12'; ctx.font = 'bold 56px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('CRYSTAL BASTION', W / 2, H / 2 - 130);
-  ctx.fillStyle = '#7f8c8d'; ctx.font = '16px monospace';
-  ctx.fillText('3D — Defend · Expand · Survive', W / 2, H / 2 - 88);
-  ctx.fillStyle = '#f1c40f'; ctx.font = '14px monospace';
-  ctx.fillText(`💎 ${meta.crystals} crystals`, W / 2, H / 2 - 56);
+  const t = performance.now() * 0.001;
+
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#08111f');
+  bg.addColorStop(0.45, '#0a1630');
+  bg.addColorStop(1, '#050914');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  const glowLeft = ctx.createRadialGradient(W * 0.24, H * 0.32, 0, W * 0.24, H * 0.32, W * 0.42);
+  glowLeft.addColorStop(0, 'rgba(38, 208, 206, 0.20)');
+  glowLeft.addColorStop(1, 'rgba(38, 208, 206, 0)');
+  ctx.fillStyle = glowLeft;
+  ctx.fillRect(0, 0, W, H);
+
+  const glowRight = ctx.createRadialGradient(W * 0.82, H * 0.26, 0, W * 0.82, H * 0.26, W * 0.28);
+  glowRight.addColorStop(0, 'rgba(241, 196, 15, 0.18)');
+  glowRight.addColorStop(1, 'rgba(241, 196, 15, 0)');
+  ctx.fillStyle = glowRight;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = 'rgba(105, 146, 186, 0.08)';
+  ctx.lineWidth = 1;
+  const gridStep = 72;
+  for (let x = -gridStep; x < W + gridStep; x += gridStep) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + H * 0.9, H);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, H);
+    ctx.lineTo(x + H * 0.9, 0);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  for (let i = 0; i < 130; i++) {
+    const sx = (i * 137.5 + Math.sin(t + i) * 18) % W;
+    const sy = (i * 73.3 + Math.cos(t * 0.7 + i) * 12) % H;
+    ctx.fillRect(sx, sy, 1.5, 1.5);
+  }
+
+  const heroX = 44;
+  const actionW = Math.min(310, Math.max(250, W * 0.25));
+  const actionX = W - actionW - 42;
+  const heroW = Math.max(320, actionX - heroX - 26);
+  const heroH = Math.min(430, Math.max(340, H - 140));
+  const heroY = Math.max(42, H / 2 - heroH / 2);
+
+  ctx.fillStyle = 'rgba(8,16,30,0.74)';
+  rrect(heroX, heroY, heroW, heroH, 24); ctx.fill();
+  ctx.strokeStyle = 'rgba(90, 172, 214, 0.16)';
+  ctx.lineWidth = 1.5;
+  rrect(heroX, heroY, heroW, heroH, 24); ctx.stroke();
+
+  const artCx = heroX + heroW * 0.73;
+  const artCy = heroY + heroH * 0.43;
+  const pulse = 1 + Math.sin(t * 2.2) * 0.05;
+  ctx.save();
+  ctx.translate(artCx, artCy);
+  ctx.strokeStyle = 'rgba(69, 211, 198, 0.18)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.ellipse(0, 0, (120 + i * 50) * pulse, (60 + i * 24) * pulse, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  const nodes = [
+    { x: 0, y: 0, color:'#f39c12', size: 18 },
+    { x: -112, y: 54, color:'#2ecc71', size: 12 },
+    { x: 106, y: 46, color:'#3498db', size: 12 },
+    { x: 26, y: -88, color:'#9b59b6', size: 12 },
+  ];
+  ctx.strokeStyle = 'rgba(121, 220, 214, 0.26)';
+  ctx.lineWidth = 2;
+  for (let i = 1; i < nodes.length; i++) {
+    ctx.beginPath();
+    ctx.moveTo(nodes[0].x, nodes[0].y);
+    ctx.lineTo(nodes[i].x, nodes[i].y);
+    ctx.stroke();
+  }
+  for (const node of nodes) {
+    ctx.save();
+    ctx.translate(node.x, node.y);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillStyle = node.color + '33';
+    ctx.fillRect(-node.size * 1.8, -node.size * 1.8, node.size * 3.6, node.size * 3.6);
+    ctx.fillStyle = node.color;
+    ctx.fillRect(-node.size, -node.size, node.size * 2, node.size * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.strokeRect(-node.size, -node.size, node.size * 2, node.size * 2);
+    ctx.restore();
+  }
+  ctx.restore();
+
+  ctx.fillStyle = '#f39c12';
+  ctx.font = 'bold 20px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('CRYSTAL', heroX + 34, heroY + 78);
+  ctx.font = 'bold 56px monospace';
+  ctx.fillText('BASTION', heroX + 30, heroY + 138);
+
+  ctx.fillStyle = '#9fb3c8';
+  ctx.font = '15px monospace';
+  ctx.fillText('Defend the crystal core. Expand a living tower network.', heroX + 34, heroY + 176);
+  ctx.fillText('Draft cards, stack relics, and survive the siege.', heroX + 34, heroY + 198);
+
+  ctx.font = 'bold 11px monospace';
+  const chipDefs = [
+    { label: 'ROGUELITE SURVIVAL', fill: 'rgba(46, 204, 113, 0.18)' },
+    { label: 'CARD DRAFTING', fill: 'rgba(52, 152, 219, 0.18)' },
+    { label: 'TOWER WEB', fill: 'rgba(241, 196, 15, 0.18)' },
+  ];
+  let chipX = heroX + 34;
+  let chipY = heroY + 228;
+  const chipRight = heroX + heroW - 34;
+  for (const chip of chipDefs) {
+    const chipW = ctx.measureText(chip.label).width + 22;
+    if (chipX + chipW > chipRight) {
+      chipX = heroX + 34;
+      chipY += 30;
+    }
+    drawMenuChip(chipX, chipY, chip.label, chip.fill);
+    chipX += chipW + 10;
+  }
+
+  ctx.fillStyle = 'rgba(4,10,20,0.66)';
+  rrect(heroX + 34, heroY + heroH - 122, heroW - 68, 82, 16); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  rrect(heroX + 34, heroY + heroH - 122, heroW - 68, 82, 16); ctx.stroke();
+  ctx.fillStyle = '#f1c40f';
+  ctx.font = 'bold 16px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(`💎 ${meta.crystals} relic shards`, heroX + 52, heroY + heroH - 88);
   ctx.fillStyle = autoConstructUnlocked ? '#2ecc71' : '#7f8c8d';
   ctx.font = '12px monospace';
-  ctx.fillText(autoConstructUnlocked ? 'Unlocked: hold SHIFT to auto-build towers while walking.' : 'Meta unlock: Auto-Construct lets SHIFT auto-chain towers in-run.', W / 2, H / 2 - 28);
-  ctx.fillStyle = '#566573';
+  ctx.fillText(autoConstructUnlocked ? 'Auto-Construct unlocked: hold SHIFT to chain towers while walking.' : 'Meta unlock available: Auto-Construct chains towers while you walk.', heroX + 52, heroY + heroH - 60);
+  ctx.fillStyle = '#5f7287';
   ctx.font = '11px monospace';
-  ctx.fillText(autoConstructUnlocked ? 'It places them every 1m only while SHIFT is held.' : 'You can buy it in Meta Upgrades even before you ever use it.', W / 2, H / 2 - 8);
+  ctx.fillText(autoConstructUnlocked ? 'Current behavior: 1m spacing, only while SHIFT is held.' : 'Buy it in Relics to surface it inside every run.', heroX + 52, heroY + heroH - 38);
+
+  const actionPanelY = heroY + 26;
+  const actionPanelH = heroH - 52;
+  ctx.fillStyle = 'rgba(8,14,24,0.82)';
+  rrect(actionX, actionPanelY, actionW, actionPanelH, 22); ctx.fill();
+  ctx.strokeStyle = 'rgba(125, 146, 175, 0.14)';
+  ctx.lineWidth = 1.2;
+  rrect(actionX, actionPanelY, actionW, actionPanelH, 22); ctx.stroke();
+  ctx.fillStyle = '#7f92a8';
+  ctx.font = 'bold 11px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('ENTER THE SIEGE', actionX + 22, actionPanelY + 28);
+
+  const menuDefs = [
+    { label:'PLAY', subtitle:'Start a fresh defense run', color:'#27ae60' },
+    { label:'RELICS', subtitle:'Spend shards on permanent upgrades', color:'#8e44ad' },
+    { label:'CARD BOOK', subtitle:'Browse every card and weapon tier', color:'#2980b9' },
+  ];
+  const cardGap = 14;
+  const actionCardTop = actionPanelY + 74;
+  const actionCardBottomPad = 30;
+  const actionCardH = Math.min(76, Math.max(62, (actionPanelH - (actionCardTop - actionPanelY) - actionCardBottomPad - cardGap * (menuDefs.length - 1)) / menuDefs.length));
+  ui.menuBtns = menuDefs.map((def, index) => ({
+    cx: actionX + actionW / 2,
+    cy: actionCardTop + actionCardH / 2 + index * (actionCardH + cardGap),
+    bw: actionW - 34,
+    bh: actionCardH,
+  }));
+  menuDefs.forEach((def, index) => {
+    const rect = ui.menuBtns[index];
+    drawMenuActionCard(rect, def.label, def.subtitle, def.color, inBtn(mouseX, mouseY, rect));
+  });
+
   ctx.fillStyle = '#4f637a';
   ctx.font = '11px monospace';
-  ctx.fillText(`v${GAME_VERSION}`, W / 2, H - 26);
-  ui.menuBtns = [
-    btn(W / 2, H / 2 + 28, 'PLAY', '#27ae60'),
-    btn(W / 2, H / 2 + 92, 'RELICS 💎', '#8e44ad'),
-    btn(W / 2, H / 2 + 156, 'CARD BOOK 📖', '#2980b9'),
-  ];
+  ctx.textAlign = 'left';
+  ctx.fillText(`v${GAME_VERSION}`, actionX + 22, actionPanelY + actionPanelH - 18);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#63758a';
+  ctx.fillText('WASD move  ·  SPACE dash  ·  ENTER starts waves early', W - 32, H - 28);
 }
 
 export function handleMenuClick(mx: number, my: number) {
