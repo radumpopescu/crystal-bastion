@@ -51,6 +51,8 @@ const DASH_COOLDOWN   = 1.2;
 
 const OUTPOST_HP_BASE = 100;
 const OUTPOST_COST    = 40;
+const AUTO_CONSTRUCT_SPACING_RATIO = 0.6;
+const AUTO_CONSTRUCT_MIN_SPACING   = 220;
 
 const WAVE_INTERVAL   = 42;
 const BASE_MONSTERS   = 4;
@@ -205,6 +207,10 @@ const META_UPGRADES = [
 ];
 
 let meta = loadMeta();
+if ('autoConstructEnabled' in meta) {
+  delete meta.autoConstructEnabled;
+  saveMeta(meta);
+}
 
 function metaVal(id) {
   const lvl = meta.upgrades[id] || 0;
@@ -318,6 +324,7 @@ function newGame() {
     keys: {},
     showUpgradeMenu: false,
     upgradeMenuCooldown: 0,
+    autoConstructArmed: true,
   };
 
   // Engineer Corps: bonus starting gold per level (enough to place outposts)
@@ -397,27 +404,44 @@ function nearestAnchor(x, y) {
 }
 
 // ─── OUTPOST ─────────────────────────────────────────────────────────────────
-function tryPlaceOutpost() {
-  const cost = Math.max(10, OUTPOST_COST - (game.outpostDiscount || 0));
-  const free = (game.freeOutpost || 0) > 0;
-  if (!free && game.gold < cost) return;
-  const { x:px, y:py } = game.player;
-  const opRange = OUTPOST_RANGE + (game.opRangeBonus || 0);
+function getOutpostCost() {
+  return Math.max(10, OUTPOST_COST - (game.outpostDiscount || 0));
+}
 
+function canPlaceOutpostAt(px, py) {
+  const opRange = OUTPOST_RANGE + (game.opRangeBonus || 0);
   let canConnect = false;
   for (const a of getAnchors()) {
     if (dist(px, py, a.x, a.y) <= a.range + opRange * 0.6) { canConnect = true; break; }
   }
-  if (!canConnect) return;
+  if (!canConnect) return false;
   for (const a of getAnchors()) {
-    if (dist(px, py, a.x, a.y) < 65) return;
+    if (dist(px, py, a.x, a.y) < 65) return false;
   }
-  if (free) game.freeOutpost--;
-  else game.gold -= cost;
+  return true;
+}
+
+function placeOutpostAt(px, py) {
+  const opRange = OUTPOST_RANGE + (game.opRangeBonus || 0);
   const maxHp = OUTPOST_HP_BASE + (game.opHpBonus || 0);
   const atkDmg = 18 * (game.opAtkMult || 1);
   game.outposts.push({ x:px, y:py, hp:maxHp, maxHp, range:opRange, atkRange:200, atkDmg, atkSpeed:0.85, atkCooldown:0 });
   spawnParticles(px, py, '#27ae60', 12, 60);
+}
+
+function tryPlaceOutpostAt(px, py) {
+  const cost = getOutpostCost();
+  const free = (game.freeOutpost || 0) > 0;
+  if (!free && game.gold < cost) return false;
+  if (!canPlaceOutpostAt(px, py)) return false;
+  if (free) game.freeOutpost--;
+  else game.gold -= cost;
+  placeOutpostAt(px, py);
+  return true;
+}
+
+function tryPlaceOutpost() {
+  return tryPlaceOutpostAt(game.player.x, game.player.y);
 }
 
 // ─── TOWER UPGRADES ──────────────────────────────────────────────────────────
@@ -454,6 +478,10 @@ function handleUpgradeMenuClick(mx, my) {
 function handlePlayingClick(mx, my) {
   // Pause button (top-right ⏸ area)
   if (mx >= W-46 && mx <= W-10 && my >= 10 && my <= 46) { state='paused'; return; }
+  if (autoConstructHudBtn && inBtn(mx, my, autoConstructHudBtn)) {
+    game.autoConstructArmed = game.autoConstructArmed === false ? true : false;
+    return;
+  }
   // Start wave button
   if (waveStartBtn && !game.waveActive && inBtn(mx, my, waveStartBtn)) {
     startNextWave(true); // early = give gold bonus
@@ -462,6 +490,7 @@ function handlePlayingClick(mx, my) {
 
 // ─── WAVE SYSTEM ─────────────────────────────────────────────────────────────
 let waveStartBtn = null;
+let autoConstructHudBtn = null;
 
 function startNextWave(early = false) {
   // Early wave bonus: gold proportional to time remaining
@@ -710,7 +739,9 @@ let rerollBtn = null, refreshShopBtn = null;
 // ─── PLAYER UPDATE ───────────────────────────────────────────────────────────
 function updatePlayer(dt) {
   const p = game.player;
+  p._walkMoved = false;
   if (p.dead) return;
+  const startX = p.x, startY = p.y;
 
   // Regen
   if (p.regen) {
@@ -736,6 +767,7 @@ function updatePlayer(dt) {
       p.facing = { x:dx, y:dy };
       p.x += dx * p.speed * dt;
       p.y += dy * p.speed * dt;
+      p._walkMoved = true;
     }
   }
 
@@ -752,15 +784,7 @@ function updatePlayer(dt) {
   if (p.flashTimer > 0) p.flashTimer -= dt;
   if (p.invincible > 0) p.invincible -= dt;
   if (p.hp <= 0) p.dead = true;
-
-  // Hold Shift = auto-place outposts while moving (requires meta unlock)
-  if ((meta.upgrades['autoConstruct'] || 0) > 0 && meta.autoConstructEnabled !== false) {
-    game._shiftPlaceCooldown = (game._shiftPlaceCooldown || 0) - dt;
-    if ((game.keys['ShiftLeft'] || game.keys['ShiftRight']) && game._shiftPlaceCooldown <= 0) {
-      tryPlaceOutpost();
-      game._shiftPlaceCooldown = 0.6; // throttle: at most every 0.6s
-    }
-  }
+  p._walkMoved = p._walkMoved && dist(startX, startY, p.x, p.y) > 1;
 
   // Weapons
   for (const w of p.weapons) {
@@ -976,44 +1000,18 @@ function updateMonsters(dt) {
 // ─── TOWER & OUTPOST SHOOTING ────────────────────────────────────────────────
 function updateAutoConstruct() {
   if (!(meta.upgrades['autoConstruct'] > 0)) return;
-  if (meta.autoConstructEnabled === false) return;
-  const cost = Math.max(10, OUTPOST_COST - (game.outpostDiscount || 0));
-  if (game.gold < cost * 1.5) return; // keep a buffer
-  if (game.waveActive) return; // only build between waves
-
-  // Find the best spot: on the perimeter of an existing anchor, away from other anchors
-  const anchors = getAnchors();
-  let bestSpot = null, bestScore = -1;
-
-  for (const anchor of anchors) {
-    for (let a = 0; a < 8; a++) {
-      const ang = (a / 8) * Math.PI * 2;
-      const cx = anchor.x + Math.cos(ang) * anchor.range * 0.85;
-      const cy = anchor.y + Math.sin(ang) * anchor.range * 0.85;
-
-      // Must not be too close to any existing anchor
-      let tooClose = false;
-      for (const other of anchors) {
-        if (dist(cx, cy, other.x, other.y) < 70) { tooClose = true; break; }
-      }
-      if (tooClose) continue;
-
-      // Score: prefer spots farther from tower (extends territory)
-      const score = dist(cx, cy, game.tower.x, game.tower.y);
-      if (score > bestScore) { bestScore = score; bestSpot = { x:cx, y:cy }; }
-    }
-  }
-
-  if (!bestSpot) return;
-
-  // Place it
-  game.gold -= cost;
-  const maxHp = OUTPOST_HP_BASE + (game.opHpBonus || 0);
-  const atkDmg = 18 * (game.opAtkMult || 1);
+  if (game.autoConstructArmed === false) return;
+  const p = game.player;
+  if (p.dashing || !p._walkMoved) return;
+  if (!(game.keys['ShiftLeft'] || game.keys['ShiftRight'])) return;
+  const { anchor, dist: anchorDist } = nearestAnchor(p.x, p.y);
+  if (!anchor) return;
   const opRange = OUTPOST_RANGE + (game.opRangeBonus || 0);
-  game.outposts.push({ x:bestSpot.x, y:bestSpot.y, hp:maxHp, maxHp, range:opRange, atkRange:200, atkDmg, atkSpeed:0.85, atkCooldown:0 });
-  spawnParticles(bestSpot.x, bestSpot.y, '#27ae60', 14, 60);
-  spawnDmgNum(bestSpot.x, bestSpot.y - 30, '🤖 AUTO-BUILD', '#27ae60');
+  const spacing = Math.max(AUTO_CONSTRUCT_MIN_SPACING, opRange * AUTO_CONSTRUCT_SPACING_RATIO);
+  if (anchorDist < spacing) return;
+  if (tryPlaceOutpostAt(p.x, p.y)) {
+    spawnDmgNum(p.x, p.y - 28, 'AUTO', '#27ae60');
+  }
 }
 
 function updateStructures(dt) {
@@ -1566,6 +1564,7 @@ function renderDmgNums() {
 // ─── HUD ─────────────────────────────────────────────────────────────────────
 function renderHUD() {
   const p = game.player, t = game.tower;
+  const autoConstructUnlocked = (meta.upgrades['autoConstruct'] || 0) > 0;
 
   // ── Tower HP — top center ──
   const tBarW = 260, tBarH = 52;
@@ -1631,13 +1630,23 @@ function renderHUD() {
   ctx.fillText(game.player.weapons.map(w => `${WEAPONS[w.id].icon}${w.level}`).join('  '), 20, game.waveActive ? 76 : game.waveActive ? 76 : 76);
 
   // ── Controls hint + crystals — above minimap ──
+  const controlsBoxH = autoConstructUnlocked ? 100 : 70;
+  const controlsBoxY = autoConstructUnlocked ? H - 310 : H - 280;
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  rrect(W - 230, H - 280, 220, 70, 6); ctx.fill();
+  rrect(W - 230, controlsBoxY, 220, controlsBoxH, 6); ctx.fill();
   ctx.fillStyle = '#666'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
-  ctx.fillText('WASD move · SPACE dash', W - 14, H - 260);
-  ctx.fillText('E: outpost · U: upgrades · P: pause', W - 14, H - 244);
+  ctx.fillText('WASD move · SPACE dash', W - 14, controlsBoxY + 20);
+  ctx.fillText('E: outpost · U: upgrades · P: pause', W - 14, controlsBoxY + 36);
   ctx.fillStyle = '#a855f7'; ctx.font = 'bold 13px monospace';
-  ctx.fillText(`💎 ${meta.crystals} crystals`, W - 14, H - 224);
+  ctx.fillText(`💎 ${meta.crystals} crystals`, W - 14, controlsBoxY + 56);
+  if (autoConstructUnlocked) {
+    const autoConstructOn = game.autoConstructArmed !== false;
+    ctx.fillStyle = '#7f8c8d'; ctx.font = '11px monospace';
+    ctx.fillText('Hold SHIFT to chain-build outposts', W - 14, controlsBoxY + 74);
+    autoConstructHudBtn = btn(W - 70, controlsBoxY + 88, autoConstructOn ? 'AUTO ON' : 'AUTO OFF', autoConstructOn ? '#27ae60' : '#555', 120, 24);
+  } else {
+    autoConstructHudBtn = null;
+  }
 
   renderMinimap();
 }
@@ -1645,7 +1654,7 @@ function renderHUD() {
 function renderMinimap() {
   const MM_SIZE  = 180;   // square size
   const MM_PAD   = 12;    // padding from edges
-  const MM_SCALE = 0.055; // world units → minimap px
+  const MM_SCALE = 0.039; // world units → minimap px in isometric space
   const mx = W - MM_SIZE - MM_PAD;
   const my = H - MM_SIZE - MM_PAD;
   const cx = mx + MM_SIZE / 2;
@@ -1662,17 +1671,32 @@ function renderMinimap() {
   rrect(mx, my, MM_SIZE, MM_SIZE, 8); ctx.clip();
 
   function mm(wx, wy) {
-    return { x: cx + wx * MM_SCALE, y: cy + wy * MM_SCALE };
+    return {
+      x: cx + (wx - wy) * MM_SCALE,
+      y: cy + (wx + wy) * MM_SCALE * 0.5,
+    };
   }
 
-  // Safe zone circles
+  // Arena diamond, aligned with the isometric playfield
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx, my + 10);
+  ctx.lineTo(mx + MM_SIZE - 10, cy);
+  ctx.lineTo(cx, my + MM_SIZE - 10);
+  ctx.lineTo(mx + 10, cy);
+  ctx.closePath();
+  ctx.stroke();
+
+  // Safe zone ellipses
   for (const a of getAnchors()) {
     const { x, y } = mm(a.x, a.y);
-    const r = a.range * MM_SCALE;
+    const rx = a.range * MM_SCALE * 2;
+    const ry = rx * 0.5;
     ctx.strokeStyle = 'rgba(39,174,96,0.35)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2); ctx.stroke();
     ctx.fillStyle = 'rgba(39,174,96,0.06)';
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2); ctx.fill();
   }
 
   // Tower
@@ -2306,7 +2330,6 @@ function renderMetaScreen() {
   const sX = W/2-totalW/2;
   const HEADER_H = 78;
   const clipTop = HEADER_H, clipBot = H - 52;
-  const acUnlocked = (meta.upgrades['autoConstruct'] || 0) > 0;
 
   let layoutRow = 0, layoutCol = 0;
   let layoutLastCat = null;
@@ -2322,10 +2345,6 @@ function renderMetaScreen() {
     layoutCol++;
     if (layoutCol >= cols) { layoutCol = 0; layoutRow++; }
   });
-  if (acUnlocked) {
-    const toggleTop = clipTop + (layoutRow + (layoutCol > 0 ? 1 : 0)) * (cardH + gY) + 12;
-    contentBottom = Math.max(contentBottom, toggleTop + 42);
-  }
   maxMetaScroll = Math.max(0, contentBottom - clipBot + 12);
   metaScroll = clamp(metaScroll, 0, maxMetaScroll);
 
@@ -2388,24 +2407,6 @@ function renderMetaScreen() {
     if (col >= cols) { col = 0; row++; }
   });
 
-  // Auto-construct toggle
-  if (acUnlocked) {
-    const togOn = meta.autoConstructEnabled !== false;
-    const tbx = sX, tby = clipTop + (row + (col>0?1:0)) * (cardH + gY) + 12 - metaScroll;
-    if (tby + 42 >= clipTop && tby <= clipBot) {
-      ctx.fillStyle = togOn ? '#1a3a2a' : '#1a1a1a';
-      rrect(tbx, tby, totalW, 42, 7); ctx.fill();
-      ctx.strokeStyle = togOn ? '#27ae60' : '#444'; ctx.lineWidth=1.5;
-      rrect(tbx, tby, totalW, 42, 7); ctx.stroke();
-      ctx.fillStyle = '#dfe6e9'; ctx.font='bold 12px monospace'; ctx.textAlign='left';
-      ctx.fillText('🤖 Auto-Construct Outposts', tbx+14, tby+18);
-      ctx.fillStyle='#95a5a6'; ctx.font='10px monospace';
-      ctx.fillText('Hold Shift while walking to auto-place outposts', tbx+14, tby+34);
-      const toggleBtn = btn(tbx + totalW - 70, tby+21, togOn ? 'ON ✓' : 'OFF', togOn ? '#27ae60' : '#555', 100, 30);
-      metaBtns.push({ ...toggleBtn, id:'__toggleAutoConstruct' });
-    }
-  }
-
   ctx.restore();
 
   // Bottom bar
@@ -2418,10 +2419,6 @@ function renderMetaScreen() {
 function handleMetaClick(mx,my) {
   for (const b of metaBtns) {
     if (inBtn(mx,my,b)) {
-      if (b.id === '__toggleAutoConstruct') {
-        meta.autoConstructEnabled = meta.autoConstructEnabled === false ? true : false;
-        saveMeta(meta); return;
-      }
       const lvl = meta.upgrades[b.id]||0;
       if (lvl < b.max && meta.crystals >= b.cost) {
         meta.crystals -= b.cost;
