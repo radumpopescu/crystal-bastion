@@ -38,12 +38,26 @@ function canPlaceOutpostAt(px: number, py: number) {
   return true;
 }
 
+const OUTPOST_LEVEL_KILLS = [0, 8, 20, 38, 62];
+
+function outpostLevelUp(op: any) {
+  const newLevel = OUTPOST_LEVEL_KILLS.findIndex((t, i) => i > 0 && op.kills < OUTPOST_LEVEL_KILLS[i]);
+  const level = newLevel === -1 ? 5 : newLevel;
+  if (level > op.level) {
+    op.level = level;
+    op.atkDmg = op._baseDmg * Math.pow(1.25, level - 1);
+    op.atkRange = op._baseRange + (level - 1) * 15;
+    spawnParticles(op.x, op.y, '#f1c40f', 14, 70);
+  }
+}
+
 function placeOutpostAt(px: number, py: number) {
   const game = R.game;
   const opRange = OUTPOST_RANGE + (game.opRangeBonus || 0);
   const maxHp = OUTPOST_HP_BASE + (game.opHpBonus || 0);
-  const atkDmg = 18 * (game.opAtkMult || 1);
-  game.outposts.push({ x:px, y:py, hp:maxHp, maxHp, range:opRange, atkRange:200, atkDmg, atkSpeed:0.85, atkCooldown:0 });
+  const baseDmg = 20 * (game.opAtkMult || 1);
+  const baseRange = 240;
+  game.outposts.push({ x:px, y:py, hp:maxHp, maxHp, range:opRange, atkRange:baseRange, atkDmg:baseDmg, atkSpeed:0.85, atkCooldown:0, level:1, kills:0, _baseDmg:baseDmg, _baseRange:baseRange });
   spawnParticles(px, py, '#27ae60', 12, 60);
 }
 
@@ -143,7 +157,7 @@ export function startNextWave(early = false) {
   }
   game.monstersLeft = count;
   game.waveActive = true;
-  game._waveCrystalReward = Math.max(1, Math.floor((1 + Math.floor(game.wave / 3)) * (1 + (metaVal('crystalBonus') || 0))));
+  game._waveCrystalReward = Math.max(1, Math.floor((1 + Math.floor(game.wave / 4)) * (1 + (metaVal('crystalBonus') || 0))));
 }
 
 export function isStatUpgradeAvailable(stat: any, p = R.game.player, g = R.game) {
@@ -164,14 +178,14 @@ function getWeaponCardPool(game = R.game) {
       newCards.push({ type:'weapon', weaponId:id, newLevel:1, rarity: WEAPONS[id].rarity });
     }
   }
-  const atCap = p.weapons.length >= MAX_WEAPON_SLOTS;
+  const atCap = p.weapons.length >= (game.maxWeaponSlots || MAX_WEAPON_SLOTS);
   return atCap && newCards.length > 0 ? newCards : [...upgradeCards, ...newCards];
 }
 
 export function weaponCardNeedsSlot(card: any, game = R.game) {
   if (!card || card.type !== 'weapon') return false;
   const existing = game.player.weapons.find((w: any) => w.id === card.weaponId);
-  return !existing && game.player.weapons.length >= MAX_WEAPON_SLOTS;
+  return !existing && game.player.weapons.length >= (game.maxWeaponSlots || MAX_WEAPON_SLOTS);
 }
 
 export function generateCards() {
@@ -204,12 +218,17 @@ export function generateCards() {
   return cards;
 }
 
+function rerollBaseCost() {
+  return Math.max(1, 2 - (metaVal('rerolls') || 0));
+}
+
 function cardGoldCost(card: any) {
   const rarityBase: Record<string, number> = { common: 18, uncommon: 32, rare: 55 };
   const base = rarityBase[card.rarity] || 18;
   const waveMult = 1 + (R.game.wave - 1) * 0.08;
-  if (card.type === 'weapon' && card.newLevel > 1) return Math.round(base * 0.75 * waveMult);
-  return Math.round(base * waveMult);
+  const discount = R.game?.shopDiscount || 0;
+  if (card.type === 'weapon' && card.newLevel > 1) return Math.max(1, Math.round(base * 0.75 * waveMult) - discount);
+  return Math.max(1, Math.round(base * waveMult) - discount);
 }
 
 export function generateShopCards(n = 4) {
@@ -317,7 +336,7 @@ export function getLoadoutStats() {
   const towerCost = getOutpostCost();
   const towerDiscount = R.game.outpostDiscount || 0;
   return [
-    { icon:'❤️', name:'Max HP',       value: `${Math.round(p.maxHp)}` },
+    { icon:'❤️', name:'HP',            value: `${Math.round(p.hp)} / ${Math.round(p.maxHp)}` },
     { icon:'💚', name:'Regen',        value: `${(p.regen || 0).toFixed(1)}/s` },
     { icon:'🩸', name:'Lifesteal',    value: `${(p.lifesteal || 0).toFixed(2)}/hit` },
     { icon:'💢', name:'Damage',       value: `${Math.round((p.dmgMult || 1) * 100)}%` },
@@ -342,6 +361,7 @@ export function getBaseStats() {
     { icon:'💥', name:'Turret Damage', value: `${Math.round(t.atkDmg)}` },
     { icon:'⚡', name:'Fire Rate',     value: `${t.atkSpeed.toFixed(2)}/s` },
     { icon:'🔥', name:'Aura DPS',      value: `${Math.round(t.auraDmg)}` },
+    { icon:'🎯', name:'Multishot',     value: `${t.multishot || 1} targets` },
   ];
 }
 
@@ -355,9 +375,10 @@ export function buyTowerUpgrade(upgradeId: string) {
   if (game.gold < cost) return false;
   game.gold -= cost;
   game.tower.upgrades[upg.id]++;
-  if (upg.id === 'hp')    { game.tower.maxHp += 150; game.tower.hp = Math.min(game.tower.hp + 150, game.tower.maxHp); }
-  if (upg.id === 'range') { game.tower.range += 60; }
-  if (upg.id === 'dmg')   { game.tower.atkDmg = Math.round(game.tower.atkDmg * 1.4); }
+  if (upg.id === 'hp')        { game.tower.maxHp += 150; game.tower.hp = Math.min(game.tower.hp + 150, game.tower.maxHp); }
+  if (upg.id === 'range')     { game.tower.range += 60; }
+  if (upg.id === 'dmg')       { game.tower.atkDmg = Math.round(game.tower.atkDmg * 1.4); }
+  if (upg.id === 'multishot') { game.tower.multishot = (game.tower.multishot || 1) + 1; }
   return true;
 }
 
@@ -377,7 +398,7 @@ export function applyCard(card: any) {
     const existing = p.weapons.find((w: any) => w.id === card.weaponId);
     if (existing) existing.level = card.newLevel;
     else {
-      if (p.weapons.length >= MAX_WEAPON_SLOTS) return false;
+      if (p.weapons.length >= (R.game?.maxWeaponSlots || MAX_WEAPON_SLOTS)) return false;
       p.weapons.push({ ...makeWeapon(card.weaponId), level: clamp(card.newLevel || 1, 1, 4) });
     }
   } else {
@@ -398,13 +419,20 @@ export function luCardDims() {
 }
 
 export function luPositions() {
-  const { w: cW, h: cH, gap } = luCardDims();
   const leftPanelW = Math.max(180, Math.min(220, R.W * 0.17));
   const rightPanelW = Math.max(160, Math.min(230, R.W * 0.17));
   const leftPanelX = 12;
   const rightPanelX = R.W - rightPanelW - 12;
   const centerLeft = leftPanelX + leftPanelW + 20;
   const centerRight = rightPanelX - 20;
+  const centerW = centerRight - centerLeft;
+
+  // Fit 4 cards + gaps + section padding into the available center width
+  const { w: rawCW, h: cH, gap: rawGap } = luCardDims();
+  const maxCardW = Math.floor((centerW - 28 - 3 * rawGap) / 4);
+  const cW = Math.min(rawCW, maxCardW);
+  const gap = rawGap;
+
   const centerX = (centerLeft + centerRight) / 2;
   const HEADER_H = 72;
   const BOT_H = 52;
@@ -493,9 +521,10 @@ export function handleCardClick(mx: number, my: number) {
   }
 
   if (R.ui.refreshAllBtn && inBtn(mx, my, R.ui.refreshAllBtn)) {
-    if (game._anyBought) return;
-    if (game.rerollsLeft <= 0) return;
-    game.rerollsLeft--;
+    const cost = game._rerollCost ?? rerollBaseCost();
+    if (game.gold < cost) return;
+    game.gold -= cost;
+    game._rerollCost = cost + 3;
     const freePicked = !game.levelUpCards || game.levelUpCards.length === 0;
     if (!freePicked) { game.levelUpCards = generateCards(); game._pickedFreeCard = null; }
     game.shopCards = generateShopCards(4);
@@ -609,6 +638,17 @@ function nearestMonster(x: number, y: number, maxR: number) {
     if (d < bestD) { bestD = d; best = m; }
   }
   return best;
+}
+
+function nearestMonsters(x: number, y: number, maxR: number, count: number) {
+  const game = R.game;
+  const inRange = game.monsters
+    .map((m: any) => ({ m, d: dist(x, y, m.x, m.y) }))
+    .filter(({ d }: any) => d <= maxR)
+    .sort((a: any, b: any) => a.d - b.d)
+    .slice(0, count)
+    .map(({ m }: any) => m);
+  return inRange;
 }
 
 function addProjectile(projectile: any) {
@@ -1013,17 +1053,19 @@ export function updateStructures(dt: number) {
   const t = game.tower;
   if (t.atkCooldown > 0) t.atkCooldown -= dt;
   else {
-    const m = nearestMonster(t.x, t.y, t.atkRange);
-    if (m) {
-      spawnProj(t.x, t.y, m.x, m.y, t.atkDmg, 460, 8, '#f1c40f', 'tower', false, {
-        visual:'tower',
-        trailColor:'#ffe082',
-        coreColor:'#fffbe8',
-        length:16,
-        width:4,
-        glow:12,
-        life:1.2,
-      });
+    const targets = nearestMonsters(t.x, t.y, t.atkRange, t.multishot || 1);
+    if (targets.length > 0) {
+      for (const m of targets) {
+        spawnProj(t.x, t.y, m.x, m.y, t.atkDmg, 460, 8, '#f1c40f', 'tower', false, {
+          visual:'tower',
+          trailColor:'#ffe082',
+          coreColor:'#fffbe8',
+          length:16,
+          width:4,
+          glow:12,
+          life:1.2,
+        });
+      }
       t.atkCooldown = 1 / t.atkSpeed;
     }
   }
@@ -1039,6 +1081,7 @@ export function updateStructures(dt: number) {
         width:3,
         glow:10,
         life:1.1,
+        sourceOutpost: op,
       });
       op.atkCooldown = 1 / op.atkSpeed;
     }
@@ -1104,7 +1147,13 @@ export function updateProjectiles(dt: number) {
           const killed = dealDamage(m, p.dmg, p.owner === 'player' ? game.player : null);
           if (p.hits) p.hits.add(m);
           spawnProjectileImpact(p);
-          if (killed) killMonster(j);
+          if (killed) {
+            if (p.sourceOutpost) {
+              p.sourceOutpost.kills = (p.sourceOutpost.kills || 0) + 1;
+              outpostLevelUp(p.sourceOutpost);
+            }
+            killMonster(j);
+          }
           if (!p.pierce) { game.projectiles.splice(i, 1); break; }
         }
       }
@@ -1166,7 +1215,7 @@ function checkWaveEnd() {
       finishDevSession(`Wave ${game.wave} cleared. Adjust the preset and run again.`);
       return;
     }
-    game.rerollsLeft = 1;
+    game._rerollCost = rerollBaseCost();
     game.levelUpCards = generateCards();
     game.shopCards = generateShopCards(4);
     game._pickedFreeCard = null;

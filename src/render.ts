@@ -206,6 +206,11 @@ function renderOutpost(op: any) {
   ctx.beginPath(); ctx.ellipse(sx, sy, rsx, rsy, 0, 0, Math.PI * 2); ctx.stroke();
   ctx.setLineDash([]);
   drawHpBar(sx - 20, sy - bh - 18, 40, 5, op.hp, op.maxHp, '#e74c3c', '#3498db');
+  const lv = op.level || 1;
+  ctx.fillStyle = lv >= 5 ? '#f1c40f' : '#8bd3ff';
+  ctx.font = `bold ${lv >= 5 ? 11 : 10}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText(`Lv${lv}`, sx, sy - bh - 22);
 }
 
 function renderMonster(m: any) {
@@ -641,7 +646,7 @@ function renderHUD() {
   ctx.fillStyle = '#a855f7'; ctx.font = 'bold 13px monospace';
   ctx.fillText(`💎 ${meta.crystals} crystals`, W - 14, controlsBoxY + 56);
   ctx.fillStyle = autoConstructUnlocked ? '#7f8c8d' : '#4f5b66'; ctx.font = '11px monospace';
-  ctx.fillText(autoConstructUnlocked ? 'Hold SHIFT to auto-build towers' : 'Meta unlock: Auto-Construct', W - 14, controlsBoxY + 74);
+  ctx.fillText(autoConstructUnlocked ? 'Hold SHIFT to auto-build towers' : 'Relic unlock: Arcane Masons', W - 14, controlsBoxY + 74);
   const shiftHeld = game.keys['ShiftLeft'] || game.keys['ShiftRight'];
   ctx.fillStyle = autoConstructUnlocked
     ? (shiftHeld ? '#27ae60' : '#95a5a6')
@@ -908,15 +913,16 @@ function renderLoadoutSidebar(panelX: number, panelW: number, options: { title?:
   }
 
   ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
-  ctx.fillText(`WEAPON SLOTS ${game.player.weapons.length}/${MAX_WEAPON_SLOTS}`, panelX + 10, sideY); sideY += 14;
-  if (game.player.weapons.length >= MAX_WEAPON_SLOTS) {
+  const maxSlots = game.maxWeaponSlots || MAX_WEAPON_SLOTS;
+  ctx.fillText(`WEAPON SLOTS ${game.player.weapons.length}/${maxSlots}`, panelX + 10, sideY); sideY += 14;
+  if (game.player.weapons.length >= maxSlots) {
     ctx.fillStyle = '#e67e22';
     ctx.font = '10px monospace';
     ctx.fillText('Full loadout: sell one to take a new weapon.', panelX + 10, sideY);
     sideY += 14;
   }
 
-  for (let slot = 0; slot < MAX_WEAPON_SLOTS; slot++) {
+  for (let slot = 0; slot < maxSlots; slot++) {
     const rowY = sideY;
     const weapon = game.player.weapons[slot];
     const rowH = 22;
@@ -978,10 +984,39 @@ function renderLoadoutSidebar(panelX: number, panelW: number, options: { title?:
     sideY += 16;
   });
 
+  const outposts = game.outposts || [];
+  if (outposts.length > 0) {
+    sideY += 4;
+    ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+    ctx.fillText(`TOWERS  (${outposts.length})`, panelX + 10, sideY); sideY += 14;
+    for (let oi = 0; oi < outposts.length; oi++) {
+      const op = outposts[oi];
+      const lv = op.level || 1;
+      const hpPct = op.hp / op.maxHp;
+      const barW = panelW - 20;
+      const barH = 4;
+      const barX = panelX + 10;
+      // HP bar
+      ctx.fillStyle = '#1a2535';
+      ctx.fillRect(barX, sideY, barW, barH);
+      ctx.fillStyle = hpPct > 0.5 ? '#27ae60' : hpPct > 0.25 ? '#f39c12' : '#e74c3c';
+      ctx.fillRect(barX, sideY, Math.round(barW * hpPct), barH);
+      sideY += 7;
+      const LEVEL_KILLS = [0, 8, 20, 38, 62];
+      const nextKills = lv < 5 ? LEVEL_KILLS[lv] : null;
+      const lvLabel = lv >= 5 ? '⭐Lv5' : `Lv${lv} → ${nextKills! - op.kills}k`;
+      ctx.fillStyle = lv >= 5 ? '#f1c40f' : '#8bd3ff'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
+      ctx.fillText(`#${oi + 1} ${lvLabel}  ${Math.ceil(op.hp)}/${op.maxHp}HP`, barX, sideY);
+      ctx.fillStyle = '#f5c26b'; ctx.textAlign = 'right';
+      ctx.fillText(`${Math.round(op.atkDmg)}dmg`, panelX + panelW - 4, sideY);
+      sideY += 13;
+    }
+  }
+
   renderGroupedRunCards(panelX, panelW, sideY + 8, H - 18);
 }
 
-function renderBaseSidebar(panelX: number, panelW: number) {
+function renderBaseSidebar(panelX: number, panelW: number, { allowBuy = true } = {}) {
   const { ctx, H, ui } = R;
   const game = R.game;
   ctx.fillStyle = '#0b1220';
@@ -1010,17 +1045,17 @@ function renderBaseSidebar(panelX: number, panelW: number) {
     const lvl = game.tower.upgrades[upg.id] || 0;
     const maxed = lvl >= upg.max;
     const cost = maxed ? 0 : upg.cost[lvl];
-    const canAfford = !maxed && game.gold >= cost;
+    const canAfford = allowBuy && !maxed && game.gold >= cost;
     const rowY = sideY + index * 54;
     const rowX = panelX + 8;
     const rowW = panelW - 4;
     const rowH = 44;
-    ctx.fillStyle = maxed ? '#16261a' : canAfford ? '#101a29' : '#221315';
+    ctx.fillStyle = maxed ? '#16261a' : (allowBuy && canAfford) ? '#101a29' : '#0e1520';
     rrect(rowX, rowY - 12, rowW, rowH, 6); ctx.fill();
-    ctx.strokeStyle = maxed ? '#27ae60' : canAfford ? '#f39c12' : '#55383b';
+    ctx.strokeStyle = maxed ? '#27ae60' : canAfford ? '#f39c12' : '#2a3a4a';
     ctx.lineWidth = 1;
     rrect(rowX, rowY - 12, rowW, rowH, 6); ctx.stroke();
-    ctx.fillStyle = maxed ? '#27ae60' : '#ecf0f1';
+    ctx.fillStyle = maxed ? '#27ae60' : allowBuy ? '#ecf0f1' : '#7a8a9a';
     ctx.font = 'bold 11px monospace';
     ctx.textAlign = 'left';
     ctx.fillText(upg.label, rowX + 8, rowY + 1);
@@ -1032,12 +1067,17 @@ function renderBaseSidebar(panelX: number, panelW: number) {
       ctx.font = 'bold 10px monospace';
       ctx.textAlign = 'right';
       ctx.fillText('MAXED', rowX + rowW - 8, rowY + 1);
-    } else {
+    } else if (allowBuy) {
       ctx.fillStyle = canAfford ? '#f1c40f' : '#e74c3c';
       ctx.font = 'bold 10px monospace';
       ctx.textAlign = 'right';
       ctx.fillText(`${cost}⬡`, rowX + rowW - 8, rowY + 1);
       ui.levelupBaseUpgradeBtns.push({ x: rowX, y: rowY - 12, w: rowW, h: rowH, upgradeId: upg.id });
+    } else {
+      ctx.fillStyle = '#4a5a6a';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(`${cost}⬡`, rowX + rowW - 8, rowY + 1);
     }
   });
 }
@@ -1132,8 +1172,9 @@ function renderLevelUpCards() {
   ctx.fillStyle = '#0b1220'; ctx.fillRect(0, botY, panelX, 52);
   ctx.strokeStyle = '#1e2d44'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(0, botY); ctx.lineTo(panelX, botY); ctx.stroke();
-  const canReroll = game.rerollsLeft > 0 && !game._anyBought;
-  const refreshLabel = game._anyBought ? '🔒 Refresh locked' : game.rerollsLeft > 0 ? `🔀 Refresh All  (${game.rerollsLeft} free)` : '🔀 No rerolls left';
+  const rerollCost = game._rerollCost ?? 2;
+  const canReroll = game.gold >= rerollCost;
+  const refreshLabel = `🔀 Refresh All  ${rerollCost}🪙`;
   ui.refreshAllBtn = btn(120, botY + 26, refreshLabel, canReroll ? '#5b2d8e' : '#252535', 220, 36);
   ui.continueBtn = btn(panelX - 110, botY + 26, '▶  DONE', '#27ae60', 180, 36);
 }
@@ -1161,7 +1202,7 @@ function renderMenu() {
   ctx.fillText(`v${GAME_VERSION}`, W / 2, H - 26);
   ui.menuBtns = [
     btn(W / 2, H / 2 + 28, 'PLAY', '#27ae60'),
-    btn(W / 2, H / 2 + 92, 'META UPGRADES 💎', '#8e44ad'),
+    btn(W / 2, H / 2 + 92, 'RELICS 💎', '#8e44ad'),
     btn(W / 2, H / 2 + 156, 'CARD BOOK 📖', '#2980b9'),
   ];
 }
@@ -1259,14 +1300,16 @@ function renderDevStepperRow(x: number, y: number, w: number, label: string, val
 
 function renderDevMenu() {
   const { ctx, W, H, ui, dev } = R;
-  const panelW = Math.min(1040, W - 40);
+  const panelW = Math.min(1440, W - 40);
   const panelX = Math.round(W / 2 - panelW / 2);
   const panelY = 24;
   const panelH = H - 48;
   const rowH = 24;
+  const col3W = Math.floor((panelW - 72) / 3);
   const leftX = panelX + 24;
-  const rightX = panelX + panelW / 2 + 10;
-  const colW = panelW / 2 - 34;
+  const midX = leftX + col3W + 12;
+  const rightX = midX + col3W + 12;
+  const colW = col3W;
   const topBoxY = panelY + 88;
   const topBoxH = 76;
   const baseY = panelY + 196;
@@ -1285,15 +1328,15 @@ function renderDevMenu() {
   ctx.font = 'bold 28px monospace'; ctx.textAlign = 'center';
   ctx.fillText('DEV SANDBOX', W / 2, panelY + 34);
   ctx.fillStyle = '#8aa6bf'; ctx.font = '12px monospace';
-  ctx.fillText('Preset weapons, money, cards, and the exact wave to test.', W / 2, panelY + 56);
+  ctx.fillText('Preset weapons, cards, relics, and the exact wave to test. Relic changes are saved permanently.', W / 2, panelY + 56);
   ctx.fillStyle = '#f1c40f'; ctx.font = '11px monospace';
   ctx.fillText(dev.menuStatus, W / 2, panelY + 70);
   ctx.fillStyle = 'rgba(8,14,24,0.9)';
   rrect(leftX, topBoxY, colW, topBoxH, 10); ctx.fill();
-  rrect(rightX, topBoxY, colW, topBoxH, 10); ctx.fill();
+  rrect(midX, topBoxY, colW, topBoxH, 10); ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
   rrect(leftX, topBoxY, colW, topBoxH, 10); ctx.stroke();
-  rrect(rightX, topBoxY, colW, topBoxH, 10); ctx.stroke();
+  rrect(midX, topBoxY, colW, topBoxH, 10); ctx.stroke();
   ctx.fillStyle = '#95a5a6'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
   ctx.fillText('STARTING GOLD', leftX + 12, topBoxY + 18);
   ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 28px monospace';
@@ -1303,19 +1346,18 @@ function renderDevMenu() {
   drawDevMenuButton(leftX + colW - 90, topBoxY + 20, 34, 24, '+10', '#2c3e50', { action:'gold', delta:10 }, 'bold 10px monospace');
   drawDevMenuButton(leftX + colW - 50, topBoxY + 20, 42, 24, '+100', '#2c3e50', { action:'gold', delta:100 }, 'bold 10px monospace');
   ctx.fillStyle = '#95a5a6'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
-  ctx.fillText('TARGET WAVE', rightX + 12, topBoxY + 18);
+  ctx.fillText('TARGET WAVE', midX + 12, topBoxY + 18);
   ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 28px monospace';
-  ctx.fillText(`${Math.round(dev.config.wave)}`, rightX + 12, topBoxY + 52);
-  drawDevMenuButton(rightX + colW - 170, topBoxY + 20, 34, 24, '-5', '#2c3e50', { action:'wave', delta:-5 }, 'bold 10px monospace');
-  drawDevMenuButton(rightX + colW - 130, topBoxY + 20, 34, 24, '-1', '#2c3e50', { action:'wave', delta:-1 }, 'bold 10px monospace');
-  drawDevMenuButton(rightX + colW - 90, topBoxY + 20, 34, 24, '+1', '#2c3e50', { action:'wave', delta:1 }, 'bold 10px monospace');
-  drawDevMenuButton(rightX + colW - 50, topBoxY + 20, 34, 24, '+5', '#2c3e50', { action:'wave', delta:5 }, 'bold 10px monospace');
+  ctx.fillText(`${Math.round(dev.config.wave)}`, midX + 12, topBoxY + 52);
+  drawDevMenuButton(midX + colW - 170, topBoxY + 20, 34, 24, '-5', '#2c3e50', { action:'wave', delta:-5 }, 'bold 10px monospace');
+  drawDevMenuButton(midX + colW - 130, topBoxY + 20, 34, 24, '-1', '#2c3e50', { action:'wave', delta:-1 }, 'bold 10px monospace');
+  drawDevMenuButton(midX + colW - 90, topBoxY + 20, 34, 24, '+1', '#2c3e50', { action:'wave', delta:1 }, 'bold 10px monospace');
+  drawDevMenuButton(midX + colW - 50, topBoxY + 20, 34, 24, '+5', '#2c3e50', { action:'wave', delta:5 }, 'bold 10px monospace');
   ctx.fillStyle = '#e67e22'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left';
   ctx.fillText('WEAPONS', leftX, baseY - 12);
   Object.keys(WEAPONS).forEach((id, index) => {
     const def = WEAPONS[id];
-    const value = dev.config.weaponLevels[id] > 0 ? `LV ${dev.config.weaponLevels[id]}` : 'OFF';
-    renderDevStepperRow(leftX, baseY + index * rowH, colW, `${def.icon} ${def.name}`, value, def.color, { action:'weapon', id, delta:-1 }, { action:'weapon', id, delta:1 }, {
+    renderDevStepperRow(leftX, baseY + index * rowH, colW, `${def.icon} ${def.name}`, '', def.color, { action:'weapon', id, delta:-1 }, { action:'weapon', id, delta:1 }, {
       tag: def.rarity.toUpperCase(),
       tagColor: def.color,
       slots: { total: 4, active: dev.config.weaponLevels[id] || 0 },
@@ -1323,9 +1365,9 @@ function renderDevMenu() {
     });
   });
   ctx.fillStyle = '#2ecc71'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left';
-  ctx.fillText('CARDS', rightX, baseY - 12);
+  ctx.fillText('CARDS', midX, baseY - 12);
   STAT_UPGRADES.forEach((stat, index) => {
-    renderDevStepperRow(rightX, baseY + index * rowH, colW, `${stat.icon} ${stat.name}`, `x${dev.config.cardCounts[stat.id] || 0}`, devCardColor(stat), { action:'card', id:stat.id, delta:-1 }, { action:'card', id:stat.id, delta:1 }, stat.max && stat.max <= 6 ? {
+    renderDevStepperRow(midX, baseY + index * rowH, colW, `${stat.icon} ${stat.name}`, `x${dev.config.cardCounts[stat.id] || 0}`, devCardColor(stat), { action:'card', id:stat.id, delta:-1 }, { action:'card', id:stat.id, delta:1 }, stat.max && stat.max <= 6 ? {
       tag: `MAX ${stat.max}`,
       tagColor: devCardColor(stat),
       slots: { total: stat.max, active: Math.min(dev.config.cardCounts[stat.id] || 0, stat.max) },
@@ -1336,9 +1378,25 @@ function renderDevMenu() {
       extraLabel: `x${dev.config.cardCounts[stat.id] || 0}`,
     });
   });
+  ctx.fillStyle = '#a855f7'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left';
+  ctx.fillText('RELICS  💎 (saved permanently)', rightX, baseY - 12);
+  const CAT_COLORS_DEV: Record<string, string> = { player:'#e74c3c', econ:'#f1c40f', tower:'#f39c12', outpost:'#3498db', unlock:'#8e44ad' };
+  META_UPGRADES.forEach((upg, index) => {
+    const lvl = R.meta.upgrades[upg.id] || 0;
+    const color = CAT_COLORS_DEV[upg.cat] || '#8e44ad';
+    renderDevStepperRow(rightX, baseY + index * rowH, colW, upg.label, `${lvl}/${upg.max}`, color, { action:'relic', id:upg.id, delta:-1 }, { action:'relic', id:upg.id, delta:1 }, {
+      tag: upg.cat.toUpperCase(),
+      tagColor: color,
+      slots: { total: upg.max <= 6 ? upg.max : 0, active: Math.min(lvl, upg.max) },
+      slotText: lvl === 0 ? 'OFF' : `${lvl}/${upg.max}`,
+      extraLabel: upg.max > 6 ? `${lvl}/${upg.max}` : undefined,
+    });
+  });
   const footY = panelY + panelH - 48;
   drawDevMenuButton(panelX + 28, footY, 190, 30, '← MAIN MENU', '#34495e', { action:'menu' }, 'bold 12px monospace');
   drawDevMenuButton(panelX + panelW / 2 - 95, footY, 190, 30, '↺ RESET PRESET', '#7f8c8d', { action:'reset' }, 'bold 12px monospace');
+  drawDevMenuButton(panelX + panelW / 2 + 5, footY, 140, 30, '⓪ ZERO RELICS', '#6b2fa0', { action:'relicZero' }, 'bold 11px monospace');
+  drawDevMenuButton(panelX + panelW / 2 + 153, footY, 140, 30, '★ MAX RELICS', '#7c3aed', { action:'relicMax' }, 'bold 11px monospace');
   drawDevMenuButton(panelX + panelW - 228, footY, 200, 30, '▶ START TEST WAVE', '#16a085', { action:'start' }, 'bold 12px monospace');
 }
 
@@ -1355,6 +1413,27 @@ export function handleDevMenuClick(mx: number, my: number) {
     const stat = STAT_UPGRADES.find(entry => entry.id === hit.id);
     if (!stat) return;
     R.dev.config.cardCounts[hit.id] = clamp((R.dev.config.cardCounts[hit.id] || 0) + hit.delta, 0, devCardLimit(stat));
+    return;
+  }
+  if (hit.action === 'relic') {
+    const upg = META_UPGRADES.find((entry: any) => entry.id === hit.id);
+    if (!upg) return;
+    R.meta.upgrades[hit.id] = clamp((R.meta.upgrades[hit.id] || 0) + hit.delta, 0, upg.max);
+    saveMeta(R.meta);
+    R.dev.menuStatus = `${upg.label} → ${R.meta.upgrades[hit.id]}/${upg.max}`;
+    return;
+  }
+  if (hit.action === 'relicZero') {
+    META_UPGRADES.forEach((upg: any) => { R.meta.upgrades[upg.id] = 0; });
+    saveMeta(R.meta);
+    R.dev.menuStatus = 'All relics zeroed.';
+    return;
+  }
+  if (hit.action === 'relicMax') {
+    META_UPGRADES.forEach((upg: any) => { R.meta.upgrades[upg.id] = upg.max; });
+    saveMeta(R.meta);
+    R.dev.menuStatus = 'All relics maxed.';
+    return;
   }
 }
 
@@ -1372,7 +1451,7 @@ function renderGameover() {
   ctx.fillText(`Weapons used: ${game.player.weapons.map((w: any) => WEAPONS[w.id].name + ' Lv' + w.level).join(', ')}`, W / 2, H / 2 - 18);
   ui.gameoverBtns = [
     btn(W / 2 - 115, H / 2 + 44, 'PLAY AGAIN', '#27ae60'),
-    btn(W / 2 + 115, H / 2 + 44, 'UPGRADES 💎', '#8e44ad'),
+    btn(W / 2 + 115, H / 2 + 44, 'RELICS 💎', '#8e44ad'),
   ];
 }
 
@@ -1385,8 +1464,10 @@ export function handleGameoverClick(mx: number, my: number) {
 function renderPauseScreen() {
   const { ctx, W, H, ui } = R;
   const game = R.game;
-  const { rightPanelX, rightPanelW } = luPositions();
+  const { leftPanelX, leftPanelW, rightPanelX, rightPanelW } = luPositions();
   ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0, 0, W, H);
+  ui.levelupBaseUpgradeBtns = [];
+  renderBaseSidebar(leftPanelX, leftPanelW, { allowBuy: false });
   renderLoadoutSidebar(rightPanelX, rightPanelW, { title: 'RUN STATUS', allowSell: false });
   ctx.fillStyle = '#ecf0f1'; ctx.font = 'bold 40px monospace'; ctx.textAlign = 'center';
   ctx.fillText('PAUSED', W / 2, H / 2 - 80);
@@ -1500,9 +1581,9 @@ function renderMetaScreen() {
   const { ctx, W, H, meta, ui } = R;
   ctx.fillStyle = '#0a0f1e'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#8e44ad'; ctx.font = 'bold 28px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('META UPGRADES', W / 2, 42);
+  ctx.fillText('RELICS', W / 2, 42);
   ctx.fillStyle = '#f1c40f'; ctx.font = '16px monospace';
-  ctx.fillText(`💎 ${meta.crystals} crystals available`, W / 2, 66);
+  ctx.fillText(`💎 ${meta.crystals} crystals`, W / 2, 66);
   ui.metaBtns = [];
   const cols = 3, cardW = 245, cardH = 106, gX = 18, gY = 12;
   const totalW = cols * cardW + (cols - 1) * gX;

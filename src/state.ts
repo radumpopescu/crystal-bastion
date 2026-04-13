@@ -1,5 +1,5 @@
 import type { Runtime } from './types';
-import { AUTO_CONSTRUCT_MODES, DASH_DURATION, DASH_SPEED, ISO_SCALE, META_UPGRADES, OUTPOST_HP_BASE, OUTPOST_RANGE, PLAYER_HP_BASE, PLAYER_SPEED, STAT_UPGRADES, TOWER_ATK_DMG, TOWER_ATK_RANGE, TOWER_ATK_SPEED, TOWER_AURA_DMG, TOWER_AURA_R, TOWER_HP_BASE, TOWER_RANGE, WEAPONS, WAVE_INTERVAL } from './constants';
+import { AUTO_CONSTRUCT_MODES, DASH_DURATION, DASH_SPEED, ISO_SCALE, MAX_WEAPON_SLOTS, META_UPGRADES, OUTPOST_HP_BASE, OUTPOST_RANGE, PLAYER_HP_BASE, PLAYER_SPEED, STAT_UPGRADES, TOWER_ATK_DMG, TOWER_ATK_RANGE, TOWER_ATK_SPEED, TOWER_AURA_DMG, TOWER_AURA_R, TOWER_HP_BASE, TOWER_RANGE, WEAPONS, WAVE_INTERVAL } from './constants';
 import { clamp } from './utils';
 import { loadMeta, metaValue, saveMeta } from './meta';
 
@@ -117,7 +117,8 @@ export function newGame(opts: any = {}) {
     crystalsEarned: 0,
     waveDelayBonus,
     earlyBonusMult: 1 + metaVal('earlyBonus'),
-    outpostDiscount: 0,
+    outpostDiscount: metaVal('outpostCheap'),
+    shopDiscount: metaVal('shopDiscount'),
     freeOutpost: freeOutposts,
 
     tower: {
@@ -125,12 +126,13 @@ export function newGame(opts: any = {}) {
       hp: TOWER_HP_BASE + towerHpBonus,
       maxHp: TOWER_HP_BASE + towerHpBonus,
       range: TOWER_RANGE,
-      auraR: TOWER_AURA_R, auraDmg: TOWER_AURA_DMG,
+      auraR: TOWER_AURA_R, auraDmg: TOWER_AURA_DMG * (metaVal('towerAura') || 1),
       atkRange: TOWER_ATK_RANGE + towerRangeBonus,
       atkDmg: TOWER_ATK_DMG * towerAtkMult,
       atkSpeed: TOWER_ATK_SPEED * towerSpdMult,
       atkCooldown: 0,
-      upgrades: { hp:0, range:0, dmg:0 },
+      multishot: 1,
+      upgrades: { hp:0, range:0, dmg:0, multishot:0 },
     },
 
     player: {
@@ -138,7 +140,7 @@ export function newGame(opts: any = {}) {
       hp: PLAYER_HP_BASE + playerHpBonus,
       maxHp: PLAYER_HP_BASE + playerHpBonus,
       _baseMaxHp: PLAYER_HP_BASE + playerHpBonus,
-      speed: PLAYER_SPEED,
+      speed: PLAYER_SPEED + metaVal('playerSpeed'),
       dmgMult: metaVal('playerDmg') || 1,
       atkSpdMult: 1, rangeMult: 1,
       armor: metaVal('playerArmor') || 0,
@@ -166,9 +168,10 @@ export function newGame(opts: any = {}) {
     particles: [],
     dmgNumbers: [],
     levelUpCards: null,
-    rerollsLeft: 1,
+    rerollsLeft: 1 + metaVal('rerolls'),
     shopCards: null,
     shopRefreshCost: 20,
+    maxWeaponSlots: MAX_WEAPON_SLOTS + metaVal('startSlot'),
     keys: {},
     showUpgradeMenu: false,
     upgradeMenuCooldown: 0,

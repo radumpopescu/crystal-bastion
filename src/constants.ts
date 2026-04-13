@@ -145,38 +145,50 @@ export const STAT_UPGRADES: any[] = [
   { id:'towerSpeed',   icon:'🌀',  name:'Base Rapid Fire', desc:'+35% base fire rate',          apply:(_p: any, g: any)  => { g.tower.atkSpeed *= 1.35; }, rarity:'uncommon' },
   { id:'outpostRepair',icon:'🔧',  name:'Repair Towers',   desc:'Fully heal all towers',        apply:(_p: any, g: any)  => { for (const op of g.outposts) op.hp = op.maxHp; }, rarity:'uncommon',
     available:(_p: any, g: any) => g.outposts.some((op: any) => op.hp < op.maxHp) },
-  { id:'outpostBoost', icon:'⚔️',  name:'Tower Arsenal',   desc:'+40% tower damage this run',   apply:(_p: any, g: any)  => { for (const op of g.outposts) op.atkDmg = Math.round(op.atkDmg * 1.40); }, rarity:'uncommon',
+  { id:'outpostBoost', icon:'⚔️',  name:'Tower Arsenal',   desc:'+55% tower damage this run',   apply:(_p: any, g: any)  => { for (const op of g.outposts) op.atkDmg = Math.round(op.atkDmg * 1.55); }, rarity:'uncommon',
     available:(_p: any, g: any) => g.outposts.length > 0 },
   { id:'outpostCheap', icon:'💰',  name:'Supply Lines',    desc:'Towers cost 5 less gold',      apply:(_p: any, g: any)  => { g.outpostDiscount = (g.outpostDiscount || 0) + 5; }, rarity:'uncommon',
     available:(_p: any, g: any) => { const cur = OUTPOST_COST - (g.outpostDiscount || 0); return cur > 10; } },
 ];
 
 export const META_UPGRADES: any[] = [
-  { id:'playerHp',      label:'Reinforced Body',    desc:'+20 max HP',                cost:6,  max:8,  cat:'player' },
-  { id:'playerRegen',   label:'Regeneration',       desc:'+0.1 HP/sec regen',         cost:8,  max:5,  cat:'player' },
-  { id:'playerArmor',   label:'Battle Armor',       desc:'+6% damage reduction',      cost:10, max:5,  cat:'player' },
-  { id:'playerDmg',     label:'Raw Power',          desc:'+15% all damage',           cost:10, max:6,  cat:'player' },
-  { id:'extraDash',     label:'Nimble',             desc:'+1 starting dash',          cost:8,  max:3,  cat:'player' },
-  { id:'startGold',     label:'Scavenger',          desc:'+35 starting gold',         cost:5,  max:6,  cat:'econ' },
-  { id:'crystalBonus',  label:'Crystal Magnet',     desc:'+20% crystals from each wave', cost:12, max:5,  cat:'econ' },
-  { id:'earlyBonus',    label:'Blitzkrieg',         desc:'+30% early wave gold bonus',cost:10, max:4,  cat:'econ' },
-  { id:'towerHp',       label:'Fortified Base',     desc:'+200 base HP',              cost:8,  max:6,  cat:'tower' },
-  { id:'towerAtk',      label:'Base Arsenal',       desc:'+25% base damage',          cost:10, max:5,  cat:'tower' },
-  { id:'towerRange',    label:'Base Radar',         desc:'+100 base attack range',    cost:9,  max:4,  cat:'tower' },
-  { id:'towerAtkSpd',   label:'Rapid Fire',         desc:'+20% base fire rate',       cost:10, max:4,  cat:'tower' },
-  { id:'outpostHp',     label:'Reinforced Towers',  desc:'+80 tower HP',              cost:9,  max:5,  cat:'outpost' },
-  { id:'outpostAtk',    label:'Tower Cannons',      desc:'+30% tower damage',         cost:10, max:4,  cat:'outpost' },
-  { id:'outpostRange',  label:'Extended Network',   desc:'+100 tower zone range',     cost:9,  max:4,  cat:'outpost' },
-  { id:'startWpn',      label:'Head Start',         desc:'Start with Assault Rifle',  cost:12, max:1,  cat:'unlock' },
-  { id:'waveDelay',     label:'Respite',            desc:'+8s between waves',         cost:8,  max:4,  cat:'unlock' },
-  { id:'freeDeploy',    label:'Engineer Corps',     desc:'Start with extra gold',     cost:15, max:3,  cat:'unlock' },
-  { id:'autoConstruct', label:'Auto-Construct',     desc:'Hold Shift to auto-build towers every 1m while walking', cost:20, max:1, cat:'unlock' },
+  // Player
+  { id:'playerHp',      label:'Iron Constitution',  desc:'+20 max HP',                cost:6,  max:8,  cat:'player' },
+  { id:'playerRegen',   label:'Second Wind',        desc:'+0.1 HP/sec regen',         cost:8,  max:5,  cat:'player' },
+  { id:'playerArmor',   label:'Hardened Scales',    desc:'+6% damage reduction',      cost:10, max:5,  cat:'player' },
+  { id:'playerDmg',     label:'Wrath Sigil',        desc:'+15% all damage',           cost:10, max:6,  cat:'player' },
+  { id:'extraDash',     label:'Phantom Step',       desc:'+1 starting dash',          cost:8,  max:3,  cat:'player' },
+  { id:'playerSpeed',   label:'Windwalker',         desc:'+15 movement speed',        cost:8,  max:4,  cat:'player' },
+  // Economy
+  { id:'startGold',     label:'Buried Stash',       desc:'+35 starting gold',         cost:5,  max:6,  cat:'econ' },
+  { id:'crystalBonus',  label:'Crystal Attunement', desc:'+15% crystals per wave',    cost:14, max:4,  cat:'econ' },
+  { id:'earlyBonus',    label:'Blitz Pact',         desc:'+30% early wave gold bonus',cost:10, max:4,  cat:'econ' },
+  { id:'shopDiscount',  label:'Black Market',       desc:'-5 gold on shop cards',     cost:12, max:3,  cat:'econ' },
+  { id:'rerolls',       label:'Loaded Dice',        desc:'-1 starting reroll cost',   cost:10, max:2,  cat:'econ' },
+  // Base
+  { id:'towerHp',       label:'Ancient Foundation',  desc:'+200 base HP',             cost:8,  max:6,  cat:'tower' },
+  { id:'towerAtk',      label:'Siege Runes',        desc:'+25% base damage',          cost:10, max:5,  cat:'tower' },
+  { id:'towerRange',    label:'Beacon Lens',        desc:'+100 base attack range',    cost:9,  max:4,  cat:'tower' },
+  { id:'towerAtkSpd',   label:'Overclock',          desc:'+20% base fire rate',       cost:10, max:4,  cat:'tower' },
+  { id:'towerAura',     label:'Scorched Earth',     desc:'+25% base aura damage',     cost:10, max:4,  cat:'tower' },
+  // Outpost
+  { id:'outpostHp',     label:'Granite Walls',      desc:'+80 tower HP',              cost:9,  max:5,  cat:'outpost' },
+  { id:'outpostAtk',    label:'Ballistae',          desc:'+40% tower damage',         cost:10, max:4,  cat:'outpost' },
+  { id:'outpostRange',  label:'Signal Fires',       desc:'+100 tower zone range',     cost:9,  max:4,  cat:'outpost' },
+  { id:'outpostCheap',  label:'Supply Lines',       desc:'-8 gold tower cost',        cost:12, max:3,  cat:'outpost' },
+  // Unlock
+  { id:'startWpn',      label:'Ancestral Armory',   desc:'Start with Assault Rifle',  cost:12, max:1,  cat:'unlock' },
+  { id:'waveDelay',     label:'Ceasefire Accord',   desc:'+8s between waves',         cost:8,  max:4,  cat:'unlock' },
+  { id:'freeDeploy',    label:"Pioneer's Kit",      desc:'Start with extra gold',     cost:15, max:3,  cat:'unlock' },
+  { id:'autoConstruct', label:'Arcane Masons',      desc:'Hold Shift to auto-build towers while walking', cost:20, max:1, cat:'unlock' },
+  { id:'startSlot',     label:'Dual Wielder',       desc:'Start with extra weapon slot', cost:18, max:1, cat:'unlock' },
 ];
 
 export const TOWER_UPGRADES: any[] = [
-  { id:'hp',    label:'Base HP +150',     cost:[60,100,150,210,280], max:5 },
-  { id:'range', label:'Base Range +60',   cost:[70,120,180,250,330], max:5 },
-  { id:'dmg',   label:'Base Damage +40%', cost:[80,130,190,260,340], max:5 },
+  { id:'hp',        label:'Base HP +150',       cost:[60,100,150,210,280], max:5 },
+  { id:'range',     label:'Base Range +60',     cost:[70,120,180,250,330], max:5 },
+  { id:'dmg',       label:'Base Damage +40%',   cost:[80,130,190,260,340], max:5 },
+  { id:'multishot', label:'Multishot +1 target', cost:[90,150,220,300],    max:4 },
 ];
 
 export const MONSTER_DEF: Record<string, any> = {

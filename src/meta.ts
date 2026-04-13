@@ -26,11 +26,17 @@ export function metaValue(meta: any, id: string) {
     case 'towerRange':   return lvl * 100;
     case 'towerAtkSpd':  return 1 + lvl * 0.20;
     case 'outpostHp':    return lvl * 80;
-    case 'outpostAtk':   return 1 + lvl * 0.30;
+    case 'outpostAtk':   return 1 + lvl * 0.40;
     case 'outpostRange': return lvl * 100;
     case 'startWpn':     return lvl;
     case 'waveDelay':    return lvl * 8;
     case 'freeDeploy':   return lvl;
+    case 'playerSpeed':  return lvl * 15;
+    case 'shopDiscount': return lvl * 5;
+    case 'rerolls':      return lvl;
+    case 'towerAura':    return 1 + lvl * 0.25;
+    case 'outpostCheap': return lvl * 8;
+    case 'startSlot':    return lvl;
     default:             return 0;
   }
 }
