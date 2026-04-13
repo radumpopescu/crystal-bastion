@@ -6,7 +6,6 @@ import { R, DEV_MENU_HOLD_MS, finishDevSession } from './state';
 import { updateAutoConstruct, updateDmgNums, updateMonsters, updateParticles, updatePlayer, updateProjectiles, updateStructures, startNextWave } from './systems';
 import { render } from './render';
 import { ISO_SCALE, WAVE_INTERVAL } from './constants';
-import { saveMeta } from './meta';
 
 function loop(ts: number) {
   const dt = Math.min((ts - R.lastTime) / 1000, 0.05);
@@ -46,8 +45,6 @@ function loop(ts: number) {
         requestAnimationFrame(loop);
         return;
       }
-      R.meta.crystals += game.crystalsEarned;
-      saveMeta(R.meta);
       R.state = 'gameover';
     }
   }

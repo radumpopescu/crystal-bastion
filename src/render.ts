@@ -1,6 +1,6 @@
 import { AUTO_CONSTRUCT_MODES, ENTITY_H, ISO_SCALE, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES } from './constants';
 import { R, devCardColor, devCardLimit, finishDevSession, newGame, resetDevConfig, w2s } from './state';
-import { buildDropChanceTable, getAnchors, getLoadoutStats, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave } from './systems';
+import { buildDropChanceTable, getAnchors, getLoadoutStats, getOutpostCost, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave } from './systems';
 import { clamp, dist, inBtn } from './utils';
 import { saveMeta } from './meta';
 import type { BtnRect } from './types';
@@ -625,14 +625,14 @@ function renderHUD() {
   } else {
     ctx.fillStyle = '#2ecc71'; ctx.font = 'bold 15px monospace';
     ctx.fillText(`⏱ Next in ${Math.ceil(game.waveTimer)}s`, 20, 56);
-    const earlyGold = Math.round(12 * (game.waveTimer / (WAVE_INTERVAL + (game.waveDelayBonus || 0))) * (game.earlyBonusMult || 1) * (1 + game.wave * 0.2));
+    const earlyGold = Math.max(2, Math.round(7 * (game.waveTimer / (WAVE_INTERVAL + (game.waveDelayBonus || 0))) * (game.earlyBonusMult || 1) * (1 + game.wave * 0.12)));
     ui.waveStartBtn = btn(125, 112, `▶ START  (+${earlyGold}g)`, '#e67e22', 220, 36);
   }
   ctx.fillStyle = '#556'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
   ctx.fillText(game.player.weapons.map((w: any) => `${WEAPONS[w.id].icon}${w.level}`).join('  '), 20, game.waveActive ? 78 : 82);
 
-  const controlsBoxH = autoConstructUnlocked ? 100 : 70;
-  const controlsBoxY = autoConstructUnlocked ? H - 310 : H - 280;
+  const controlsBoxH = 112;
+  const controlsBoxY = H - 322;
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
   rrect(W - 230, controlsBoxY, 220, controlsBoxH, 6); ctx.fill();
   ctx.fillStyle = '#666'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
@@ -640,13 +640,22 @@ function renderHUD() {
   ctx.fillText('E: tower · U: upgrades · P: pause', W - 14, controlsBoxY + 36);
   ctx.fillStyle = '#a855f7'; ctx.font = 'bold 13px monospace';
   ctx.fillText(`💎 ${meta.crystals} crystals`, W - 14, controlsBoxY + 56);
-  if (autoConstructUnlocked) {
-    ctx.fillStyle = '#7f8c8d'; ctx.font = '11px monospace';
-    ctx.fillText('SHIFT cycles auto spacing', W - 14, controlsBoxY + 74);
-    const autoMode = AUTO_CONSTRUCT_MODES[game.autoConstructMode || 0] || AUTO_CONSTRUCT_MODES[0];
-    ctx.fillStyle = autoMode.spacing > 0 ? '#27ae60' : '#95a5a6';
-    ctx.font = 'bold 12px monospace';
-    ctx.fillText(`Auto: ${autoMode.label}`, W - 14, controlsBoxY + 90);
+  ctx.fillStyle = autoConstructUnlocked ? '#7f8c8d' : '#4f5b66'; ctx.font = '11px monospace';
+  ctx.fillText(autoConstructUnlocked ? 'SHIFT cycles auto spacing' : 'Meta unlock: Auto-Construct', W - 14, controlsBoxY + 74);
+  const autoMode = AUTO_CONSTRUCT_MODES[game.autoConstructMode || 0] || AUTO_CONSTRUCT_MODES[0];
+  ctx.fillStyle = autoConstructUnlocked
+    ? (autoMode.spacing > 0 ? '#27ae60' : '#95a5a6')
+    : '#6b7280';
+  ctx.font = 'bold 12px monospace';
+  ctx.fillText(autoConstructUnlocked ? `Auto: ${autoMode.label}` : 'Auto: LOCKED', W - 14, controlsBoxY + 90);
+  if (!autoConstructUnlocked) {
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '10px monospace';
+    ctx.fillText('Unlock it in Meta Upgrades', W - 14, controlsBoxY + 104);
+  } else {
+    ctx.fillStyle = '#7f8c8d';
+    ctx.font = '10px monospace';
+    ctx.fillText('Walk to chain towers automatically', W - 14, controlsBoxY + 104);
   }
   renderMinimap();
 }
@@ -857,7 +866,8 @@ function renderLevelUpCards() {
     ctx.textAlign = 'left';
     ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace';
     ctx.fillText('CARDS THIS RUN', panelX + 10, sideY); sideY += 14;
-    runCards.slice(-8).forEach(entry => {
+    const maxRunCardRows = Math.max(4, Math.floor((H - sideY - 18) / 18));
+    runCards.slice(-maxRunCardRows).forEach(entry => {
       const rowY = sideY;
       const suffix = entry.count > 1 ? ` x${entry.count}` : '';
       const maxNameW = panelW - 26 - ctx.measureText(suffix).width;
@@ -939,6 +949,7 @@ function renderLevelUpCards() {
 
 function renderMenu() {
   const { ctx, W, H, meta, ui } = R;
+  const autoConstructUnlocked = (meta.upgrades['autoConstruct'] || 0) > 0;
   ctx.fillStyle = '#0a0f1e'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
   for (let i = 0; i < 100; i++) ctx.fillRect(i * 137.5 % W, i * 73.3 % H, 1.5, 1.5);
@@ -948,10 +959,16 @@ function renderMenu() {
   ctx.fillText('3D — Defend · Expand · Survive', W / 2, H / 2 - 88);
   ctx.fillStyle = '#f1c40f'; ctx.font = '14px monospace';
   ctx.fillText(`💎 ${meta.crystals} crystals`, W / 2, H / 2 - 56);
+  ctx.fillStyle = autoConstructUnlocked ? '#2ecc71' : '#7f8c8d';
+  ctx.font = '12px monospace';
+  ctx.fillText(autoConstructUnlocked ? 'Unlocked: SHIFT cycles tower auto-build spacing in-run.' : 'Meta unlock: Auto-Construct lets SHIFT auto-chain towers in-run.', W / 2, H / 2 - 28);
+  ctx.fillStyle = '#566573';
+  ctx.font = '11px monospace';
+  ctx.fillText(autoConstructUnlocked ? 'Walk to place towers automatically at your chosen spacing.' : 'You can buy it in Meta Upgrades even before you ever use it.', W / 2, H / 2 - 8);
   ui.menuBtns = [
-    btn(W / 2, H / 2 + 8, 'PLAY', '#27ae60'),
-    btn(W / 2, H / 2 + 72, 'META UPGRADES 💎', '#8e44ad'),
-    btn(W / 2, H / 2 + 136, 'CARD BOOK 📖', '#2980b9'),
+    btn(W / 2, H / 2 + 28, 'PLAY', '#27ae60'),
+    btn(W / 2, H / 2 + 92, 'META UPGRADES 💎', '#8e44ad'),
+    btn(W / 2, H / 2 + 156, 'CARD BOOK 📖', '#2980b9'),
   ];
 }
 
@@ -1469,6 +1486,11 @@ function getRunCardTooltipLines(entry: any) {
     if (stat?.count) {
       const cur = stat.count(R.game.player);
       lines.push(stat.max ? `Stacks ${cur}/${stat.max}` : `Stacks ${cur}`);
+    }
+    if (entry.statId === 'outpostCheap') {
+      const towerDiscount = R.game.outpostDiscount || 0;
+      lines.push(`Tower cost now ${getOutpostCost()}g`);
+      if (towerDiscount > 0) lines.push(`Discount applied: -${towerDiscount}g`);
     }
   }
   return lines;

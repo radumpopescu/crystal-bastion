@@ -13,13 +13,13 @@ export function saveMeta(meta: any) {
 export function metaValue(meta: any, id: string) {
   const lvl = meta.upgrades[id] || 0;
   switch (id) {
-    case 'playerHp':     return lvl * 40;
-    case 'playerRegen':  return lvl * 1.5;
+    case 'playerHp':     return lvl * 30;
+    case 'playerRegen':  return lvl * 0.75;
     case 'playerArmor':  return lvl * 0.06;
     case 'playerDmg':    return 1 + lvl * 0.15;
     case 'extraDash':    return lvl;
-    case 'startGold':    return lvl * 50;
-    case 'crystalBonus': return lvl * 0.25;
+    case 'startGold':    return lvl * 35;
+    case 'crystalBonus': return lvl * 0.20;
     case 'earlyBonus':   return lvl * 0.30;
     case 'towerHp':      return lvl * 200;
     case 'towerAtk':     return 1 + lvl * 0.25;

@@ -102,15 +102,16 @@ export function startNextWave(early = false) {
   const game = R.game;
   if (early && game.waveTimer > 0) {
     const bonusFraction = game.waveTimer / (WAVE_INTERVAL + (game.waveDelayBonus || 0));
-    const bonusGold = Math.round(12 * bonusFraction * (game.earlyBonusMult || 1) * (1 + game.wave * 0.2));
+    const bonusGold = Math.max(2, Math.round(7 * bonusFraction * (game.earlyBonusMult || 1) * (1 + game.wave * 0.12)));
     game.gold += bonusGold;
     spawnDmgNum(game.player.x, game.player.y - 40, `+${bonusGold}g EARLY BONUS`, '#f1c40f');
   }
 
   game.wave++;
-  const count = Math.floor(BASE_MONSTERS * Math.pow(MONSTER_SCALE, game.wave - 1));
+  const count = Math.floor(BASE_MONSTERS + game.wave * 2 + Math.pow(game.wave, 1.25));
   const hpScale = 1 + (game.wave - 1) * 0.18;
-  const spdScale = 1 + (game.wave - 1) * 0.03;
+  const spdScale = 1 + (game.wave - 1) * 0.04;
+  const dmgScale = 1 + (game.wave - 1) * 0.05;
 
   let maxAnchorDist = game.tower.range;
   for (const op of game.outposts) {
@@ -127,23 +128,22 @@ export function startNextWave(early = false) {
 
     let type = 'grunt';
     const r = Math.random();
-    if (game.wave >= 3 && r < 0.20) type = 'rusher';
-    if (game.wave >= 5 && r < 0.12) type = 'brute';
-    if (game.wave >= 8 && r < 0.06) type = 'tank';
+    if (game.wave >= 2 && r < 0.22) type = 'rusher';
+    if (game.wave >= 4 && r < 0.14) type = 'brute';
+    if (game.wave >= 7 && r < 0.07) type = 'tank';
 
     const T = MONSTER_DEF[type];
     game.monsters.push({
       x:sx, y:sy, type,
       hp: T.hp * hpScale, maxHp: T.hp * hpScale,
-      speed: T.speed * spdScale, dmg: T.dmg,
+      speed: T.speed * spdScale, dmg: T.dmg * dmgScale,
       gold: T.gold, radius: T.radius, color: T.color,
       atkCooldown: Math.random() * 1.5,
     });
   }
   game.monstersLeft = count;
   game.waveActive = true;
-  const crystalMult = 1 + (metaVal('crystalBonus') || 0);
-  game.crystalsEarned = Math.floor(game.wave * 3 * crystalMult);
+  game._waveCrystalReward = Math.max(1, Math.floor((1 + Math.floor(game.wave / 3)) * (1 + (metaVal('crystalBonus') || 0))));
 }
 
 export function isStatUpgradeAvailable(stat: any, p = R.game.player, g = R.game) {
@@ -251,7 +251,7 @@ function getRunCardMeta(entry: any) {
     icon: stat.icon,
     name: stat.name,
     desc: stat.desc,
-    color: '#2ecc71',
+    color: stat.id === 'outpostCheap' ? '#f1c40f' : stat.id.startsWith('tower') ? '#f39c12' : stat.id.startsWith('outpost') ? '#3498db' : '#2ecc71',
     max: stat.max,
     count: stat.count,
   } : null;
@@ -287,6 +287,8 @@ export function getRunCardEntries() {
 
 export function getLoadoutStats() {
   const p = R.game.player;
+  const towerCost = getOutpostCost();
+  const towerDiscount = R.game.outpostDiscount || 0;
   return [
     { icon:'❤️', name:'Max HP',       value: `${Math.round(p.maxHp)}` },
     { icon:'💚', name:'Regen',        value: `${(p.regen || 0).toFixed(1)}/s` },
@@ -297,6 +299,7 @@ export function getLoadoutStats() {
     { icon:'🔭', name:'Range',        value: `${Math.round((p.rangeMult || 1) * 100)}%` },
     { icon:'🛡️', name:'Armor',        value: `${Math.round((p.armor || 0) * 100)}%` },
     { icon:'💵', name:'Gold Find',    value: `${Math.round((p.goldFinder || 0) * 100)}%` },
+    { icon:'🗼', name:'Tower Cost',   value: towerDiscount > 0 ? `${towerCost}g (-${towerDiscount})` : `${towerCost}g` },
     { icon:'🍀', name:'Luck',         value: `${p.luck || 0}` },
     { icon:'💨', name:'Dash Charges', value: `${p.maxDashes || 0}` },
   ];
@@ -853,14 +856,14 @@ export function updateMonsters(dt: number) {
 
     if (m.atkCooldown > 0) { m.atkCooldown -= dt; continue; }
     if (d > contactR + 8) continue;
-    m.atkCooldown = 1.4;
+    m.atkCooldown = 1.1;
 
     if (!tgt.isStruct) {
       if (game.player.invincible <= 0 && !game.player.dashing) {
         const dmg = m.dmg * (1 - (game.player.armor || 0));
         game.player.hp -= dmg;
         game.player.flashTimer = 0.15;
-        game.player.invincible = 0.45;
+        game.player.invincible = 0.25;
         spawnDmgNum(game.player.x, game.player.y - 24, Math.round(dmg), '#ff6b6b');
       }
     } else {
@@ -1035,6 +1038,13 @@ function checkWaveEnd() {
   const game = R.game;
   if (game.waveActive && game.monsters.length === 0) {
     game.waveActive = false;
+    const waveCrystalReward = game._waveCrystalReward || 0;
+    if (waveCrystalReward > 0) {
+      R.meta.crystals += waveCrystalReward;
+      game.crystalsEarned = (game.crystalsEarned || 0) + waveCrystalReward;
+      saveMeta(R.meta);
+      spawnDmgNum(game.player.x, game.player.y - 58, `+${waveCrystalReward}💎`, '#a855f7');
+    }
     game.waveTimer = WAVE_INTERVAL + (game.waveDelayBonus || 0);
     if (game.devSession) {
       finishDevSession(`Wave ${game.wave} cleared. Adjust the preset and run again.`);

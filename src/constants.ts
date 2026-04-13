@@ -26,7 +26,7 @@ export const TOWER_ATK_SPEED = 0.9;
 export const TOWER_AURA_R = 140;
 export const TOWER_AURA_DMG = 4;
 
-export const PLAYER_HP_BASE = 180;
+export const PLAYER_HP_BASE = 130;
 export const PLAYER_SPEED = 280;
 export const PLAYER_RADIUS = 18;
 export const DASH_SPEED = 480;
@@ -34,11 +34,11 @@ export const DASH_DURATION = 0.18;
 export const DASH_COOLDOWN = 1.2;
 
 export const OUTPOST_HP_BASE = 100;
-export const OUTPOST_COST = 40;
+export const OUTPOST_COST = 55;
 
-export const WAVE_INTERVAL = 42;
+export const WAVE_INTERVAL = 34;
 export const BASE_MONSTERS = 4;
-export const MONSTER_SCALE = 1.2;
+export const MONSTER_SCALE = 1.22;
 
 export const WEAPONS: Record<string, any> = {
   pistol: {
@@ -114,10 +114,10 @@ export const WEAPONS: Record<string, any> = {
 };
 
 export const STAT_UPGRADES: any[] = [
-  { id:'maxHp',      icon:'❤️',  name:'Max HP',        desc:'+50 max health',              apply:(p: any)  => { p.maxHp += 50; p.hp = Math.min(p.hp + 50, p.maxHp); },
-    max:8,  count:(p: any) => Math.round((p.maxHp - (p._baseMaxHp || p.maxHp)) / 50) },
-  { id:'regen',      icon:'💚',  name:'Regeneration',  desc:'+2.5 HP/sec regen',           apply:(p: any)  => { p.regen = (p.regen || 0) + 2.5; },
-    max:6,  count:(p: any) => Math.round((p.regen || 0) / 2.5) },
+  { id:'maxHp',      icon:'❤️',  name:'Max HP',        desc:'+40 max health',              apply:(p: any)  => { p.maxHp += 40; p.hp = Math.min(p.hp + 40, p.maxHp); },
+    max:8,  count:(p: any) => Math.round((p.maxHp - (p._baseMaxHp || p.maxHp)) / 40) },
+  { id:'regen',      icon:'💚',  name:'Regeneration',  desc:'+1.5 HP/sec regen',           apply:(p: any)  => { p.regen = (p.regen || 0) + 1.5; },
+    max:6,  count:(p: any) => Math.round((p.regen || 0) / 1.5) },
   { id:'lifesteal',  icon:'🩸',  name:'Life Steal',    desc:'+10% lifesteal on hit',       apply:(p: any)  => { p.lifesteal = (p.lifesteal || 0) + 0.10; },
     max:5,  count:(p: any) => Math.round((p.lifesteal || 0) / 0.10) },
   { id:'damage',     icon:'💢',  name:'Raw Damage',    desc:'+22% all weapon damage',      apply:(p: any)  => { p.dmgMult = (p.dmgMult || 1) * 1.22; },
@@ -151,13 +151,13 @@ export const STAT_UPGRADES: any[] = [
 ];
 
 export const META_UPGRADES: any[] = [
-  { id:'playerHp',      label:'Reinforced Body',    desc:'+40 max HP',                cost:6,  max:8,  cat:'player' },
-  { id:'playerRegen',   label:'Regeneration',       desc:'+1.5 HP/sec regen',         cost:8,  max:5,  cat:'player' },
+  { id:'playerHp',      label:'Reinforced Body',    desc:'+30 max HP',                cost:6,  max:8,  cat:'player' },
+  { id:'playerRegen',   label:'Regeneration',       desc:'+0.75 HP/sec regen',        cost:8,  max:5,  cat:'player' },
   { id:'playerArmor',   label:'Battle Armor',       desc:'+6% damage reduction',      cost:10, max:5,  cat:'player' },
   { id:'playerDmg',     label:'Raw Power',          desc:'+15% all damage',           cost:10, max:6,  cat:'player' },
   { id:'extraDash',     label:'Nimble',             desc:'+1 starting dash',          cost:8,  max:3,  cat:'player' },
-  { id:'startGold',     label:'Scavenger',          desc:'+50 starting gold',         cost:5,  max:6,  cat:'econ' },
-  { id:'crystalBonus',  label:'Crystal Magnet',     desc:'+25% crystals per run',     cost:12, max:5,  cat:'econ' },
+  { id:'startGold',     label:'Scavenger',          desc:'+35 starting gold',         cost:5,  max:6,  cat:'econ' },
+  { id:'crystalBonus',  label:'Crystal Magnet',     desc:'+20% crystals from each wave', cost:12, max:5,  cat:'econ' },
   { id:'earlyBonus',    label:'Blitzkrieg',         desc:'+30% early wave gold bonus',cost:10, max:4,  cat:'econ' },
   { id:'towerHp',       label:'Fortified Base',     desc:'+200 base HP',              cost:8,  max:6,  cat:'tower' },
   { id:'towerAtk',      label:'Base Arsenal',       desc:'+25% base damage',          cost:10, max:5,  cat:'tower' },
@@ -179,8 +179,8 @@ export const TOWER_UPGRADES: any[] = [
 ];
 
 export const MONSTER_DEF: Record<string, any> = {
-  grunt:  { hp:50,  speed:70,  dmg:9,  gold:4,  radius:14, color:'#e74c3c' },
-  rusher: { hp:28,  speed:145, dmg:6,  gold:3,  radius:10, color:'#e67e22' },
-  brute:  { hp:220, speed:48,  dmg:24, gold:10, radius:22, color:'#8e44ad' },
-  tank:   { hp:500, speed:32,  dmg:35, gold:20, radius:28, color:'#2c3e50' },
+  grunt:  { hp:50,  speed:70,  dmg:9,  gold:3,  radius:14, color:'#e74c3c' },
+  rusher: { hp:28,  speed:145, dmg:6,  gold:2,  radius:10, color:'#e67e22' },
+  brute:  { hp:220, speed:48,  dmg:24, gold:7,  radius:22, color:'#8e44ad' },
+  tank:   { hp:500, speed:32,  dmg:35, gold:14, radius:28, color:'#2c3e50' },
 };

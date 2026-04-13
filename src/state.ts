@@ -82,7 +82,7 @@ export function makeWeapon(id: string) {
 
 export function newGame(opts: any = {}) {
   const playerHpBonus = metaVal('playerHp');
-  const startGold = opts.startGold ?? (60 + metaVal('startGold'));
+  const startGold = opts.startGold ?? (30 + metaVal('startGold'));
   const towerHpBonus = metaVal('towerHp');
   const opHpBonus = metaVal('outpostHp');
   const towerAtkMult = metaVal('towerAtk') || 1;
@@ -133,6 +133,7 @@ export function newGame(opts: any = {}) {
       x:0, y:-70,
       hp: PLAYER_HP_BASE + playerHpBonus,
       maxHp: PLAYER_HP_BASE + playerHpBonus,
+      _baseMaxHp: PLAYER_HP_BASE + playerHpBonus,
       speed: PLAYER_SPEED,
       dmgMult: metaVal('playerDmg') || 1,
       atkSpdMult: 1, rangeMult: 1,
@@ -169,7 +170,7 @@ export function newGame(opts: any = {}) {
     devSession: !!opts.devSession,
   };
 
-  if (opts.startGold == null) R.game.gold += freeOutposts * 50;
+  if (opts.startGold == null) R.game.gold += freeOutposts * 35;
 }
 
 export function createDefaultDevConfig() {
@@ -177,7 +178,7 @@ export function createDefaultDevConfig() {
   weaponLevels.pistol = 1;
   if (metaVal('startWpn') > 0) weaponLevels.rifle = Math.max(weaponLevels.rifle, 1);
   return {
-    gold: 60 + metaVal('startGold') + metaVal('freeDeploy') * 50,
+    gold: 30 + metaVal('startGold') + metaVal('freeDeploy') * 35,
     wave: 1,
     weaponLevels,
     cardCounts: Object.fromEntries(DEV_CARD_IDS.map(id => [id, 0])),
