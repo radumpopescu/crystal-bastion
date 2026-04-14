@@ -86,6 +86,21 @@ export function tryPlaceOutpost() {
 }
 
 export function handlePlayingClick(mx: number, my: number) {
+  if (R.ui.isMobileLandscape && R.ui.mobileDrawerToggleBtn && inBtn(mx, my, R.ui.mobileDrawerToggleBtn)) {
+    R.ui.mobileDrawerOpen = !R.ui.mobileDrawerOpen;
+    R.ui.mobileScrollY = 0;
+    return;
+  }
+  if (R.ui.isMobileLandscape) {
+    for (const tabBtn of R.ui.mobileDrawerTabBtns || []) {
+      if (mx >= tabBtn.x && mx <= tabBtn.x + tabBtn.w && my >= tabBtn.y && my <= tabBtn.y + tabBtn.h) {
+        R.ui.mobileDrawerTab = tabBtn.tab;
+        R.ui.mobileScrollY = 0;
+        R.ui.mobileDrawerOpen = true;
+        return;
+      }
+    }
+  }
   if (mx >= R.W - 46 && mx <= R.W - 10 && my >= 10 && my <= 46) { R.state = 'paused'; return; }
   if (R.ui.waveStartBtn && !R.game.waveActive && inBtn(mx, my, R.ui.waveStartBtn)) {
     startNextWave(true);
