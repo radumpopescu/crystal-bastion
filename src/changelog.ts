@@ -10,6 +10,16 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: GAME_VERSION,
+    title: 'Steeper waves and anti-tower-spam economy',
+    date: '2026-04-14',
+    changes: [
+      'Made wave progression much harsher, especially early on: more enemies, faster HP scaling, higher damage scaling, and earlier elite spawns.',
+      'Outpost/tower cost now scales with how many towers you already built, plus extra pressure in later waves, so infinite tower spam is much harder.',
+      'Between-wave HUD spacing was adjusted so the start button no longer gets covered by telemetry and weapon icons.',
+    ],
+  },
+  {
+    version: '2026.04.14.12',
     title: 'HUD telemetry and long-range projectile fix',
     date: '2026-04-14',
     changes: [

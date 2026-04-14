@@ -21,7 +21,9 @@ export function nearestAnchor(x: number, y: number) {
 }
 
 export function getOutpostCost() {
-  return Math.max(10, OUTPOST_COST - (R.game.outpostDiscount || 0));
+  const base = OUTPOST_COST - (R.game.outpostDiscount || 0);
+  const scaling = (R.game.outposts?.length || 0) * 5 + Math.max(0, (R.game.wave || 0) - 8) * 2;
+  return Math.max(10, Math.round(base + scaling));
 }
 
 function canPlaceOutpostAt(px: number, py: number) {
@@ -102,10 +104,10 @@ export function startNextWave(early = false) {
   }
 
   game.wave++;
-  const count = Math.floor(BASE_MONSTERS + game.wave * 2 + Math.pow(game.wave, 1.25));
-  const hpScale = 1 + (game.wave - 1) * 0.2;
-  const spdScale = 1 + (game.wave - 1) * 0.04;
-  const dmgScale = 1 + (game.wave - 1) * 0.07;
+  const count = Math.floor(BASE_MONSTERS + game.wave * 3 + Math.pow(game.wave, 1.38));
+  const hpScale = 1 + (game.wave - 1) * 0.26 + Math.max(0, game.wave - 6) * 0.03;
+  const spdScale = 1 + (game.wave - 1) * 0.05;
+  const dmgScale = 1 + (game.wave - 1) * 0.10;
 
   let maxAnchorDist = game.tower.range;
   for (const op of game.outposts) {
@@ -122,9 +124,9 @@ export function startNextWave(early = false) {
 
     let type = 'grunt';
     const r = Math.random();
-    if (game.wave >= 2 && r < 0.22) type = 'rusher';
-    if (game.wave >= 4 && r < 0.14) type = 'brute';
-    if (game.wave >= 7 && r < 0.07) type = 'tank';
+    if (game.wave >= 1 && r < 0.28) type = 'rusher';
+    if (game.wave >= 3 && r < 0.18) type = 'brute';
+    if (game.wave >= 6 && r < 0.09) type = 'tank';
 
     const T = MONSTER_DEF[type];
     game.monsters.push({

@@ -1308,7 +1308,7 @@ function renderHUD() {
   ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'right';
   ctx.fillText(`⬡ ${game.gold}`, W - 60, 37);
 
-  const waveBoxH = game.waveActive ? 118 : 146;
+  const waveBoxH = game.waveActive ? 118 : 172;
   ctx.fillStyle = 'rgba(0,0,0,0.72)';
   rrect(10, 8, 230, waveBoxH, 8); ctx.fill();
   ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'left';
@@ -1328,10 +1328,10 @@ function renderHUD() {
     ctx.fillText(`Start early for +${earlyGold} gold`, 20, 78);
     ctx.fillStyle = '#3498db'; ctx.font = '12px monospace';
     ctx.fillText(`🔵 ${towerCount} towers`, 20, 98);
-    ui.waveStartBtn = btn(125, 124, `START WAVE NOW`, '#e67e22', 220, 36);
+    ui.waveStartBtn = btn(125, 142, `START WAVE NOW`, '#e67e22', 220, 36);
   }
   ctx.fillStyle = '#556'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
-  ctx.fillText(game.player.weapons.map((w: any) => `${WEAPONS[w.id].icon}${w.level}`).join('  '), 20, game.waveActive ? 114 : 126);
+  ctx.fillText(game.player.weapons.map((w: any) => `${WEAPONS[w.id].icon}${w.level}`).join('  '), 20, game.waveActive ? 114 : 122);
 
   ctx.fillStyle = 'rgba(0,0,0,0.72)';
   rrect(10, H - 104, 84, 24, 7); ctx.fill();
