@@ -3,6 +3,7 @@ import './systems';
 import './render';
 import './input';
 import './mobile-controls';
+import { restoreSavedRun, syncSavedRun } from './run-persistence';
 import { R, DEV_MENU_HOLD_MS, finishDevSession } from './state';
 import { updateAutoConstruct, updateDmgNums, updateMonsters, updateParticles, updatePlayer, updateProjectiles, updateStructures, startNextWave } from './systems';
 import { render } from './render';
@@ -49,8 +50,10 @@ function loop(ts: number) {
     }
   }
 
+  syncSavedRun();
   render();
   requestAnimationFrame(loop);
 }
 
+restoreSavedRun();
 requestAnimationFrame(loop);

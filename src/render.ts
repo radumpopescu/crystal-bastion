@@ -829,7 +829,11 @@ function renderHUD() {
     if (game.waveActive) ui.waveStartBtn = null;
     else {
       const earlyGold = Math.max(2, Math.round(7 * (game.waveTimer / (WAVE_INTERVAL + (game.waveDelayBonus || 0))) * (game.earlyBonusMult || 1) * (1 + game.wave * 0.12)));
-      ui.waveStartBtn = btn(W / 2 - 12, H - 24, `▶ ${earlyGold}g`, '#e67e22', 112, 28);
+      ctx.fillStyle = '#f5c26b';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Start early for +${earlyGold} gold`, W / 2, H - 42);
+      ui.waveStartBtn = btn(W / 2, H - 20, `START WAVE NOW`, '#e67e22', 164, 28);
     }
     renderMinimap();
     return;
@@ -881,10 +885,12 @@ function renderHUD() {
     ctx.fillStyle = '#2ecc71'; ctx.font = 'bold 15px monospace';
     ctx.fillText(`⏱ Next in ${Math.ceil(game.waveTimer)}s`, 20, 56);
     const earlyGold = Math.max(2, Math.round(7 * (game.waveTimer / (WAVE_INTERVAL + (game.waveDelayBonus || 0))) * (game.earlyBonusMult || 1) * (1 + game.wave * 0.12)));
-    ui.waveStartBtn = btn(125, 112, `▶ START [ENTER] (+${earlyGold}g)`, '#e67e22', 220, 36);
+    ctx.fillStyle = '#f5c26b'; ctx.font = '11px monospace';
+    ctx.fillText(`Start early for +${earlyGold} gold`, 20, 78);
+    ui.waveStartBtn = btn(125, 112, `START WAVE NOW`, '#e67e22', 220, 36);
   }
   ctx.fillStyle = '#556'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
-  ctx.fillText(game.player.weapons.map((w: any) => `${WEAPONS[w.id].icon}${w.level}`).join('  '), 20, game.waveActive ? 78 : 82);
+  ctx.fillText(game.player.weapons.map((w: any) => `${WEAPONS[w.id].icon}${w.level}`).join('  '), 20, game.waveActive ? 78 : 98);
 
   const controlsBoxH = 112;
   const controlsBoxY = H - 322;
