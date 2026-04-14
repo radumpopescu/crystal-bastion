@@ -451,17 +451,25 @@ export function luPositions() {
 }
 
 export function getMobileLevelupLayout(game = R.game) {
-  const { w: cW, h: cH, gap } = luCardDims();
+  const { w: rawCW, h: rawCH, gap } = luCardDims();
   const sidePad = 10;
   const topY = 56;
   const botBarH = 44;
-  const clipTop = 52;
-  const clipBottom = R.H - botBarH - 6;
-  const contentW = R.W - sidePad * 2;
-  const maxCols = Math.max(1, Math.min(4, Math.floor((contentW + gap) / (cW + gap))));
+  const rightPanelW = Math.min(236, Math.max(172, R.W * 0.34));
+  const rightPanelX = R.W - rightPanelW - 10;
+  const contentLeft = sidePad;
+  const contentRight = rightPanelX - 10;
+  const contentW = Math.max(200, contentRight - contentLeft);
+  const maxCols = Math.max(1, Math.min(4, Math.floor((contentW + gap) / (rawCW + gap))));
+  const maxCardW = Math.floor((contentW - Math.max(0, maxCols - 1) * gap) / maxCols);
+  const cW = Math.min(rawCW, maxCardW);
+  const cH = Math.round(rawCH * (cW / rawCW));
   const freeCards = game.levelUpCards || [];
   const shopCards = game.shopCards || [];
   const freePicked = freeCards.length === 0;
+  const summaryScale = 0.64;
+  const summaryW = Math.max(56, Math.round(cW * summaryScale));
+  const summaryH = Math.max(82, Math.round(cH * summaryScale));
   const gridHeight = (count: number) => {
     if (count <= 0) return 0;
     const cols = Math.min(maxCols, count);
@@ -474,17 +482,16 @@ export function getMobileLevelupLayout(game = R.game) {
     const col = index % cols;
     const itemsInRow = Math.min(cols, count - row * cols);
     const rowW = itemsInRow * cW + Math.max(0, itemsInRow - 1) * gap;
-    const startX = sidePad + (contentW - rowW) / 2;
+    const startX = contentLeft + (contentW - rowW) / 2;
     return { x: startX + col * (cW + gap), y: startY + row * (cH + gap), w: cW, h: cH };
   };
 
-  let y = topY;
-  const pickedCardY = freePicked && game._pickedFreeCard ? y + 24 : null;
-  if (pickedCardY != null) y = pickedCardY + cH + 18;
-  const freeGridY = !freePicked ? y + 24 : null;
-  if (freeGridY != null) y = freeGridY + gridHeight(freeCards.length) + 18;
-  const shopGridY = freePicked ? y + 24 : null;
-  if (shopGridY != null) y = shopGridY + gridHeight(shopCards.length) + 18;
+  const panelY = topY;
+  const panelH = Math.max(cH + 44, R.H - panelY - botBarH - 12);
+  const freeGridY = panelY + 34;
+  const shopGridY = panelY + 34;
+  const pickedSummaryX = contentLeft + 8;
+  const pickedSummaryY = panelY + 8;
 
   return {
     cW,
@@ -493,18 +500,25 @@ export function getMobileLevelupLayout(game = R.game) {
     sidePad,
     topY,
     botBarH,
-    clipTop,
-    clipBottom,
+    contentLeft,
+    contentRight,
     contentW,
+    panelY,
+    panelH,
     maxCols,
     freePicked,
     freeCards,
     shopCards,
-    pickedCardY,
     freeGridY,
     shopGridY,
-    contentHeight: y + 8,
+    rightPanelX,
+    rightPanelW,
+    summaryW,
+    summaryH,
+    pickedSummaryX,
+    pickedSummaryY,
     getCardRect,
+    gridHeight,
   };
 }
 
@@ -539,12 +553,18 @@ export function handleCardClick(mx: number, my: number) {
   }
 
   if (R.ui.isMobileLandscape) {
+    for (const tabBtn of R.ui.mobileDrawerTabBtns || []) {
+      if (mx >= tabBtn.x && mx <= tabBtn.x + tabBtn.w && my >= tabBtn.y && my <= tabBtn.y + tabBtn.h) {
+        R.ui.mobileDrawerTab = tabBtn.tab;
+        R.ui.mobileScrollY = 0;
+        return;
+      }
+    }
     const layout = getMobileLevelupLayout(game);
-    const contentY = my + R.ui.mobileScrollY;
     if (!layout.freePicked && layout.freeGridY != null) {
       for (let i = 0; i < layout.freeCards.length; i++) {
         const rect = layout.getCardRect(layout.freeCards.length, i, layout.freeGridY);
-        if (mx >= rect.x && mx <= rect.x + rect.w && contentY >= rect.y && contentY <= rect.y + rect.h) {
+        if (mx >= rect.x && mx <= rect.x + rect.w && my >= rect.y && my <= rect.y + rect.h) {
           const card = layout.freeCards[i];
           if (weaponCardNeedsSlot(card, game)) {
             game._cardActionHint = `Sell a weapon slot first to take ${WEAPONS[card.weaponId].name}.`;
@@ -563,7 +583,7 @@ export function handleCardClick(mx: number, my: number) {
     if (layout.freePicked && layout.shopGridY != null) {
       for (let i = 0; i < layout.shopCards.length; i++) {
         const rect = layout.getCardRect(layout.shopCards.length, i, layout.shopGridY);
-        if (mx >= rect.x && mx <= rect.x + rect.w && contentY >= rect.y && contentY <= rect.y + rect.h) {
+        if (mx >= rect.x && mx <= rect.x + rect.w && my >= rect.y && my <= rect.y + rect.h) {
           const card = layout.shopCards[i];
           if (game.gold >= card.cost && !card._bought) {
             if (weaponCardNeedsSlot(card, game)) {
