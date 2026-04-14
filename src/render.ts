@@ -448,10 +448,9 @@ function renderTower() {
   const sprite = buildTowerSprite();
   ctx.drawImage(sprite.canvas, sx - sprite.w / 2, sy - sprite.h + 20);
 
-  // Turret barrel — rotates toward nearest monster
-  const barrelLen = 14;
-  const turretX = sx, turretY = sy - bh - 14;
-  let barrelAng = -Math.PI / 4; // default aim
+  const turretX = sx;
+  const turretY = sy - bh - 14;
+  let barrelAng = -Math.PI / 4;
   if (R.game.monsters.length > 0) {
     let nearest: any = null, nd = Infinity;
     for (const m of R.game.monsters) {
@@ -460,22 +459,35 @@ function renderTower() {
     }
     if (nearest) {
       const dx = nearest.x - t.x, dy = nearest.y - t.y;
-      barrelAng = Math.atan2((dx + dy) * 0.5, (dx - dy)) ; // iso-projected angle
+      barrelAng = Math.atan2((dx + dy) * 0.5, (dx - dy));
     }
   }
-  ctx.strokeStyle = '#5a6f8f'; ctx.lineWidth = 4; ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(turretX, turretY);
-  ctx.lineTo(turretX + Math.cos(barrelAng) * barrelLen, turretY + Math.sin(barrelAng) * barrelLen);
-  ctx.stroke();
-  ctx.lineCap = 'butt';
 
-  // Aura glow pulse
+  const turretCount = Math.max(1, t.multishot || 1);
+  const barrelLen = 14;
+  const lateralStep = 6;
+  const lateralX = -Math.sin(barrelAng);
+  const lateralY = Math.cos(barrelAng);
+  for (let i = 0; i < turretCount; i++) {
+    const offset = (i - (turretCount - 1) / 2) * lateralStep;
+    const baseX = turretX + lateralX * offset;
+    const baseY = turretY + lateralY * offset * 0.6;
+    ctx.strokeStyle = '#5a6f8f';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(baseX, baseY);
+    ctx.lineTo(baseX + Math.cos(barrelAng) * barrelLen, baseY + Math.sin(barrelAng) * barrelLen);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+    ctx.fillStyle = '#354a72';
+    ctx.beginPath(); ctx.arc(baseX, baseY, 3.5, 0, Math.PI * 2); ctx.fill();
+  }
+
   const auraPulse = 0.6 + Math.sin(tick * 1.4) * 0.15;
   ctx.fillStyle = `rgba(243,156,18,${auraPulse * 0.12})`;
   ctx.beginPath(); ctx.ellipse(sx, sy, t.auraR * ISO_SCALE * 2, t.auraR * ISO_SCALE, 0, 0, Math.PI * 2); ctx.fill();
 
-  // HP bar
   drawHpBar(sx - 36, sy - bh - 34, 72, 7, t.hp, t.maxHp, '#c0392b', '#27ae60');
 }
 
@@ -705,16 +717,17 @@ function renderMonster(m: any) {
   const { sx, sy } = w2s(m.x, m.y, 0);
   const r = m.radius;
   const tick = R.game.tick || 0;
-  const idOff = m.x * 7 + m.y * 13; // per-monster phase offset
+  const animPhase = m.animPhase || 0;
+  const moving = (Math.abs(m.speed || 0) > 0.1) && !(m.atkCooldown > 0 && dist(m.x, m.y, R.game.tower.x, R.game.tower.y) <= (22 + m.radius));
 
   // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.30)';
   ctx.beginPath(); ctx.ellipse(sx, sy, r * 0.9, r * SHADOW_SCALE, 0, 0, Math.PI * 2); ctx.fill();
 
   // Walk bob
-  const bobSpeed = m.type === 'rusher' ? 6 : m.type === 'tank' ? 1.8 : 3.5;
-  const bobAmt = m.type === 'tank' ? 1 : m.type === 'brute' ? 2.5 : 3;
-  const bob = Math.sin(tick * bobSpeed + idOff) * bobAmt;
+  const bobSpeed = m.type === 'rusher' ? 4.2 : m.type === 'tank' ? 1.2 : 2.4;
+  const bobAmt = m.type === 'tank' ? 0.8 : m.type === 'brute' ? 1.6 : 1.8;
+  const bob = moving ? Math.sin(tick * bobSpeed + animPhase) * bobAmt : 0;
 
   // Draw cached sprite
   const sprite = buildMonsterSprite(m.type, r, m.color);
@@ -723,25 +736,22 @@ function renderMonster(m: any) {
 
   // Grunt feet animation
   if (m.type === 'grunt') {
-    const footOff = Math.sin(tick * 4.5 + idOff) * 3;
+    const footOff = moving ? Math.sin(tick * 3.2 + animPhase) * 2.2 : 0;
     ctx.fillStyle = darkenColor(m.color, 0.2);
     ctx.beginPath(); ctx.arc(sx - 4 - footOff, sy - 2, 3, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(sx + 4 + footOff, sy - 2, 3, 0, Math.PI * 2); ctx.fill();
   }
 
   // Rusher motion lines
-  if (m.type === 'rusher') {
-    const spd = Math.hypot(m.speed, 0);
-    if (spd > 0) {
-      ctx.strokeStyle = m.color; ctx.lineWidth = 1; ctx.globalAlpha = 0.25;
-      for (let i = 1; i <= 2; i++) {
-        ctx.beginPath();
-        ctx.moveTo(sx - r * 0.5, sy - ENTITY_H + bob - i * 6);
-        ctx.lineTo(sx - r * 1.4, sy - ENTITY_H + bob - i * 6 + 2);
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
+  if (m.type === 'rusher' && moving) {
+    ctx.strokeStyle = m.color; ctx.lineWidth = 1; ctx.globalAlpha = 0.25;
+    for (let i = 1; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(sx - r * 0.5, sy - ENTITY_H + bob - i * 6);
+      ctx.lineTo(sx - r * 1.4, sy - ENTITY_H + bob - i * 6 + 2);
+      ctx.stroke();
     }
+    ctx.globalAlpha = 1;
   }
 
   // Googly eye (per-frame: pupil tracks player)
@@ -752,13 +762,11 @@ function renderMonster(m: any) {
   ctx.beginPath(); ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 0.5;
   ctx.beginPath(); ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2); ctx.stroke();
-  // Pupil tracks player
   const pa = Math.atan2(R.game.player.y - m.y, R.game.player.x - m.x);
   const pupilOff = eyeR * 0.4;
   ctx.fillStyle = '#000';
   ctx.beginPath(); ctx.arc(eyeX + Math.cos(pa) * pupilOff, eyeY + Math.sin(pa) * pupilOff * 0.5, eyeR * 0.5, 0, Math.PI * 2); ctx.fill();
 
-  // HP bar
   if (m.hp < m.maxHp) drawHpBar(sx - r, sy - ENTITY_H - r - 10 + bob, r * 2, 4, m.hp, m.maxHp, '#e74c3c', '#e74c3c');
 }
 
@@ -846,12 +854,29 @@ function projectileScreenVector(vx: number, vy: number) {
   return { dx, dy, len, ang: Math.atan2(dy, dx) };
 }
 
-function drawTracerProjectile(sx: number, sy: number, p: any, length = p.length, width = p.width) {
+function projectileArcHeight(p: any, age = p.age || 0) {
+  if (!p.startZ) return 0;
+  const totalLife = Math.max(0.1, p.maxLife || ((p.life || 0) + age));
+  const t = clamp(age / totalLife, 0, 1);
+  return p.startZ * (1 - t);
+}
+
+function projectileScreenPose(p: any, age = p.age || 0) {
+  const totalLife = Math.max(0.1, p.maxLife || ((p.life || 0) + age));
+  const currentAge = clamp(age, 0, totalLife);
+  const wx = (p.startX ?? p.x) + p.vx * currentAge;
+  const wy = (p.startY ?? p.y) + p.vy * currentAge;
+  const z = 8 + projectileArcHeight(p, currentAge);
+  return w2s(wx, wy, z);
+}
+
+function drawTracerProjectile(sx: number, sy: number, p: any, length = p.length, width = p.width, angleOverride?: number) {
   const { ctx } = R;
   const { ang } = projectileScreenVector(p.vx, p.vy);
+  const drawAngle = angleOverride ?? ang;
   ctx.save();
   ctx.translate(sx, sy);
-  ctx.rotate(ang);
+  ctx.rotate(drawAngle);
   ctx.lineCap = 'round';
   ctx.shadowColor = p.color;
   ctx.shadowBlur = p.glow || 10;
@@ -1018,13 +1043,11 @@ function renderProjectilesWorld() {
   const { ctx } = R;
   const game = R.game;
   for (const p of game.projectiles) {
-    const { sx, sy: sy0 } = w2s(p.x, p.y, 8);
-    // Arc from turret height down to ground as projectile travels
-    let sy = sy0;
-    if (p.startZ) {
-      const t = Math.min(1, (p.age || 0) / Math.max(0.1, (p.life || 1) + (p.age || 0)) * 2);
-      sy = sy0 - p.startZ * (1 - t);
-    }
+    const current = projectileScreenPose(p, p.age || 0);
+    const next = projectileScreenPose(p, Math.min((p.maxLife || ((p.life || 0) + (p.age || 0))), (p.age || 0) + 0.03));
+    const sx = current.sx;
+    const sy = current.sy;
+    const screenAng = Math.atan2(next.sy - current.sy, next.sx - current.sx);
     const r = p.size || 5;
     switch (p.visual || p.type) {
       case 'pistol':
@@ -1043,10 +1066,10 @@ function renderProjectilesWorld() {
         drawBulletProjectile(sx, sy, p, { bodyLength: 15.5, bodyWidth: 3.3, tailLength: 9, bodyColor: '#cdb5ff', tipColor: '#ffffff', outline: '#6b55a0', glowColor: '#d2b7ff' });
         break;
       case 'tower':
-        drawTracerProjectile(sx, sy, p, 16, 4);
+        drawTracerProjectile(sx, sy, p, 16, 4, screenAng);
         break;
       case 'structure':
-        drawTracerProjectile(sx, sy, p, 14, 3);
+        drawTracerProjectile(sx, sy, p, 14, 3, screenAng);
         break;
       case 'flame':
         drawFlameProjectile(sx, sy, p);

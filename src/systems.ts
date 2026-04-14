@@ -133,6 +133,7 @@ export function startNextWave(early = false) {
       speed: T.speed * spdScale, dmg: T.dmg * dmgScale,
       gold: T.gold, radius: T.radius, color: T.color,
       atkCooldown: Math.random() * 1.5,
+      animPhase: Math.random() * Math.PI * 2,
     });
   }
   game.monstersLeft = count;
@@ -1110,11 +1111,14 @@ function fireWeapon(w: any, def: any, owner: any, target: any) {
 function spawnProj(ox: number, oy: number, tx: number, ty: number, dmg: number, speed: number, size: number, color: string, owner: string, pierce: boolean, opts: any = {}) {
   const d = dist(ox, oy, tx, ty);
   if (d === 0) return;
+  const life = opts.life ?? 2;
   addProjectile({
     x:ox, y:oy,
+    startX:ox, startY:oy,
     vx:(tx - ox) / d * speed, vy:(ty - oy) / d * speed,
     dmg, size, color,
-    life: opts.life ?? 2,
+    life,
+    maxLife: opts.maxLife ?? life,
     owner, pierce,
     type: opts.type || 'basic',
     ...opts,
@@ -1343,6 +1347,7 @@ function checkWaveEnd() {
   const game = R.game;
   if (game.waveActive && game.monsters.length === 0) {
     game.waveActive = false;
+    game.projectiles = [];
     const waveCrystalReward = game._waveCrystalReward || 0;
     if (waveCrystalReward > 0) {
       R.meta.crystals += waveCrystalReward;
