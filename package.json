@@ -4,5 +4,8 @@
   "scripts": {
     "build": "bun run scripts/build.ts",
     "dev": "bun build src/main.ts --outfile dist/game.js --target browser --format iife --watch"
+  },
+  "dependencies": {
+    "nipplejs": "^1.0.1"
   }
 }

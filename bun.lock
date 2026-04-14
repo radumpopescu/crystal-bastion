@@ -1,0 +1,15 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "crystal-bastion",
+      "dependencies": {
+        "nipplejs": "^1.0.1",
+      },
+    },
+  },
+  "packages": {
+    "nipplejs": ["nipplejs@1.0.1", "", {}, "sha512-+GhZWy62hfGIo6qE7vkAbbSFPWDIf3KLxOXwOruryKO3e8Tm8bDMz9EyK+CUr6zqWUC2sT7jZjsQIUawndGzQA=="],
+  }
+}

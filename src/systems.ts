@@ -86,6 +86,21 @@ export function tryPlaceOutpost() {
 }
 
 export function handlePlayingClick(mx: number, my: number) {
+  if (R.ui.isMobileLandscape && R.ui.mobileDrawerToggleBtn && inBtn(mx, my, R.ui.mobileDrawerToggleBtn)) {
+    R.ui.mobileDrawerOpen = !R.ui.mobileDrawerOpen;
+    R.ui.mobileScrollY = 0;
+    return;
+  }
+  if (R.ui.isMobileLandscape) {
+    for (const tabBtn of R.ui.mobileDrawerTabBtns || []) {
+      if (mx >= tabBtn.x && mx <= tabBtn.x + tabBtn.w && my >= tabBtn.y && my <= tabBtn.y + tabBtn.h) {
+        R.ui.mobileDrawerTab = tabBtn.tab;
+        R.ui.mobileScrollY = 0;
+        R.ui.mobileDrawerOpen = true;
+        return;
+      }
+    }
+  }
   if (mx >= R.W - 46 && mx <= R.W - 10 && my >= 10 && my <= 46) { R.state = 'paused'; return; }
   if (R.ui.waveStartBtn && !R.game.waveActive && inBtn(mx, my, R.ui.waveStartBtn)) {
     startNextWave(true);
@@ -391,6 +406,13 @@ export function applyCard(card: any) {
 }
 
 export function luCardDims() {
+  if (R.ui.isMobileLandscape) {
+    const availH = Math.max(160, R.H - 150);
+    const cardH = Math.max(118, Math.min(160, Math.floor((availH - 26) / 2)));
+    const cardW = Math.round(cardH * (165 / 255));
+    const gap = 8;
+    return { w: cardW, h: cardH, gap };
+  }
   const availH = R.H - 90 - 120;
   const cardH = Math.max(160, Math.min(255, Math.floor(availH / 2)));
   const cardW = Math.round(cardH * (175 / 255));
@@ -399,6 +421,27 @@ export function luCardDims() {
 }
 
 export function luPositions() {
+  if (R.ui.isMobileLandscape) {
+    const rightPanelW = Math.min(236, Math.max(172, R.W * 0.34));
+    const rightPanelX = R.W - rightPanelW - 10;
+    const leftPanelX = 0;
+    const leftPanelW = 0;
+    const centerLeft = 10;
+    const centerRight = rightPanelX - 10;
+    const centerW = centerRight - centerLeft;
+    const { w: rawCW, h: cH, gap: rawGap } = luCardDims();
+    const maxCards = Math.max(4, R.game?.levelUpCards?.length || 0, R.game?.shopCards?.length || 0);
+    const maxCardW = Math.floor((centerW - 16 - (maxCards - 1) * rawGap) / maxCards);
+    const cW = Math.min(rawCW, Math.max(78, maxCardW));
+    const gap = rawGap;
+    const centerX = (centerLeft + centerRight) / 2;
+    const HEADER_H = 54;
+    const BOT_H = 44;
+    const SEC_GAP = 18;
+    const freeTop = HEADER_H + 14;
+    const shopTop = freeTop + cH + SEC_GAP + 18;
+    return { cW, cH, gap, centerX, freeTop, shopTop, BOT_H, leftPanelX, leftPanelW, rightPanelX, rightPanelW };
+  }
   const leftPanelW = Math.max(180, Math.min(220, R.W * 0.17));
   const rightPanelW = Math.max(160, Math.min(230, R.W * 0.17));
   const leftPanelX = 12;
@@ -425,6 +468,15 @@ export function luPositions() {
 export function handleCardClick(mx: number, my: number) {
   const game = R.game;
   if (!game.levelUpCards) return;
+  if (R.ui.isMobileLandscape) {
+    for (const tabBtn of R.ui.mobileDrawerTabBtns || []) {
+      if (mx >= tabBtn.x && mx <= tabBtn.x + tabBtn.w && my >= tabBtn.y && my <= tabBtn.y + tabBtn.h) {
+        R.ui.mobileDrawerTab = tabBtn.tab;
+        R.ui.mobileScrollY = 0;
+        return;
+      }
+    }
+  }
   for (const btn of R.ui.levelupBaseUpgradeBtns || []) {
     if (mx >= btn.x && mx <= btn.x + btn.w && my >= btn.y && my <= btn.y + btn.h) {
       buyTowerUpgrade(btn.upgradeId);
@@ -543,6 +595,11 @@ export function updatePlayer(dt: number) {
     if (game.keys['KeyS'] || game.keys['ArrowDown'])  { dx += 1; dy += 1; }
     if (game.keys['KeyA'] || game.keys['ArrowLeft'])  { dx -= 1; dy += 1; }
     if (game.keys['KeyD'] || game.keys['ArrowRight']) { dx += 1; dy -= 1; }
+    const touch = game.touchMove;
+    if (touch) {
+      dx += touch.x;
+      dy += touch.y;
+    }
     const len = Math.hypot(dx, dy);
     if (len > 0) {
       dx /= len;

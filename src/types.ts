@@ -42,6 +42,14 @@ export interface RuntimeUI {
   levelupWeaponBtns: any[];
   levelupShopLockBtns: any[];
   levelupBaseUpgradeBtns: any[];
+  isMobileLandscape: boolean;
+  mobileDrawerOpen: boolean;
+  mobileDrawerTab: string;
+  mobileScrollY: number;
+  mobileScrollMax: number;
+  mobileScrollArea: { x: number; y: number; w: number; h: number } | null;
+  mobileDrawerToggleBtn: BtnRect | null;
+  mobileDrawerTabBtns: any[];
 }
 
 export interface RuntimeDev {

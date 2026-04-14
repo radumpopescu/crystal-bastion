@@ -2,6 +2,7 @@ import './state';
 import './systems';
 import './render';
 import './input';
+import './mobile-controls';
 import { R, DEV_MENU_HOLD_MS, finishDevSession } from './state';
 import { updateAutoConstruct, updateDmgNums, updateMonsters, updateParticles, updatePlayer, updateProjectiles, updateStructures, startNextWave } from './systems';
 import { render } from './render';

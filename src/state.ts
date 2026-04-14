@@ -11,8 +11,31 @@ const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d');
 if (!ctx) throw new Error('Canvas 2D context unavailable');
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+function detectMobileLandscape(width = window.innerWidth, height = window.innerHeight) {
+  const ua = navigator.userAgent || '';
+  const coarse = matchMedia?.('(pointer: coarse)')?.matches || navigator.maxTouchPoints > 0;
+  const mobileUa = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+  const landscape = width >= height;
+  const compactViewport = width <= 960 || height <= 540;
+  return landscape && compactViewport && (coarse || mobileUa);
+}
+
+function getViewportSize() {
+  const vv = window.visualViewport;
+  const width = Math.round(vv?.width || window.innerWidth);
+  const height = Math.round(vv?.height || window.innerHeight);
+  return { width, height };
+}
+
+function syncViewport() {
+  const { width, height } = getViewportSize();
+  canvas.width = width;
+  canvas.height = height;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+}
+
+syncViewport();
 
 export const R: Runtime = {
   canvas,
@@ -48,6 +71,14 @@ export const R: Runtime = {
     levelupWeaponBtns: [],
     levelupShopLockBtns: [],
     levelupBaseUpgradeBtns: [],
+    isMobileLandscape: detectMobileLandscape(canvas.width, canvas.height),
+    mobileDrawerOpen: false,
+    mobileDrawerTab: 'loadout',
+    mobileScrollY: 0,
+    mobileScrollMax: 0,
+    mobileScrollArea: null,
+    mobileDrawerToggleBtn: null,
+    mobileDrawerTabBtns: [],
   },
   dev: {
     menuHoldStart: 0,
@@ -57,11 +88,24 @@ export const R: Runtime = {
 };
 
 window.addEventListener('resize', () => {
-  R.canvas.width = window.innerWidth;
-  R.canvas.height = window.innerHeight;
+  syncViewport();
   R.W = R.canvas.width;
   R.H = R.canvas.height;
+  R.ui.isMobileLandscape = detectMobileLandscape(R.W, R.H);
+  if (!R.ui.isMobileLandscape) {
+    R.ui.mobileDrawerOpen = false;
+    R.ui.mobileScrollY = 0;
+  }
 });
+
+window.visualViewport?.addEventListener('resize', () => {
+  syncViewport();
+  R.W = R.canvas.width;
+  R.H = R.canvas.height;
+  R.ui.isMobileLandscape = detectMobileLandscape(R.W, R.H);
+});
+
+(window as any).__CB_RUNTIME = R;
 
 if ('autoConstructEnabled' in R.meta) {
   delete R.meta.autoConstructEnabled;
@@ -175,6 +219,7 @@ export function newGame(opts: any = {}) {
     shopRefreshCost: 20,
     maxWeaponSlots: MAX_WEAPON_SLOTS + metaVal('startSlot'),
     keys: {},
+    touchMove: { x: 0, y: 0 },
     runCardCounts: {},
     runCardOrder: [],
     devSession: !!opts.devSession,

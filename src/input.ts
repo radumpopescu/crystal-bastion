@@ -47,7 +47,45 @@ R.canvas.addEventListener('wheel', e => {
   const step = Math.abs(e.deltaY) > 50 ? Math.sign(e.deltaY) * 60 : e.deltaY * 0.8;
   if (R.state === 'cardbook') R.ui.cardBookScroll = Math.max(0, R.ui.cardBookScroll + step);
   if (R.state === 'metascreen') R.ui.metaScroll = clamp(R.ui.metaScroll + step, 0, R.ui.maxMetaScroll);
+  if ((R.state === 'playing' || R.state === 'levelup' || R.state === 'paused') && R.ui.isMobileLandscape && R.ui.mobileScrollArea) {
+    R.ui.mobileScrollY = clamp(R.ui.mobileScrollY + step, 0, R.ui.mobileScrollMax);
+  }
 }, { passive:true });
+
+function updatePointer(clientX: number, clientY: number) {
+  const rect = R.canvas.getBoundingClientRect();
+  R.mouseX = clientX - rect.left;
+  R.mouseY = clientY - rect.top;
+  R.mouseInside = true;
+}
+
+let touchScrollStartY = 0;
+let touchScrollStartOffset = 0;
+let touchScrolling = false;
+
+R.canvas.addEventListener('touchstart', e => {
+  const touch = e.touches[0];
+  if (!touch) return;
+  updatePointer(touch.clientX, touch.clientY);
+  const area = R.ui.mobileScrollArea;
+  touchScrolling = !!(R.ui.isMobileLandscape && area && R.mouseX >= area.x && R.mouseX <= area.x + area.w && R.mouseY >= area.y && R.mouseY <= area.y + area.h);
+  touchScrollStartY = touch.clientY;
+  touchScrollStartOffset = R.ui.mobileScrollY;
+}, { passive: true });
+
+R.canvas.addEventListener('touchmove', e => {
+  const touch = e.touches[0];
+  if (!touch) return;
+  updatePointer(touch.clientX, touch.clientY);
+  if (touchScrolling) {
+    R.ui.mobileScrollY = clamp(touchScrollStartOffset + (touchScrollStartY - touch.clientY), 0, R.ui.mobileScrollMax);
+    e.preventDefault();
+  }
+}, { passive: false });
+
+R.canvas.addEventListener('touchend', () => {
+  touchScrolling = false;
+}, { passive: true });
 
 R.canvas.addEventListener('click', e => {
   const rect = R.canvas.getBoundingClientRect();

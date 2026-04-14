@@ -1,3 +1,150 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
-canvas { display: block; cursor: crosshair; }
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100dvh;
+  position: fixed;
+  inset: 0;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+canvas {
+  display: block;
+  cursor: crosshair;
+  width: 100vw;
+  height: 100dvh;
+}
+
+#mobile-rotate-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  z-index: 30;
+  background: linear-gradient(180deg, rgba(4,8,18,0.98), rgba(8,18,34,0.98));
+  color: #ecf0f1;
+  padding: 24px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+#mobile-rotate-overlay.is-visible {
+  display: flex;
+}
+
+#mobile-rotate-overlay .rotate-card {
+  max-width: 320px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 20px;
+  background: rgba(12,18,32,0.88);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+  padding: 22px 18px;
+}
+
+#mobile-rotate-overlay .rotate-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
+#mobile-rotate-overlay .rotate-title {
+  font: bold 20px monospace;
+  color: #f1c40f;
+  margin-bottom: 10px;
+}
+
+#mobile-rotate-overlay .rotate-copy {
+  font: 13px monospace;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+
+#mobile-rotate-overlay .rotate-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+#mobile-rotate-overlay button {
+  min-width: 110px;
+  min-height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(35, 98, 165, 0.92);
+  color: #ecf0f1;
+  font: bold 12px monospace;
+}
+
+#mobile-controls {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  display: none;
+  z-index: 20;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#mobile-controls.is-visible {
+  display: block;
+}
+
+#mobile-controls .mc-joystick-shell {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  width: 156px;
+  height: 156px;
+  border-radius: 999px;
+  background: rgba(8, 14, 24, 0.28);
+  border: 1px solid rgba(255,255,255,0.08);
+  pointer-events: auto;
+}
+
+#mobile-controls .mc-joystick-zone {
+  position: absolute;
+  inset: 0;
+}
+
+#mobile-controls .mc-actions {
+  position: absolute;
+  right: 14px;
+  bottom: 76px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+  align-items: flex-end;
+}
+
+#mobile-controls .mc-btn {
+  width: 92px;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(11, 18, 32, 0.85);
+  color: #ecf0f1;
+  font: bold 13px monospace;
+  letter-spacing: 0.04em;
+  pointer-events: auto;
+  touch-action: manipulation;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.24);
+}
+
+#mobile-controls .mc-btn-primary {
+  background: rgba(35, 98, 165, 0.92);
+}
+
+#mobile-controls .mc-btn-secondary {
+  width: 76px;
+  min-height: 36px;
+  font-size: 11px;
+  background: rgba(36, 44, 60, 0.9);
+}

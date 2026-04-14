@@ -19,9 +19,236 @@ const CB_SECTIONS: { id: string; label: string; color: string; icon: string; not
     filter: s => s.id.startsWith('outpost') },
 ];
 
+
+function resetMobileUiFrame() {
+  R.ui.mobileDrawerToggleBtn = null;
+  R.ui.mobileDrawerTabBtns = [];
+  R.ui.mobileScrollArea = null;
+  R.ui.mobileScrollMax = 0;
+}
+
+function isMobileUI() {
+  return !!R.ui.isMobileLandscape;
+}
+
+function getMobileDrawerRect() {
+  const pad = 10;
+  const w = Math.min(236, Math.max(172, R.W * 0.34));
+  const y = 58;
+  const h = Math.max(150, R.H - y - 10);
+  const x = R.W - w - pad;
+  return { x, y, w, h, pad };
+}
+
+function setMobileScrollArea(x: number, y: number, w: number, h: number, maxScroll: number) {
+  R.ui.mobileScrollArea = { x, y, w, h };
+  R.ui.mobileScrollMax = Math.max(0, maxScroll);
+  R.ui.mobileScrollY = clamp(R.ui.mobileScrollY, 0, R.ui.mobileScrollMax);
+}
+
+function drawCompactMetricRow(label: string, value: string, x: number, y: number, w: number, valueColor = '#8bd3ff') {
+  const { ctx } = R;
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(label, x, y);
+  ctx.fillStyle = valueColor;
+  ctx.textAlign = 'right';
+  ctx.fillText(value, x + w, y);
+}
+
+function estimateMobileDrawerHeight(tab: string, includeUpgrades = false) {
+  const game = R.game;
+  if (tab === 'base') return 28 + getBaseStats().length * 16 + 18 + (includeUpgrades ? TOWER_UPGRADES.length * 48 + 12 : 0) + 70;
+  const hintLines = game?._cardActionHint ? wrapTextLines(game._cardActionHint, 150).length : 0;
+  const weaponRows = game?.maxWeaponSlots || MAX_WEAPON_SLOTS;
+  const runCards = getRunCardEntries().length;
+  return 40 + hintLines * 12 + weaponRows * 24 + getLoadoutStats().length * 16 + 60 + runCards * 18;
+}
+
+function drawMobileDrawerShell(title: string, activeTab: string, tabs: string[]) {
+  const { ctx, ui } = R;
+  const rect = getMobileDrawerRect();
+  ctx.fillStyle = 'rgba(8,14,24,0.94)';
+  rrect(rect.x, rect.y, rect.w, rect.h, 16); ctx.fill();
+  ctx.strokeStyle = 'rgba(125,146,175,0.24)';
+  ctx.lineWidth = 1.2;
+  rrect(rect.x, rect.y, rect.w, rect.h, 16); ctx.stroke();
+  ctx.fillStyle = '#dfe6e9';
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(title, rect.x + 12, rect.y + 20);
+  ui.mobileDrawerTabBtns = [];
+  let tx = rect.x + 12;
+  for (const tab of tabs) {
+    const bw = 68, bh = 22, ty = rect.y + 28;
+    ctx.fillStyle = activeTab === tab ? '#1f3551' : '#111a28';
+    rrect(tx, ty, bw, bh, 8); ctx.fill();
+    ctx.strokeStyle = activeTab === tab ? '#5dade2' : 'rgba(255,255,255,0.08)';
+    rrect(tx, ty, bw, bh, 8); ctx.stroke();
+    ctx.fillStyle = activeTab === tab ? '#ecf0f1' : '#7f8c9a';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(tab.toUpperCase(), tx + bw / 2, ty + 14);
+    ui.mobileDrawerTabBtns.push({ x: tx, y: ty, w: bw, h: bh, tab });
+    tx += bw + 8;
+  }
+  return { rect, contentX: rect.x + 10, contentY: rect.y + 62, contentW: rect.w - 20, contentH: rect.h - 72 };
+}
+
+function renderMobileBaseDrawerContent(shell: any, allowBuy = false) {
+  const { ctx } = R;
+  const game = R.game;
+  const startY = shell.contentY;
+  const visibleH = shell.contentH;
+  const contentH = estimateMobileDrawerHeight('base', allowBuy);
+  setMobileScrollArea(shell.contentX, startY, shell.contentW, visibleH, contentH - visibleH + 10);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(shell.contentX, startY, shell.contentW, visibleH); ctx.clip();
+  ctx.translate(0, -R.ui.mobileScrollY);
+  let y = startY + 4;
+  ctx.fillStyle = '#f39c12'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+  ctx.fillText('BASE STATS', shell.contentX, y); y += 14;
+  getBaseStats().forEach(stat => {
+    drawCompactMetricRow(`${stat.icon} ${stat.name}`, stat.value, shell.contentX, y, shell.contentW, '#f5c26b');
+    y += 16;
+  });
+  y += 6;
+  ctx.fillStyle = '#f39c12'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+  ctx.fillText('UPGRADES', shell.contentX, y); y += 14;
+  if (allowBuy) {
+    TOWER_UPGRADES.forEach(upg => {
+      const lvl = game.tower.upgrades[upg.id] || 0;
+      const maxed = lvl >= upg.max;
+      const cost = maxed ? 0 : upg.cost[lvl];
+      const canAfford = !maxed && game.gold >= cost;
+      const rowY = y;
+      ctx.fillStyle = maxed ? '#163020' : canAfford ? '#101a29' : '#0d1522';
+      rrect(shell.contentX, rowY - 11, shell.contentW, 38, 6); ctx.fill();
+      ctx.strokeStyle = maxed ? '#27ae60' : canAfford ? '#f39c12' : '#2a3a4a';
+      rrect(shell.contentX, rowY - 11, shell.contentW, 38, 6); ctx.stroke();
+      ctx.fillStyle = '#ecf0f1'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+      ctx.fillText(upg.label, shell.contentX + 8, rowY + 2);
+      ctx.fillStyle = '#8c9aa8'; ctx.font = '10px monospace';
+      ctx.fillText('●'.repeat(lvl) + '○'.repeat(Math.max(0, upg.max - lvl)), shell.contentX + 8, rowY + 16);
+      ctx.fillStyle = maxed ? '#27ae60' : canAfford ? '#f1c40f' : '#e74c3c';
+      ctx.textAlign = 'right';
+      ctx.fillText(maxed ? 'MAX' : `${cost}⬡`, shell.contentX + shell.contentW - 8, rowY + 2);
+      R.ui.levelupBaseUpgradeBtns.push({ x: shell.contentX, y: rowY - 11 - R.ui.mobileScrollY, w: shell.contentW, h: 38, upgradeId: upg.id });
+      y += 46;
+    });
+  } else {
+    ctx.fillStyle = '#7f8c9a'; ctx.font = '10px monospace';
+    ctx.fillText('Open after waves to buy upgrades.', shell.contentX, y); y += 18;
+  }
+  const ks = game.killStats || { player: 0, base: 0, tower: 0 };
+  ctx.fillStyle = '#f39c12'; ctx.font = 'bold 10px monospace';
+  ctx.fillText('KILLS', shell.contentX, y); y += 14;
+  drawCompactMetricRow('⚔️ Player', `${ks.player}`, shell.contentX, y, shell.contentW); y += 14;
+  drawCompactMetricRow('🏰 Base', `${ks.base}`, shell.contentX, y, shell.contentW, '#f5c26b'); y += 14;
+  drawCompactMetricRow('🔵 Towers', `${ks.tower}`, shell.contentX, y, shell.contentW); y += 14;
+  ctx.restore();
+}
+
+function renderMobileLoadoutDrawerContent(shell: any, allowSell = false) {
+  const { ctx } = R;
+  const game = R.game;
+  const startY = shell.contentY;
+  const visibleH = shell.contentH;
+  const contentH = estimateMobileDrawerHeight('loadout');
+  setMobileScrollArea(shell.contentX, startY, shell.contentW, visibleH, contentH - visibleH + 10);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(shell.contentX, startY, shell.contentW, visibleH); ctx.clip();
+  ctx.translate(0, -R.ui.mobileScrollY);
+  let y = startY + 4;
+  if (game._cardActionHint) {
+    const lines = wrapTextLines(game._cardActionHint, shell.contentW - 6);
+    ctx.fillStyle = '#f39c12'; ctx.font = '10px monospace';
+    lines.forEach((line, index) => ctx.fillText(line, shell.contentX, y + index * 12));
+    y += lines.length * 12 + 8;
+  }
+  ctx.fillStyle = '#5dade2'; ctx.font = 'bold 10px monospace';
+  ctx.fillText('WEAPON SLOTS', shell.contentX, y); y += 14;
+  const maxSlots = game.maxWeaponSlots || MAX_WEAPON_SLOTS;
+  for (let slot = 0; slot < maxSlots; slot++) {
+    const weapon = game.player.weapons[slot];
+    const rowY = y;
+    ctx.fillStyle = weapon ? '#101a29' : '#0c1522';
+    rrect(shell.contentX, rowY - 11, shell.contentW, 20, 6); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; rrect(shell.contentX, rowY - 11, shell.contentW, 20, 6); ctx.stroke();
+    if (weapon) {
+      const def = WEAPONS[weapon.id];
+      ctx.fillStyle = def.color; ctx.font = '10px monospace'; ctx.textAlign = 'left';
+      ctx.fillText(`${def.icon} ${def.name} L${weapon.level}`, shell.contentX + 6, rowY + 2);
+      if (allowSell) {
+        const sellW = 34;
+        const sellX = shell.contentX + shell.contentW - sellW - 4;
+        ctx.fillStyle = '#5b1f1f'; rrect(sellX, rowY - 9, sellW, 16, 4); ctx.fill();
+        ctx.fillStyle = '#f8d7da'; ctx.font = 'bold 8px monospace'; ctx.textAlign = 'center';
+        ctx.fillText('SELL', sellX + sellW / 2, rowY + 2);
+        R.ui.levelupWeaponBtns.push({ x: sellX, y: rowY - 9 - R.ui.mobileScrollY, w: sellW, h: 16, slotIndex: slot });
+      }
+    } else {
+      ctx.fillStyle = '#6b7280'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
+      ctx.fillText(`SLOT ${slot + 1} EMPTY`, shell.contentX + 6, rowY + 2);
+    }
+    y += 24;
+  }
+  y += 4;
+  ctx.fillStyle = '#5dade2'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+  ctx.fillText('CURRENT STATS', shell.contentX, y); y += 14;
+  getLoadoutStats().forEach(stat => {
+    drawCompactMetricRow(`${stat.icon} ${stat.name}`, stat.value, shell.contentX, y, shell.contentW);
+    y += 16;
+  });
+  y += 6;
+  const outposts = game.outposts || [];
+  ctx.fillStyle = '#5dade2'; ctx.font = 'bold 10px monospace'; ctx.fillText('TOWERS', shell.contentX, y); y += 14;
+  drawCompactMetricRow('Built', `${outposts.length}`, shell.contentX, y, shell.contentW); y += 14;
+  drawCompactMetricRow('Global level', `Lv${game.outpostLevel || 1}`, shell.contentX, y, shell.contentW, '#f5c26b'); y += 14;
+  y += 6;
+  const runCards = getRunCardEntries();
+  ctx.fillStyle = '#5dade2'; ctx.font = 'bold 10px monospace'; ctx.fillText('RUN CARDS', shell.contentX, y); y += 14;
+  if (!runCards.length) {
+    ctx.fillStyle = '#6b7280'; ctx.font = '10px monospace'; ctx.fillText('No cards yet this run.', shell.contentX, y); y += 14;
+  } else {
+    runCards.forEach(entry => {
+      ctx.fillStyle = entry.color; ctx.font = '10px monospace'; ctx.textAlign = 'left';
+      ctx.fillText(`${entry.icon} ${entry.name}${entry.count > 1 ? ` x${entry.count}` : ''}`, shell.contentX, y);
+      y += 18;
+    });
+  }
+  ctx.restore();
+}
+
+function renderMobileDrawer(mode: 'playing' | 'levelup' | 'paused') {
+  const forceOpen = mode !== 'playing';
+  if (!forceOpen && !R.ui.mobileDrawerOpen) return;
+  const shell = drawMobileDrawerShell(mode === 'levelup' ? 'RUN PANEL' : mode === 'paused' ? 'PAUSE PANEL' : 'SIDE PANEL', R.ui.mobileDrawerTab || 'loadout', ['base', 'loadout']);
+  if ((R.ui.mobileDrawerTab || 'loadout') === 'base') renderMobileBaseDrawerContent(shell, mode === 'levelup');
+  else renderMobileLoadoutDrawerContent(shell, mode === 'levelup');
+}
+
+function renderMobileDrawerToggle() {
+  const { ctx, ui, H } = R;
+  const rect = getMobileDrawerRect();
+  const cx = rect.x - 22;
+  const cy = H / 2;
+  ui.mobileDrawerToggleBtn = { cx, cy, bw: 28, bh: 96 };
+  ctx.fillStyle = 'rgba(8,14,24,0.88)';
+  rrect(cx - 14, cy - 48, 28, 96, 12); ctx.fill();
+  ctx.strokeStyle = 'rgba(125,146,175,0.24)';
+  rrect(cx - 14, cy - 48, 28, 96, 12); ctx.stroke();
+  ctx.fillStyle = '#ecf0f1';
+  ctx.font = 'bold 16px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(ui.mobileDrawerOpen ? '›' : '‹', cx, cy + 6);
+}
+
 export function render() {
   const { ctx, W, H } = R;
   R.hoverRegions = [];
+  resetMobileUiFrame();
   ctx.clearRect(0, 0, W, H);
   if (R.state === 'menu')       { renderMenu(); return; }
   if (R.state === 'devmenu')    { renderDevMenu(); return; }
@@ -558,6 +785,57 @@ function renderHUD() {
   const game = R.game;
   const p = game.player, t = game.tower;
   const autoConstructUnlocked = (meta.upgrades['autoConstruct'] || 0) > 0;
+  if (isMobileUI()) {
+    const topH = 38;
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    rrect(8, 8, 126, topH, 8); ctx.fill();
+    ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 15px monospace'; ctx.textAlign = 'left';
+    ctx.fillText(`W${game.wave}`, 16, 24);
+    ctx.fillStyle = '#cbd5e1'; ctx.font = '10px monospace';
+    ctx.fillText(game.waveActive ? `${game.monsters.length} foes` : `${Math.ceil(game.waveTimer)}s`, 16, 38);
+
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    rrect(W / 2 - 74, 8, 148, topH, 8); ctx.fill();
+    ctx.fillStyle = '#f39c12'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('BASE', W / 2, 20);
+    drawHpBar(W / 2 - 62, 24, 124, 10, t.hp, t.maxHp, '#c0392b', '#e74c3c');
+    ctx.fillStyle = '#ddd'; ctx.font = '10px monospace';
+    ctx.fillText(`${Math.ceil(t.hp)}/${t.maxHp}`, W / 2, 44);
+
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    rrect(W - 126, 8, 70, topH, 8); ctx.fill();
+    ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 15px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(`⬡${game.gold}`, W - 91, 31);
+
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    rrect(W - 48, 8, 40, 40, 8); ctx.fill();
+    ctx.fillStyle = '#bdc3c7'; ctx.font = 'bold 18px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('⏸', W - 28, 34);
+
+    const pBoxW = 168;
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    rrect(8, H - 58, pBoxW, 50, 8); ctx.fill();
+    ctx.fillStyle = '#ecf0f1'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left';
+    ctx.fillText('PLAYER', 16, H - 40);
+    drawHpBar(16, H - 34, pBoxW - 16, 10, p.hp, p.maxHp, '#c0392b', '#27ae60');
+    ctx.fillStyle = '#aaa'; ctx.font = '10px monospace';
+    ctx.fillText(`${Math.ceil(Math.max(0, p.hp))}/${p.maxHp}`, 16, H - 16);
+    const dashStartX = 90;
+    for (let i = 0; i < p.maxDashes; i++) {
+      ctx.fillStyle = i < p.dashes ? '#3498db' : '#1a2a3a';
+      ctx.beginPath(); ctx.arc(dashStartX + i * 16, H - 17, 5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    if (game.waveActive) ui.waveStartBtn = null;
+    else {
+      const earlyGold = Math.max(2, Math.round(7 * (game.waveTimer / (WAVE_INTERVAL + (game.waveDelayBonus || 0))) * (game.earlyBonusMult || 1) * (1 + game.wave * 0.12)));
+      ui.waveStartBtn = btn(W / 2 - 12, H - 24, `▶ ${earlyGold}g`, '#e67e22', 112, 28);
+    }
+    renderMobileDrawerToggle();
+    renderMobileDrawer('playing');
+    renderMinimap();
+    return;
+  }
   const tBarW = 260;
   ctx.fillStyle = 'rgba(0,0,0,0.72)';
   rrect(W / 2 - tBarW / 2 - 10, 8, tBarW + 20, 52, 8); ctx.fill();
@@ -622,19 +900,13 @@ function renderHUD() {
   ctx.fillStyle = autoConstructUnlocked ? '#7f8c8d' : '#4f5b66'; ctx.font = '11px monospace';
   ctx.fillText(autoConstructUnlocked ? 'Hold SHIFT to auto-build towers' : 'Relic unlock: Arcane Masons', W - 14, controlsBoxY + 74);
   const shiftHeld = game.keys['ShiftLeft'] || game.keys['ShiftRight'];
-  ctx.fillStyle = autoConstructUnlocked
-    ? (shiftHeld ? '#27ae60' : '#95a5a6')
-    : '#6b7280';
+  ctx.fillStyle = autoConstructUnlocked ? (shiftHeld ? '#27ae60' : '#95a5a6') : '#6b7280';
   ctx.font = 'bold 12px monospace';
   ctx.fillText(autoConstructUnlocked ? `Auto: ${shiftHeld ? 'HOLD SHIFT' : 'READY'}` : 'Auto: LOCKED', W - 14, controlsBoxY + 90);
   if (!autoConstructUnlocked) {
-    ctx.fillStyle = '#6b7280';
-    ctx.font = '10px monospace';
-    ctx.fillText('Unlock it in Meta Upgrades', W - 14, controlsBoxY + 104);
+    ctx.fillStyle = '#6b7280'; ctx.font = '10px monospace'; ctx.fillText('Unlock it in Meta Upgrades', W - 14, controlsBoxY + 104);
   } else {
-    ctx.fillStyle = '#7f8c8d';
-    ctx.font = '10px monospace';
-    ctx.fillText('Builds every 1m while you walk', W - 14, controlsBoxY + 104);
+    ctx.fillStyle = '#7f8c8d'; ctx.font = '10px monospace'; ctx.fillText('Builds every 1m while you walk', W - 14, controlsBoxY + 104);
   }
   renderMinimap();
 }
@@ -642,8 +914,8 @@ function renderHUD() {
 function renderMinimap() {
   const { ctx, W, H } = R;
   const game = R.game;
-  const MM_SIZE = 180;
-  const MM_PAD = 12;
+  const MM_SIZE = isMobileUI() ? 112 : 180;
+  const MM_PAD = isMobileUI() ? 8 : 12;
   const MM_SCALE = 0.039;
   const mx = W - MM_SIZE - MM_PAD;
   const my = H - MM_SIZE - MM_PAD;
@@ -1049,91 +1321,95 @@ function renderLevelUpCards() {
   ui.levelupShopLockBtns = [];
   ui.levelupBaseUpgradeBtns = [];
   ctx.fillStyle = 'rgba(4,8,20,0.93)'; ctx.fillRect(0, 0, W, H);
+  if (isMobileUI()) {
+    const { cW, cH, gap, freeTop, shopTop, rightPanelX, centerX, BOT_H } = luPositions();
+    const leftX = 10;
+    const contentRight = rightPanelX - 10;
+    const contentW = contentRight - leftX;
+    ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 18px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(`WAVE ${game.wave} COMPLETE`, centerX, 22);
+    ctx.fillStyle = '#cbd5e1'; ctx.font = '10px monospace';
+    ctx.fillText(`Gold ${game.gold}⬡`, centerX - 56, 40);
+    const freePicked = !cards || cards.length === 0;
+    ctx.fillStyle = freePicked ? '#2ecc71' : '#e74c3c';
+    ctx.fillText(freePicked ? 'free pick chosen' : 'choose a free card', centerX + 48, 40);
+    const freeCards = cards || [];
+    const freeVisible = Math.max(1, freeCards.length);
+    const freeTotalW = Math.max(1, freeVisible) * cW + (Math.max(1, freeVisible) - 1) * gap;
+    const freeStartX = centerX - freeTotalW / 2;
+    ctx.fillStyle = '#0e1e2e'; rrect(leftX, freeTop - 18, contentW, cH + 24, 8); ctx.fill();
+    ctx.fillStyle = '#5dade2'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left'; ctx.fillText('FREE PICK', leftX + 8, freeTop - 5);
+    if (freePicked && game._pickedFreeCard) drawCard(game._pickedFreeCard, centerX - cW / 2, freeTop, cW, cH, { picked: true, needsSlot: weaponCardNeedsSlot(game._pickedFreeCard, game) });
+    else freeCards.forEach((card: any, i: number) => drawCard(card, freeStartX + i * (cW + gap), freeTop, cW, cH, { needsSlot: weaponCardNeedsSlot(card, game) }));
+    const sCards = game.shopCards || [];
+    const shopVisible = Math.max(1, sCards.length);
+    const sTotalW = Math.max(1, shopVisible) * cW + (Math.max(1, shopVisible) - 1) * gap;
+    const sStartX = centerX - sTotalW / 2;
+    ctx.fillStyle = '#120e04'; rrect(leftX, shopTop - 18, contentW, cH + 32, 8); ctx.fill();
+    ctx.fillStyle = '#f39c12'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left'; ctx.fillText('SHOP', leftX + 8, shopTop - 5);
+    sCards.forEach((card: any, i: number) => {
+      const bx = sStartX + i * (cW + gap);
+      const needsSlot = weaponCardNeedsSlot(card, game);
+      if (card._bought) drawCard(card, bx, shopTop, cW, cH, { picked: true, costLabel: 'BOUGHT', needsSlot, locked: card._locked });
+      else drawCard(card, bx, shopTop, cW, cH, { shopCard: true, dimmed: game.gold < card.cost, costLabel: `${card.cost}⬡`, needsSlot, locked: card._locked });
+      if (!card._bought) {
+        const lockW = 44, lockH = 16, lockX = bx + cW - lockW - 6, lockY = shopTop + 6;
+        ctx.fillStyle = card._locked ? '#6b5200' : '#223047'; rrect(lockX, lockY, lockW, lockH, 4); ctx.fill();
+        ctx.strokeStyle = card._locked ? '#f1c40f' : '#7f8c8d'; rrect(lockX, lockY, lockW, lockH, 4); ctx.stroke();
+        ctx.fillStyle = card._locked ? '#f8e27a' : '#cbd5e1'; ctx.font = 'bold 8px monospace'; ctx.textAlign = 'center'; ctx.fillText(card._locked ? 'HELD' : 'LOCK', lockX + lockW / 2, lockY + 11);
+        ui.levelupShopLockBtns.push({ x: lockX, y: lockY, w: lockW, h: lockH, cardIndex: i });
+      }
+    });
+    const botY = H - BOT_H;
+    ctx.fillStyle = '#0b1220'; ctx.fillRect(0, botY, rightPanelX - 4, BOT_H);
+    const rerollCost = game._rerollCost ?? 2;
+    const canReroll = game.gold >= rerollCost;
+    ui.refreshAllBtn = btn(84, botY + BOT_H / 2, `🔀 ${rerollCost}⬡`, canReroll ? '#5b2d8e' : '#252535', 132, 28);
+    ui.continueBtn = btn(rightPanelX - 72, botY + BOT_H / 2, 'DONE', '#27ae60', 116, 28);
+    renderMobileDrawer('levelup');
+    return;
+  }
   const { w: cW, h: cH, gap } = luCardDims();
   const { freeTop, shopTop, leftPanelX, leftPanelW, rightPanelX, rightPanelW, centerX } = luPositions();
-  const panelW = rightPanelW;
-  const panelX = rightPanelX;
+  const panelW = rightPanelW, panelX = rightPanelX;
   renderBaseSidebar(leftPanelX, leftPanelW);
   renderLoadoutSidebar(panelX, panelW, { hint: game._cardActionHint });
-
   const centerStartX = leftPanelX + leftPanelW + 12;
-  ctx.fillStyle = '#1a2540';
-  ctx.fillRect(centerStartX, 0, panelX - centerStartX, 66);
-  ctx.strokeStyle = '#2a3a5a'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(centerStartX, 66); ctx.lineTo(panelX, 66); ctx.stroke();
-  ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 24px monospace'; ctx.textAlign = 'center';
-  ctx.fillText(`⚡ WAVE ${game.wave} COMPLETE`, centerX, 32);
-  ctx.fillStyle = '#aaa'; ctx.font = '13px monospace';
-  ctx.fillText(`Gold: ${game.gold} 🪙`, centerX - 80, 54);
+  ctx.fillStyle = '#1a2540'; ctx.fillRect(centerStartX, 0, panelX - centerStartX, 66);
+  ctx.strokeStyle = '#2a3a5a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(centerStartX, 66); ctx.lineTo(panelX, 66); ctx.stroke();
+  ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 24px monospace'; ctx.textAlign = 'center'; ctx.fillText(`⚡ WAVE ${game.wave} COMPLETE`, centerX, 32);
+  ctx.fillStyle = '#aaa'; ctx.font = '13px monospace'; ctx.fillText(`Gold: ${game.gold} 🪙`, centerX - 80, 54);
   const freePicked = !cards || cards.length === 0;
-  ctx.fillStyle = freePicked ? '#2ecc71' : '#e74c3c';
-  ctx.font = '12px monospace';
-  ctx.fillText(freePicked ? '✓ Free pick chosen' : '⬤ Choose a free card below', centerX + 60, 54);
-
+  ctx.fillStyle = freePicked ? '#2ecc71' : '#e74c3c'; ctx.font = '12px monospace'; ctx.fillText(freePicked ? '✓ Free pick chosen' : '⬤ Choose a free card below', centerX + 60, 54);
   ctx.fillStyle = freePicked ? '#1e3a1e' : '#0e1e2e';
-  const freeCards = cards || [];
-  const fTotalW = Math.max(1, freeCards.length) * cW + (Math.max(1, freeCards.length) - 1) * gap;
-  const fStartX = centerX - fTotalW / 2;
-  rrect(fStartX - 14, freeTop - 28, fTotalW + 28, cH + 36, 8); ctx.fill();
-  ctx.strokeStyle = freePicked ? '#27ae60' : '#2a4a6a'; ctx.lineWidth = 1.5;
-  rrect(fStartX - 14, freeTop - 28, fTotalW + 28, cH + 36, 8); ctx.stroke();
-  ctx.fillStyle = freePicked ? '#27ae60' : '#5dade2';
-  ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left';
-  ctx.fillText('✨  FREE PICK', fStartX - 10, freeTop - 12);
-  if (freePicked) {
-    ctx.fillStyle = '#27ae60'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
-    ctx.fillText('✓ PICKED', fStartX + fTotalW + 10, freeTop - 12);
-  }
-  if (freePicked && game._pickedFreeCard) {
-    drawCard(game._pickedFreeCard, centerX - cW / 2, freeTop, cW, cH, { picked: true, needsSlot: weaponCardNeedsSlot(game._pickedFreeCard, game) });
-  } else if (!freePicked) {
-    freeCards.forEach((card: any, i: number) => drawCard(card, fStartX + i * (cW + gap), freeTop, cW, cH, { needsSlot: weaponCardNeedsSlot(card, game) }));
-  }
-
-  const sCards = game.shopCards || [];
-  const sTotalW = Math.max(1, sCards.length) * cW + (Math.max(1, sCards.length) - 1) * gap;
-  const sStartX = centerX - sTotalW / 2;
-  ctx.fillStyle = '#120e04';
-  rrect(sStartX - 14, shopTop - 28, sTotalW + 28, cH + 36, 8); ctx.fill();
-  ctx.strokeStyle = '#4a3410'; ctx.lineWidth = 1.5;
-  rrect(sStartX - 14, shopTop - 28, sTotalW + 28, cH + 36, 8); ctx.stroke();
-  ctx.fillStyle = '#f39c12'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left';
-  ctx.fillText('🛒  SHOP', sStartX - 10, shopTop - 12);
-  ctx.fillStyle = '#95a5a6'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
-  ctx.fillText('Use LOCK NEXT to keep a card for the next shop.', sStartX - 10, shopTop + cH + 18);
-  ctx.fillStyle = '#888'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
-  ctx.fillText(`Gold: ${game.gold} 🪙`, sStartX + sTotalW + 10, shopTop - 12);
+  const freeCards = cards || []; const fTotalW = Math.max(1, freeCards.length) * cW + (Math.max(1, freeCards.length) - 1) * gap; const fStartX = centerX - fTotalW / 2;
+  rrect(fStartX - 14, freeTop - 28, fTotalW + 28, cH + 36, 8); ctx.fill(); ctx.strokeStyle = freePicked ? '#27ae60' : '#2a4a6a'; ctx.lineWidth = 1.5; rrect(fStartX - 14, freeTop - 28, fTotalW + 28, cH + 36, 8); ctx.stroke();
+  ctx.fillStyle = freePicked ? '#27ae60' : '#5dade2'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left'; ctx.fillText('✨  FREE PICK', fStartX - 10, freeTop - 12);
+  if (freePicked) { ctx.fillStyle = '#27ae60'; ctx.font = '11px monospace'; ctx.textAlign = 'right'; ctx.fillText('✓ PICKED', fStartX + fTotalW + 10, freeTop - 12); }
+  if (freePicked && game._pickedFreeCard) drawCard(game._pickedFreeCard, centerX - cW / 2, freeTop, cW, cH, { picked: true, needsSlot: weaponCardNeedsSlot(game._pickedFreeCard, game) });
+  else if (!freePicked) freeCards.forEach((card: any, i: number) => drawCard(card, fStartX + i * (cW + gap), freeTop, cW, cH, { needsSlot: weaponCardNeedsSlot(card, game) }));
+  const sCards = game.shopCards || []; const sTotalW = Math.max(1, sCards.length) * cW + (Math.max(1, sCards.length) - 1) * gap; const sStartX = centerX - sTotalW / 2;
+  ctx.fillStyle = '#120e04'; rrect(sStartX - 14, shopTop - 28, sTotalW + 28, cH + 36, 8); ctx.fill(); ctx.strokeStyle = '#4a3410'; ctx.lineWidth = 1.5; rrect(sStartX - 14, shopTop - 28, sTotalW + 28, cH + 36, 8); ctx.stroke();
+  ctx.fillStyle = '#f39c12'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left'; ctx.fillText('🛒  SHOP', sStartX - 10, shopTop - 12);
+  ctx.fillStyle = '#95a5a6'; ctx.font = '10px monospace'; ctx.fillText('Use LOCK NEXT to keep a card for the next shop.', sStartX - 10, shopTop + cH + 18);
+  ctx.fillStyle = '#888'; ctx.font = '11px monospace'; ctx.textAlign = 'right'; ctx.fillText(`Gold: ${game.gold} 🪙`, sStartX + sTotalW + 10, shopTop - 12);
   sCards.forEach((card: any, i: number) => {
-    const bx = sStartX + i * (cW + gap);
-    const needsSlot = weaponCardNeedsSlot(card, game);
+    const bx = sStartX + i * (cW + gap); const needsSlot = weaponCardNeedsSlot(card, game);
     if (card._bought) drawCard(card, bx, shopTop, cW, cH, { picked: true, costLabel: '✓ BOUGHT', needsSlot, locked: card._locked });
     else drawCard(card, bx, shopTop, cW, cH, { shopCard: true, dimmed: game.gold < card.cost, costLabel: `${card.cost}🪙`, needsSlot, locked: card._locked });
     if (!card._bought) {
-      const lockW = 62;
-      const lockH = 18;
-      const lockX = bx + cW - lockW - 8;
-      const lockY = shopTop + 10;
-      ctx.fillStyle = card._locked ? '#6b5200' : '#223047';
-      rrect(lockX, lockY, lockW, lockH, 4); ctx.fill();
-      ctx.strokeStyle = card._locked ? '#f1c40f' : '#7f8c8d';
-      ctx.lineWidth = 1;
-      rrect(lockX, lockY, lockW, lockH, 4); ctx.stroke();
-      ctx.fillStyle = card._locked ? '#f8e27a' : '#cbd5e1';
-      ctx.font = 'bold 9px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(card._locked ? 'HELD' : 'LOCK', lockX + lockW / 2, lockY + 12);
+      const lockW = 62, lockH = 18, lockX = bx + cW - lockW - 8, lockY = shopTop + 10;
+      ctx.fillStyle = card._locked ? '#6b5200' : '#223047'; rrect(lockX, lockY, lockW, lockH, 4); ctx.fill();
+      ctx.strokeStyle = card._locked ? '#f1c40f' : '#7f8c8d'; ctx.lineWidth = 1; rrect(lockX, lockY, lockW, lockH, 4); ctx.stroke();
+      ctx.fillStyle = card._locked ? '#f8e27a' : '#cbd5e1'; ctx.font = 'bold 9px monospace'; ctx.textAlign = 'center'; ctx.fillText(card._locked ? 'HELD' : 'LOCK', lockX + lockW / 2, lockY + 12);
       ui.levelupShopLockBtns.push({ x: lockX, y: lockY, w: lockW, h: lockH, cardIndex: i });
     }
   });
-
   const botY = H - 52;
   ctx.fillStyle = '#0b1220'; ctx.fillRect(0, botY, panelX, 52);
-  ctx.strokeStyle = '#1e2d44'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(0, botY); ctx.lineTo(panelX, botY); ctx.stroke();
-  const rerollCost = game._rerollCost ?? 2;
-  const canReroll = game.gold >= rerollCost;
-  const refreshLabel = `🔀 Refresh All  ${rerollCost}🪙`;
-  ui.refreshAllBtn = btn(120, botY + 26, refreshLabel, canReroll ? '#5b2d8e' : '#252535', 220, 36);
+  ctx.strokeStyle = '#1e2d44'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, botY); ctx.lineTo(panelX, botY); ctx.stroke();
+  const rerollCost = game._rerollCost ?? 2; const canReroll = game.gold >= rerollCost;
+  ui.refreshAllBtn = btn(120, botY + 26, `🔀 Refresh All  ${rerollCost}🪙`, canReroll ? '#5b2d8e' : '#252535', 220, 36);
   ui.continueBtn = btn(panelX - 110, botY + 26, '▶  DONE', '#27ae60', 180, 36);
 }
 
@@ -1184,186 +1460,63 @@ function drawMenuActionCard(rect: BtnRect, title: string, subtitle: string, colo
 function renderMenu() {
   const { ctx, W, H, meta, ui, mouseX, mouseY } = R;
   const t = performance.now() * 0.001;
-
+  const mobile = isMobileUI();
   const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, '#08111f');
-  bg.addColorStop(0.45, '#0a1630');
-  bg.addColorStop(1, '#050914');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
-
+  bg.addColorStop(0, '#08111f'); bg.addColorStop(0.45, '#0a1630'); bg.addColorStop(1, '#050914');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
   const glowLeft = ctx.createRadialGradient(W * 0.24, H * 0.32, 0, W * 0.24, H * 0.32, W * 0.42);
-  glowLeft.addColorStop(0, 'rgba(38, 208, 206, 0.20)');
-  glowLeft.addColorStop(1, 'rgba(38, 208, 206, 0)');
-  ctx.fillStyle = glowLeft;
-  ctx.fillRect(0, 0, W, H);
-
+  glowLeft.addColorStop(0, 'rgba(38, 208, 206, 0.20)'); glowLeft.addColorStop(1, 'rgba(38, 208, 206, 0)');
+  ctx.fillStyle = glowLeft; ctx.fillRect(0, 0, W, H);
   const glowRight = ctx.createRadialGradient(W * 0.82, H * 0.26, 0, W * 0.82, H * 0.26, W * 0.28);
-  glowRight.addColorStop(0, 'rgba(241, 196, 15, 0.18)');
-  glowRight.addColorStop(1, 'rgba(241, 196, 15, 0)');
-  ctx.fillStyle = glowRight;
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.strokeStyle = 'rgba(105, 146, 186, 0.08)';
-  ctx.lineWidth = 1;
-  const gridStep = 72;
+  glowRight.addColorStop(0, 'rgba(241, 196, 15, 0.18)'); glowRight.addColorStop(1, 'rgba(241, 196, 15, 0)');
+  ctx.fillStyle = glowRight; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(105, 146, 186, 0.08)'; ctx.lineWidth = 1;
+  const gridStep = mobile ? 58 : 72;
   for (let x = -gridStep; x < W + gridStep; x += gridStep) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x + H * 0.9, H);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x, H);
-    ctx.lineTo(x + H * 0.9, 0);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + H * 0.9, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, H); ctx.lineTo(x + H * 0.9, 0); ctx.stroke();
   }
-
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  for (let i = 0; i < 130; i++) {
-    const sx = (i * 137.5 + Math.sin(t + i) * 18) % W;
-    const sy = (i * 73.3 + Math.cos(t * 0.7 + i) * 12) % H;
-    ctx.fillRect(sx, sy, 1.5, 1.5);
-  }
-
-  const heroX = 44;
-  const actionW = Math.min(310, Math.max(250, W * 0.25));
-  const actionX = W - actionW - 42;
-  const heroW = Math.max(320, actionX - heroX - 26);
-  const heroH = Math.min(430, Math.max(340, H - 140));
-  const heroY = Math.max(42, H / 2 - heroH / 2);
-
-  ctx.fillStyle = 'rgba(8,16,30,0.74)';
-  rrect(heroX, heroY, heroW, heroH, 24); ctx.fill();
-  ctx.strokeStyle = 'rgba(90, 172, 214, 0.16)';
-  ctx.lineWidth = 1.5;
-  rrect(heroX, heroY, heroW, heroH, 24); ctx.stroke();
-
-  const artCx = heroX + heroW * 0.73;
-  const artCy = heroY + heroH * 0.43;
-  const pulse = 1 + Math.sin(t * 2.2) * 0.05;
-  ctx.save();
-  ctx.translate(artCx, artCy);
-  ctx.strokeStyle = 'rgba(69, 211, 198, 0.18)';
-  ctx.lineWidth = 2;
-  for (let i = 0; i < 3; i++) {
-    ctx.beginPath();
-    ctx.ellipse(0, 0, (120 + i * 50) * pulse, (60 + i * 24) * pulse, 0, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  const nodes = [
-    { x: 0, y: 0, color:'#f39c12', size: 18 },
-    { x: -112, y: 54, color:'#2ecc71', size: 12 },
-    { x: 106, y: 46, color:'#3498db', size: 12 },
-    { x: 26, y: -88, color:'#9b59b6', size: 12 },
-  ];
-  ctx.strokeStyle = 'rgba(121, 220, 214, 0.26)';
-  ctx.lineWidth = 2;
-  for (let i = 1; i < nodes.length; i++) {
-    ctx.beginPath();
-    ctx.moveTo(nodes[0].x, nodes[0].y);
-    ctx.lineTo(nodes[i].x, nodes[i].y);
-    ctx.stroke();
-  }
-  for (const node of nodes) {
-    ctx.save();
-    ctx.translate(node.x, node.y);
-    ctx.rotate(Math.PI / 4);
-    ctx.fillStyle = node.color + '33';
-    ctx.fillRect(-node.size * 1.8, -node.size * 1.8, node.size * 3.6, node.size * 3.6);
-    ctx.fillStyle = node.color;
-    ctx.fillRect(-node.size, -node.size, node.size * 2, node.size * 2);
-    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-    ctx.strokeRect(-node.size, -node.size, node.size * 2, node.size * 2);
-    ctx.restore();
-  }
+  for (let i = 0; i < 130; i++) { const sx = (i * 137.5 + Math.sin(t + i) * 18) % W; const sy = (i * 73.3 + Math.cos(t * 0.7 + i) * 12) % H; ctx.fillRect(sx, sy, 1.5, 1.5); }
+  const heroX = mobile ? 16 : 44;
+  const actionW = mobile ? Math.min(228, Math.max(194, W * 0.34)) : Math.min(310, Math.max(250, W * 0.25));
+  const actionX = W - actionW - (mobile ? 16 : 42);
+  const heroW = Math.max(mobile ? 250 : 320, actionX - heroX - (mobile ? 10 : 26));
+  const heroH = mobile ? Math.max(230, H - 32) : Math.min(430, Math.max(340, H - 140));
+  const heroY = mobile ? 16 : Math.max(42, H / 2 - heroH / 2);
+  ctx.fillStyle = 'rgba(8,16,30,0.74)'; rrect(heroX, heroY, heroW, heroH, 24); ctx.fill();
+  ctx.strokeStyle = 'rgba(90, 172, 214, 0.16)'; ctx.lineWidth = 1.5; rrect(heroX, heroY, heroW, heroH, 24); ctx.stroke();
+  const artCx = heroX + heroW * (mobile ? 0.76 : 0.73), artCy = heroY + heroH * 0.43, pulse = 1 + Math.sin(t * 2.2) * 0.05;
+  ctx.save(); ctx.translate(artCx, artCy); ctx.strokeStyle = 'rgba(69, 211, 198, 0.18)'; ctx.lineWidth = mobile ? 1.5 : 2;
+  for (let i = 0; i < 3; i++) { const ex = (mobile ? 86 : 120 + i * 50) * pulse; const ey = (mobile ? 44 : 60 + i * 24) * pulse; ctx.beginPath(); ctx.ellipse(0, 0, ex, ey, 0, 0, Math.PI * 2); ctx.stroke(); }
+  const nodes = [{ x: 0, y: 0, color:'#f39c12', size: mobile ? 14 : 18 }, { x: -90, y: 44, color:'#2ecc71', size: mobile ? 10 : 12 }, { x: 84, y: 40, color:'#3498db', size: mobile ? 10 : 12 }, { x: 20, y: -72, color:'#9b59b6', size: mobile ? 10 : 12 }];
+  ctx.strokeStyle = 'rgba(121, 220, 214, 0.26)'; ctx.lineWidth = 2; for (let i = 1; i < nodes.length; i++) { ctx.beginPath(); ctx.moveTo(nodes[0].x, nodes[0].y); ctx.lineTo(nodes[i].x, nodes[i].y); ctx.stroke(); }
+  for (const node of nodes) { ctx.save(); ctx.translate(node.x, node.y); ctx.rotate(Math.PI / 4); ctx.fillStyle = node.color + '33'; ctx.fillRect(-node.size * 1.8, -node.size * 1.8, node.size * 3.6, node.size * 3.6); ctx.fillStyle = node.color; ctx.fillRect(-node.size, -node.size, node.size * 2, node.size * 2); ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.strokeRect(-node.size, -node.size, node.size * 2, node.size * 2); ctx.restore(); }
   ctx.restore();
-
-  ctx.fillStyle = '#f39c12';
-  ctx.font = 'bold 20px monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText('CRYSTAL', heroX + 34, heroY + 78);
-  ctx.font = 'bold 56px monospace';
-  ctx.fillText('BASTION', heroX + 30, heroY + 138);
-
-  ctx.fillStyle = '#9fb3c8';
-  ctx.font = '15px monospace';
-  ctx.fillText('Defend the crystal core. Expand a living tower network.', heroX + 34, heroY + 176);
-  ctx.fillText('Draft cards, stack relics, and survive the siege.', heroX + 34, heroY + 198);
-
-  ctx.font = 'bold 11px monospace';
-  const chipDefs = [
-    { label: 'ROGUELITE SURVIVAL', fill: 'rgba(46, 204, 113, 0.18)' },
-    { label: 'CARD DRAFTING', fill: 'rgba(52, 152, 219, 0.18)' },
-    { label: 'TOWER WEB', fill: 'rgba(241, 196, 15, 0.18)' },
-  ];
-  let chipX = heroX + 34;
-  let chipY = heroY + 228;
-  const chipRight = heroX + heroW - 34;
-  for (const chip of chipDefs) {
-    const chipW = ctx.measureText(chip.label).width + 22;
-    if (chipX + chipW > chipRight) {
-      chipX = heroX + 34;
-      chipY += 30;
-    }
-    drawMenuChip(chipX, chipY, chip.label, chip.fill);
-    chipX += chipW + 10;
-  }
-
-  ctx.fillStyle = 'rgba(4,10,20,0.66)';
-  rrect(heroX + 34, heroY + heroH - 122, heroW - 68, 82, 16); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-  ctx.lineWidth = 1;
-  rrect(heroX + 34, heroY + heroH - 122, heroW - 68, 82, 16); ctx.stroke();
-  ctx.fillStyle = '#f1c40f';
-  ctx.font = 'bold 16px monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText(`💎 ${meta.crystals} relic shards`, heroX + 52, heroY + heroH - 88);
-  ctx.fillStyle = '#8fd3ff';
-  ctx.font = '12px monospace';
-  ctx.fillText('Spend relic shards on permanent upgrades between runs.', heroX + 52, heroY + heroH - 60);
-  ctx.fillStyle = '#5f7287';
-  ctx.font = '11px monospace';
-  ctx.fillText('Build stronger starts, faster waves, and a tougher crystal core.', heroX + 52, heroY + heroH - 38);
-
-  const actionPanelY = heroY + 26;
-  const actionPanelH = heroH - 52;
-  ctx.fillStyle = 'rgba(8,14,24,0.82)';
-  rrect(actionX, actionPanelY, actionW, actionPanelH, 22); ctx.fill();
-  ctx.strokeStyle = 'rgba(125, 146, 175, 0.14)';
-  ctx.lineWidth = 1.2;
-  rrect(actionX, actionPanelY, actionW, actionPanelH, 22); ctx.stroke();
-  ctx.fillStyle = '#7f92a8';
-  ctx.font = 'bold 11px monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText('ENTER THE SIEGE', actionX + 22, actionPanelY + 28);
-
-  const menuDefs = [
-    { label:'PLAY', subtitle:'Start a fresh defense run', color:'#27ae60' },
-    { label:'RELICS', subtitle:'Spend shards on permanent upgrades', color:'#8e44ad' },
-    { label:'CARD BOOK', subtitle:'Browse every card and weapon tier', color:'#2980b9' },
-  ];
-  const cardGap = 14;
-  const actionCardTop = actionPanelY + 74;
-  const actionCardBottomPad = 30;
-  const actionCardH = Math.min(76, Math.max(62, (actionPanelH - (actionCardTop - actionPanelY) - actionCardBottomPad - cardGap * (menuDefs.length - 1)) / menuDefs.length));
-  ui.menuBtns = menuDefs.map((def, index) => ({
-    cx: actionX + actionW / 2,
-    cy: actionCardTop + actionCardH / 2 + index * (actionCardH + cardGap),
-    bw: actionW - 34,
-    bh: actionCardH,
-  }));
-  menuDefs.forEach((def, index) => {
-    const rect = ui.menuBtns[index];
-    drawMenuActionCard(rect, def.label, def.subtitle, def.color, inBtn(mouseX, mouseY, rect));
-  });
-
-  ctx.fillStyle = '#4f637a';
-  ctx.font = '11px monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText(`v${GAME_VERSION}`, actionX + 22, actionPanelY + actionPanelH - 18);
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#63758a';
-  ctx.fillText('WASD move  ·  SPACE dash  ·  ENTER starts waves early', W - 32, H - 28);
+  ctx.fillStyle = '#f39c12'; ctx.font = mobile ? 'bold 16px monospace' : 'bold 20px monospace'; ctx.textAlign = 'left'; ctx.fillText('CRYSTAL', heroX + 24, heroY + (mobile ? 46 : 78));
+  ctx.font = mobile ? 'bold 34px monospace' : 'bold 56px monospace'; ctx.fillText('BASTION', heroX + 20, heroY + (mobile ? 92 : 138));
+  ctx.fillStyle = '#9fb3c8'; ctx.font = mobile ? '12px monospace' : '15px monospace'; ctx.fillText('Defend the crystal core. Expand a living tower network.', heroX + 24, heroY + (mobile ? 122 : 176)); ctx.fillText('Draft cards, stack relics, and survive the siege.', heroX + 24, heroY + (mobile ? 142 : 198));
+  ctx.font = 'bold 10px monospace';
+  const chipDefs = [{ label: 'ROGUELITE SURVIVAL', fill: 'rgba(46, 204, 113, 0.18)' }, { label: 'CARD DRAFTING', fill: 'rgba(52, 152, 219, 0.18)' }, { label: 'TOWER WEB', fill: 'rgba(241, 196, 15, 0.18)' }];
+  let chipX = heroX + 24, chipY = heroY + (mobile ? 158 : 228), chipRight = heroX + heroW - 24;
+  for (const chip of chipDefs) { const chipW = ctx.measureText(chip.label).width + 22; if (chipX + chipW > chipRight) { chipX = heroX + 24; chipY += 28; } drawMenuChip(chipX, chipY, chip.label, chip.fill); chipX += chipW + 8; }
+  const infoY = heroY + heroH - (mobile ? 88 : 122);
+  ctx.fillStyle = 'rgba(4,10,20,0.66)'; rrect(heroX + 20, infoY, heroW - 40, mobile ? 60 : 82, 16); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1; rrect(heroX + 20, infoY, heroW - 40, mobile ? 60 : 82, 16); ctx.stroke();
+  ctx.fillStyle = '#f1c40f'; ctx.font = mobile ? 'bold 13px monospace' : 'bold 16px monospace'; ctx.textAlign = 'left'; ctx.fillText(`💎 ${meta.crystals} relic shards`, heroX + 34, infoY + 22);
+  ctx.fillStyle = '#8fd3ff'; ctx.font = mobile ? '10px monospace' : '12px monospace'; ctx.fillText('Spend shards on permanent upgrades between runs.', heroX + 34, infoY + 40);
+  if (!mobile) { ctx.fillStyle = '#5f7287'; ctx.font = '11px monospace'; ctx.fillText('Build stronger starts, faster waves, and a tougher crystal core.', heroX + 52, infoY + 62); }
+  const actionPanelY = heroY + (mobile ? 14 : 26), actionPanelH = heroH - (mobile ? 28 : 52);
+  ctx.fillStyle = 'rgba(8,14,24,0.82)'; rrect(actionX, actionPanelY, actionW, actionPanelH, 22); ctx.fill();
+  ctx.strokeStyle = 'rgba(125, 146, 175, 0.14)'; ctx.lineWidth = 1.2; rrect(actionX, actionPanelY, actionW, actionPanelH, 22); ctx.stroke();
+  ctx.fillStyle = '#7f92a8'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left'; ctx.fillText('ENTER THE SIEGE', actionX + 18, actionPanelY + 22);
+  const menuDefs = [{ label:'PLAY', subtitle:'Fresh defense run', color:'#27ae60' }, { label:'RELICS', subtitle:'Permanent upgrades', color:'#8e44ad' }, { label:'CARD BOOK', subtitle:'Browse cards & tiers', color:'#2980b9' }];
+  const cardGap = mobile ? 10 : 14, actionCardTop = actionPanelY + (mobile ? 40 : 74), actionCardBottomPad = mobile ? 18 : 30;
+  const actionCardH = Math.min(mobile ? 66 : 76, Math.max(mobile ? 56 : 62, (actionPanelH - (actionCardTop - actionPanelY) - actionCardBottomPad - cardGap * (menuDefs.length - 1)) / menuDefs.length));
+  ui.menuBtns = menuDefs.map((def, index) => ({ cx: actionX + actionW / 2, cy: actionCardTop + actionCardH / 2 + index * (actionCardH + cardGap), bw: actionW - (mobile ? 22 : 34), bh: actionCardH }));
+  menuDefs.forEach((def, index) => drawMenuActionCard(ui.menuBtns[index], def.label, def.subtitle, def.color, inBtn(mouseX, mouseY, ui.menuBtns[index])));
+  ctx.fillStyle = '#4f637a'; ctx.font = '10px monospace'; ctx.textAlign = 'left'; ctx.fillText(`v${GAME_VERSION}`, actionX + 18, actionPanelY + actionPanelH - 12);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#63758a'; ctx.fillText(mobile ? 'landscape phone mode active' : 'WASD move  ·  SPACE dash  ·  ENTER starts waves early', W - (mobile ? 16 : 32), H - (mobile ? 12 : 28));
 }
 
 export function handleMenuClick(mx: number, my: number) {
@@ -1599,19 +1752,14 @@ export function handleDevMenuClick(mx: number, my: number) {
 function renderGameover() {
   const { ctx, W, H, ui } = R;
   const game = R.game;
+  const mobile = isMobileUI();
   ctx.fillStyle = 'rgba(0,0,0,0.95)'; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 52px monospace'; ctx.textAlign = 'center';
-  ctx.fillText(game.player.dead ? 'YOU DIED' : 'BASE DESTROYED', W / 2, H / 2 - 140);
-  ctx.fillStyle = '#ecf0f1'; ctx.font = '22px monospace';
-  ctx.fillText(`Waves survived: ${game.wave}`, W / 2, H / 2 - 80);
-  ctx.fillStyle = '#f1c40f'; ctx.font = '20px monospace';
-  ctx.fillText(`+${game.crystalsEarned} crystals earned`, W / 2, H / 2 - 50);
-  ctx.fillStyle = '#bdc3c7'; ctx.font = '15px monospace';
-  ctx.fillText(`Weapons used: ${game.player.weapons.map((w: any) => WEAPONS[w.id].name + ' Lv' + w.level).join(', ')}`, W / 2, H / 2 - 18);
-  ui.gameoverBtns = [
-    btn(W / 2 - 115, H / 2 + 44, 'PLAY AGAIN', '#27ae60'),
-    btn(W / 2 + 115, H / 2 + 44, 'RELICS 💎', '#8e44ad'),
-  ];
+  ctx.fillStyle = '#e74c3c'; ctx.font = mobile ? 'bold 28px monospace' : 'bold 52px monospace'; ctx.textAlign = 'center';
+  ctx.fillText(game.player.dead ? 'YOU DIED' : 'BASE DESTROYED', W / 2, H / 2 - (mobile ? 92 : 140));
+  ctx.fillStyle = '#ecf0f1'; ctx.font = mobile ? '16px monospace' : '22px monospace'; ctx.fillText(`Waves survived: ${game.wave}`, W / 2, H / 2 - (mobile ? 50 : 80));
+  ctx.fillStyle = '#f1c40f'; ctx.font = mobile ? '14px monospace' : '20px monospace'; ctx.fillText(`+${game.crystalsEarned} crystals earned`, W / 2, H / 2 - (mobile ? 24 : 50));
+  ctx.fillStyle = '#bdc3c7'; ctx.font = mobile ? '10px monospace' : '15px monospace'; ctx.fillText(`Weapons used: ${game.player.weapons.map((w: any) => WEAPONS[w.id].name + ' Lv' + w.level).join(', ')}`, W / 2, H / 2 + (mobile ? 0 : -18));
+  ui.gameoverBtns = mobile ? [btn(W / 2, H / 2 + 46, 'PLAY AGAIN', '#27ae60', 180, 34), btn(W / 2, H / 2 + 88, 'RELICS 💎', '#8e44ad', 180, 34)] : [btn(W / 2 - 115, H / 2 + 44, 'PLAY AGAIN', '#27ae60'), btn(W / 2 + 115, H / 2 + 44, 'RELICS 💎', '#8e44ad')];
 }
 
 export function handleGameoverClick(mx: number, my: number) {
@@ -1623,24 +1771,38 @@ export function handleGameoverClick(mx: number, my: number) {
 function renderPauseScreen() {
   const { ctx, W, H, ui } = R;
   const game = R.game;
-  const { leftPanelX, leftPanelW, rightPanelX, rightPanelW } = luPositions();
+  const mobile = isMobileUI();
   ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0, 0, W, H);
   ui.levelupBaseUpgradeBtns = [];
+  if (mobile) {
+    renderMobileDrawer('paused');
+    const leftW = getMobileDrawerRect().x - 20;
+    ctx.fillStyle = '#ecf0f1'; ctx.font = 'bold 26px monospace'; ctx.textAlign = 'center'; ctx.fillText('PAUSED', leftW / 2, H / 2 - 70);
+    ctx.fillStyle = '#aaa'; ctx.font = '12px monospace'; ctx.fillText('Tap resume or quit', leftW / 2, H / 2 - 40);
+    const quitLabel = game?.devSession ? 'DEV MENU' : 'QUIT TO MENU';
+    ui.pauseBtns = [btn(leftW / 2, H / 2 + 4, '▶ RESUME', '#27ae60', 160, 34), btn(leftW / 2, H / 2 + 46, quitLabel, '#c0392b', 160, 34)];
+    return;
+  }
+  const { leftPanelX, leftPanelW, rightPanelX, rightPanelW } = luPositions();
   renderBaseSidebar(leftPanelX, leftPanelW, { allowBuy: false });
   renderLoadoutSidebar(rightPanelX, rightPanelW, { title: 'RUN STATUS', allowSell: false });
-  ctx.fillStyle = '#ecf0f1'; ctx.font = 'bold 40px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('PAUSED', W / 2, H / 2 - 80);
-  ctx.fillStyle = '#aaa'; ctx.font = '14px monospace';
-  ctx.fillText('Press P or Escape to resume', W / 2, H / 2 - 44);
+  ctx.fillStyle = '#ecf0f1'; ctx.font = 'bold 40px monospace'; ctx.textAlign = 'center'; ctx.fillText('PAUSED', W / 2, H / 2 - 80);
+  ctx.fillStyle = '#aaa'; ctx.font = '14px monospace'; ctx.fillText('Press P or Escape to resume', W / 2, H / 2 - 44);
   const quitLabel = game?.devSession ? '🛠 RETURN TO DEV MENU' : '🏠 QUIT TO MENU';
-  ui.pauseBtns = [
-    btn(W / 2, H / 2 + 10, '▶ RESUME', '#27ae60', 220, 44),
-    btn(W / 2, H / 2 + 70, quitLabel, '#c0392b', 220, 44),
-  ];
+  ui.pauseBtns = [btn(W / 2, H / 2 + 10, '▶ RESUME', '#27ae60', 220, 44), btn(W / 2, H / 2 + 70, quitLabel, '#c0392b', 220, 44)];
 }
 
 export function handlePauseClick(mx: number, my: number) {
   const ui = R.ui;
+  if (ui.isMobileLandscape) {
+    for (const tabBtn of ui.mobileDrawerTabBtns || []) {
+      if (mx >= tabBtn.x && mx <= tabBtn.x + tabBtn.w && my >= tabBtn.y && my <= tabBtn.y + tabBtn.h) {
+        ui.mobileDrawerTab = tabBtn.tab;
+        ui.mobileScrollY = 0;
+        return;
+      }
+    }
+  }
   if (ui.pauseBtns[0] && inBtn(mx, my, ui.pauseBtns[0])) R.state = 'playing';
   if (ui.pauseBtns[1] && inBtn(mx, my, ui.pauseBtns[1])) {
     if (R.game?.devSession) finishDevSession(`Returned from wave ${R.game.wave} without finishing it.`);
@@ -1662,237 +1824,125 @@ function makeCardBookPreviewGame(card: any) {
 
 function renderCardBook() {
   const { ctx, W, H, ui } = R;
-  const CARD_W = 140, CARD_H = 200, CARD_GAP = 10;
-  const SIDE = 200;
-  const CONTENT_X = SIDE + 16;
+  const mobile = isMobileUI();
+  const CARD_W = mobile ? 110 : 140, CARD_H = mobile ? 164 : 200, CARD_GAP = 10;
+  const SIDE = mobile ? 0 : 200;
+  const CONTENT_X = mobile ? 12 : SIDE + 16;
   const CONTENT_W = W - CONTENT_X - 16;
-  const HEADER_H = 52;
+  const HEADER_H = mobile ? 72 : 52;
   const clipTop = HEADER_H + 2;
-  const clipBot = H - 4;
-
-  // Background
+  const clipBot = H - (mobile ? 38 : 4);
   ctx.fillStyle = '#060c18'; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#0b1525'; ctx.fillRect(0, 0, SIDE, H);
-  ctx.fillStyle = '#1a2a3e'; ctx.fillRect(SIDE, 0, 1, H);
-
-  // Header
-  ctx.fillStyle = '#1a2a3e'; ctx.fillRect(0, 0, W, HEADER_H);
-  ctx.fillStyle = '#2980b9'; ctx.fillRect(0, HEADER_H, W, 1);
-  ctx.fillStyle = '#5dade2'; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'left';
-  ctx.fillText('📖  CARD BOOK', 16, 34);
+  if (!mobile) { ctx.fillStyle = '#0b1525'; ctx.fillRect(0, 0, SIDE, H); ctx.fillStyle = '#1a2a3e'; ctx.fillRect(SIDE, 0, 1, H); }
+  ctx.fillStyle = '#1a2a3e'; ctx.fillRect(0, 0, W, HEADER_H); ctx.fillStyle = '#2980b9'; ctx.fillRect(0, HEADER_H, W, 1);
+  ctx.fillStyle = '#5dade2'; ctx.font = mobile ? 'bold 18px monospace' : 'bold 22px monospace'; ctx.textAlign = 'left'; ctx.fillText('📖  CARD BOOK', 16, mobile ? 26 : 34);
   const luckPreview = 0;
   const t = buildDropChanceTable(luckPreview);
-  const rarityItems = [
-    { label:'Common',   color:'#3498db', pct: t.common },
-    { label:'Uncommon', color:'#e67e22', pct: t.uncommon },
-    { label:'Rare',     color:'#9b59b6', pct: t.rare },
-  ];
+  const rarityItems = [{ label:'Common', color:'#3498db', pct: t.common }, { label:'Uncommon', color:'#e67e22', pct: t.uncommon }, { label:'Rare', color:'#9b59b6', pct: t.rare }];
   let rx = W - 16;
-  ctx.textAlign = 'right';
   for (let i = rarityItems.length - 1; i >= 0; i--) {
-    const it = rarityItems[i];
-    ctx.fillStyle = it.color + '30'; rrect(rx - 118, 14, 118, 22, 4); ctx.fill();
-    ctx.strokeStyle = it.color + '88'; ctx.lineWidth = 1; rrect(rx - 118, 14, 118, 22, 4); ctx.stroke();
-    ctx.fillStyle = it.color; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
-    ctx.fillText(it.label, rx - 112, 28);
-    ctx.fillStyle = '#bbb'; ctx.font = '10px monospace';
-    ctx.fillText(`${it.pct}% / card`, rx - 60, 28);
-    rx -= 128;
+    const it = rarityItems[i]; const bw = mobile ? 92 : 118; const bx = rx - bw;
+    ctx.fillStyle = it.color + '30'; rrect(bx, mobile ? 36 : 14, bw, 22, 4); ctx.fill();
+    ctx.strokeStyle = it.color + '88'; ctx.lineWidth = 1; rrect(bx, mobile ? 36 : 14, bw, 22, 4); ctx.stroke();
+    ctx.fillStyle = it.color; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left'; ctx.fillText(it.label, bx + 6, mobile ? 50 : 28);
+    if (!mobile) { ctx.fillStyle = '#bbb'; ctx.font = '10px monospace'; ctx.fillText(`${it.pct}% / card`, bx + 52, 28); }
+    rx -= bw + 8;
   }
-
-  // Sidebar nav
-  const NAV_ITEMS = [
-    { id:'weapons', icon:'⚔️',  label:'WEAPONS',  color:'#e74c3c', count: Object.keys(WEAPONS).length },
-    ...CB_SECTIONS.map(s => ({ id:s.id, icon:s.icon, label:s.label, color:s.color,
-      count: STAT_UPGRADES.filter(s.filter).length })),
-  ];
-  let navY = clipTop + 12;
-  for (const nav of NAV_ITEMS) {
-    ctx.fillStyle = nav.color + '22'; rrect(8, navY, SIDE - 16, 42, 6); ctx.fill();
-    ctx.strokeStyle = nav.color + '66'; ctx.lineWidth = 1; rrect(8, navY, SIDE - 16, 42, 6); ctx.stroke();
-    ctx.fillStyle = nav.color; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left';
-    ctx.fillText(`${nav.icon}  ${nav.label}`, 18, navY + 17);
-    ctx.fillStyle = '#7f8c8d'; ctx.font = '10px monospace';
-    ctx.fillText(`${nav.count} cards`, 18, navY + 32);
-    navY += 52;
-  }
-
   function drawBookCard(card: any, bx: number, by: number) {
-    const savedGame = R.game;
-    R.game = makeCardBookPreviewGame(card);
-    drawCard(card, bx, by, CARD_W, CARD_H, { dropChance: rarityDropChance(card.rarity, luckPreview) });
-    R.game = savedGame;
+    const savedGame = R.game; R.game = makeCardBookPreviewGame(card); drawCard(card, bx, by, CARD_W, CARD_H, { dropChance: rarityDropChance(card.rarity, luckPreview) }); R.game = savedGame;
   }
-
   function drawSectionHeader(y: number, icon: string, label: string, color: string, note: string, count: number) {
-    ctx.fillStyle = color + '18'; rrect(CONTENT_X, y, CONTENT_W, 38, 6); ctx.fill();
-    ctx.strokeStyle = color; ctx.lineWidth = 2; rrect(CONTENT_X, y, CONTENT_W, 38, 6); ctx.stroke();
-    ctx.fillStyle = color; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'left';
-    ctx.fillText(`${icon}  ${label}`, CONTENT_X + 12, y + 24);
-    ctx.fillStyle = '#7f8c8d'; ctx.font = '10px monospace';
-    ctx.fillText(note, CONTENT_X + 12, y + 36);
-    ctx.fillStyle = color + 'cc'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'right';
-    ctx.fillText(`${count} cards`, CONTENT_X + CONTENT_W - 12, y + 24);
+    ctx.fillStyle = color + '18'; rrect(CONTENT_X, y, CONTENT_W, mobile ? 30 : 38, 6); ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 2; rrect(CONTENT_X, y, CONTENT_W, mobile ? 30 : 38, 6); ctx.stroke();
+    ctx.fillStyle = color; ctx.font = mobile ? 'bold 12px monospace' : 'bold 14px monospace'; ctx.textAlign = 'left'; ctx.fillText(`${icon}  ${label}`, CONTENT_X + 12, y + (mobile ? 20 : 24));
+    if (!mobile) { ctx.fillStyle = '#7f8c8d'; ctx.font = '10px monospace'; ctx.fillText(note, CONTENT_X + 12, y + 36); }
+    ctx.fillStyle = color + 'cc'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'right'; ctx.fillText(`${count} cards`, CONTENT_X + CONTENT_W - 12, y + (mobile ? 20 : 24));
   }
-
   function layout(draw: boolean) {
     let y = clipTop - ui.cardBookScroll;
     const cols = Math.max(1, Math.floor((CONTENT_W + CARD_GAP) / (CARD_W + CARD_GAP)));
-
-    // ── WEAPONS ──────────────────────────────────────────────
     const weaponIds = Object.keys(WEAPONS);
-    const wpnSecH = 48 + weaponIds.length * (CARD_H + CARD_GAP + 24);
-    if (draw && y + wpnSecH >= clipTop && y < clipBot) {
-      drawSectionHeader(y, '⚔️', 'WEAPONS', '#e74c3c', 'Each weapon has 4 upgrade levels. Level 1 = unlock, 2-4 = power upgrades.', weaponIds.length * 4);
-    }
-    y += 48;
+    const weaponHeaderH = mobile ? 36 : 48;
+    const weaponRowsPerWeapon = Math.max(1, Math.ceil(4 / cols));
+    const wpnSecH = weaponHeaderH + weaponIds.length * (weaponRowsPerWeapon * (CARD_H + CARD_GAP) + 24);
+    if (draw && y + wpnSecH >= clipTop && y < clipBot) drawSectionHeader(y, '⚔️', 'WEAPONS', '#e74c3c', 'Each weapon has 4 upgrade levels.', weaponIds.length * 4);
+    y += weaponHeaderH;
     for (const id of weaponIds) {
       const def = WEAPONS[id] as any;
       const rowCards = [1,2,3,4].map(lv => ({ type:'weapon', weaponId:id, newLevel:lv, rarity:def.rarity }));
-      const rowH = CARD_H + 24;
+      const rowH = weaponRowsPerWeapon * (CARD_H + CARD_GAP) + 24;
       if (draw && y + rowH >= clipTop && y < clipBot) {
-        // weapon label
-        ctx.fillStyle = def.color + '22';
-        ctx.fillRect(CONTENT_X, y, CONTENT_W, 20);
-        ctx.fillStyle = def.color; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left';
-        ctx.fillText(`${def.icon}  ${def.name}`, CONTENT_X + 8, y + 14);
-        ctx.fillStyle = '#7f8c8d'; ctx.font = '10px monospace';
-        ctx.fillText(def.rarity.toUpperCase(), CONTENT_X + CONTENT_W - 60, y + 14);
-        for (let i = 0; i < 4; i++) {
-          const bx = CONTENT_X + i * (CARD_W + CARD_GAP);
-          const by = y + 22;
-          if (bx + CARD_W > CONTENT_X + CONTENT_W) continue;
-          if (by + CARD_H < clipTop || by > clipBot) continue;
-          drawBookCard(rowCards[i], bx, by);
-        }
-      }
-      y += rowH + CARD_GAP;
-    }
-    y += 16;
-
-    // ── STAT CARD SECTIONS ────────────────────────────────────
-    for (const sec of CB_SECTIONS) {
-      const cards = STAT_UPGRADES.filter(sec.filter).map(s => ({ type:'stat', statId:s.id, rarity:s.rarity || 'common' }));
-      if (cards.length === 0) continue;
-      const gridRows = Math.ceil(cards.length / cols);
-      const secH = 48 + gridRows * (CARD_H + CARD_GAP);
-      if (draw && y + secH >= clipTop && y < clipBot) {
-        drawSectionHeader(y, sec.icon, sec.label, sec.color, sec.note, cards.length);
-        const cardsY = y + 48;
-        cards.forEach((card: any, idx: number) => {
-          const col = idx % cols;
-          const row = Math.floor(idx / cols);
+        ctx.fillStyle = def.color + '22'; ctx.fillRect(CONTENT_X, y, CONTENT_W, 20); ctx.fillStyle = def.color; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left'; ctx.fillText(`${def.icon}  ${def.name}`, CONTENT_X + 8, y + 14);
+        rowCards.forEach((card: any, i: number) => {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
           const bx = CONTENT_X + col * (CARD_W + CARD_GAP);
-          const by = cardsY + row * (CARD_H + CARD_GAP);
+          const by = y + 22 + row * (CARD_H + CARD_GAP);
+          if (bx + CARD_W > CONTENT_X + CONTENT_W) return;
           if (by + CARD_H < clipTop || by > clipBot) return;
           drawBookCard(card, bx, by);
         });
       }
+      y += rowH + CARD_GAP;
+    }
+    y += 12;
+    for (const sec of CB_SECTIONS) {
+      const cards = STAT_UPGRADES.filter(sec.filter).map(s => ({ type:'stat', statId:s.id, rarity:s.rarity || 'common' }));
+      if (!cards.length) continue;
+      const secHeaderH = mobile ? 36 : 48; const gridRows = Math.ceil(cards.length / cols); const secH = secHeaderH + gridRows * (CARD_H + CARD_GAP);
+      if (draw && y + secH >= clipTop && y < clipBot) {
+        drawSectionHeader(y, sec.icon, sec.label, sec.color, sec.note, cards.length);
+        const cardsY = y + secHeaderH;
+        cards.forEach((card: any, idx: number) => { const col = idx % cols; const row = Math.floor(idx / cols); const bx = CONTENT_X + col * (CARD_W + CARD_GAP); const by = cardsY + row * (CARD_H + CARD_GAP); if (by + CARD_H < clipTop || by > clipBot) return; drawBookCard(card, bx, by); });
+      }
       y += secH + 16;
     }
-
     return y + ui.cardBookScroll;
   }
-
-  const totalH = layout(false);
-  const maxScroll = Math.max(0, totalH - clipBot + 24);
-  ui.cardBookScroll = clamp(ui.cardBookScroll, 0, maxScroll);
-
-  ctx.save();
-  ctx.beginPath(); ctx.rect(CONTENT_X, clipTop, W - CONTENT_X, clipBot - clipTop); ctx.clip();
-  layout(true);
-  ctx.restore();
-
-  // Scrollbar
-  if (maxScroll > 0) {
-    const sbX = W - 8, sbTop = clipTop + 4, sbH = clipBot - clipTop - 8;
-    const thumbH = Math.max(30, sbH * (clipBot - clipTop) / (totalH));
-    const thumbY = sbTop + (ui.cardBookScroll / maxScroll) * (sbH - thumbH);
-    ctx.fillStyle = '#1e2d44'; ctx.fillRect(sbX - 4, sbTop, 4, sbH);
-    ctx.fillStyle = '#3a5a7a'; rrect(sbX - 4, thumbY, 4, thumbH, 2); ctx.fill();
-  }
-
-  ui.cardBookBackBtn = btn(SIDE / 2, H - 28, '← BACK', '#2c3e50', 160, 32);
+  const totalH = layout(false); const maxScroll = Math.max(0, totalH - clipBot + 24); ui.cardBookScroll = clamp(ui.cardBookScroll, 0, maxScroll);
+  ctx.save(); ctx.beginPath(); ctx.rect(CONTENT_X, clipTop, W - CONTENT_X, clipBot - clipTop); ctx.clip(); layout(true); ctx.restore();
+  if (maxScroll > 0) { const sbX = W - 8, sbTop = clipTop + 4, sbH = clipBot - clipTop - 8; const thumbH = Math.max(30, sbH * (clipBot - clipTop) / totalH); const thumbY = sbTop + (ui.cardBookScroll / maxScroll) * (sbH - thumbH); ctx.fillStyle = '#1e2d44'; ctx.fillRect(sbX - 4, sbTop, 4, sbH); ctx.fillStyle = '#3a5a7a'; rrect(sbX - 4, thumbY, 4, thumbH, 2); ctx.fill(); }
+  ui.cardBookBackBtn = mobile ? btn(W - 32, 22, '←', '#2c3e50', 40, 24) : btn(SIDE / 2, H - 28, '← BACK', '#2c3e50', 160, 32);
 }
 
 function renderMetaScreen() {
   const { ctx, W, H, meta, ui } = R;
+  const mobile = isMobileUI();
   ctx.fillStyle = '#0a0f1e'; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#8e44ad'; ctx.font = 'bold 28px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('RELICS', W / 2, 42);
-  ctx.fillStyle = '#f1c40f'; ctx.font = '16px monospace';
-  ctx.fillText(`💎 ${meta.crystals} crystals`, W / 2, 66);
+  ctx.fillStyle = '#8e44ad'; ctx.font = mobile ? 'bold 22px monospace' : 'bold 28px monospace'; ctx.textAlign = 'center'; ctx.fillText('RELICS', W / 2, mobile ? 28 : 42);
+  ctx.fillStyle = '#f1c40f'; ctx.font = mobile ? '12px monospace' : '16px monospace'; ctx.fillText(`💎 ${meta.crystals} crystals`, W / 2, mobile ? 48 : 66);
   ui.metaBtns = [];
-  const cols = 3, cardW = 245, cardH = 106, gX = 18, gY = 12;
-  const totalW = cols * cardW + (cols - 1) * gX;
-  const sX = W / 2 - totalW / 2;
-  const clipTop = 78, clipBot = H - 52;
+  const cols = mobile ? 2 : 3, cardW = mobile ? Math.min(206, Math.floor((W - 40) / 2)) : 245, cardH = mobile ? 96 : 106, gX = mobile ? 12 : 18, gY = 12;
+  const totalW = cols * cardW + (cols - 1) * gX, sX = W / 2 - totalW / 2, clipTop = mobile ? 58 : 78, clipBot = H - 52;
   let layoutRow = 0, layoutCol = 0, layoutLastCat = null, contentBottom = clipTop;
-  META_UPGRADES.forEach((upg: any) => {
-    if (upg.cat !== layoutLastCat) {
-      if (layoutCol !== 0) { layoutRow++; layoutCol = 0; }
-      layoutRow += 0.22;
-      layoutLastCat = upg.cat;
-    }
-    const cardTop = clipTop + layoutRow * (cardH + gY);
-    contentBottom = Math.max(contentBottom, cardTop + cardH);
-    layoutCol++;
-    if (layoutCol >= cols) { layoutCol = 0; layoutRow++; }
-  });
-  ui.maxMetaScroll = Math.max(0, contentBottom - clipBot + 12);
-  ui.metaScroll = clamp(ui.metaScroll, 0, ui.maxMetaScroll);
-  ctx.save();
-  ctx.beginPath(); ctx.rect(0, clipTop, W, clipBot - clipTop); ctx.clip();
+  META_UPGRADES.forEach((upg: any) => { if (upg.cat !== layoutLastCat) { if (layoutCol !== 0) { layoutRow++; layoutCol = 0; } layoutRow += 0.22; layoutLastCat = upg.cat; } const cardTop = clipTop + layoutRow * (cardH + gY); contentBottom = Math.max(contentBottom, cardTop + cardH); layoutCol++; if (layoutCol >= cols) { layoutCol = 0; layoutRow++; } });
+  ui.maxMetaScroll = Math.max(0, contentBottom - clipBot + 12); ui.metaScroll = clamp(ui.metaScroll, 0, ui.maxMetaScroll);
+  ctx.save(); ctx.beginPath(); ctx.rect(0, clipTop, W, clipBot - clipTop); ctx.clip();
   let row = 0, col = 0, lastCat = null;
   META_UPGRADES.forEach((upg: any) => {
-    if (upg.cat !== lastCat) {
-      if (col !== 0) { row++; col = 0; }
-      const ly = clipTop + row * (cardH + gY) - ui.metaScroll;
-      if (ly > clipTop - 20 && ly < clipBot) {
-        ctx.fillStyle = CAT_COLORS[upg.cat] || '#aaa';
-        ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left';
-        ctx.fillText(CAT_LABELS[upg.cat] || upg.cat.toUpperCase(), sX, ly + 14);
-      }
-      row += 0.22;
-      lastCat = upg.cat;
-    }
-    const bx = sX + col * (cardW + gX);
-    const by = clipTop + row * (cardH + gY) - ui.metaScroll;
+    if (upg.cat !== lastCat) { if (col !== 0) { row++; col = 0; } const ly = clipTop + row * (cardH + gY) - ui.metaScroll; if (ly > clipTop - 20 && ly < clipBot) { ctx.fillStyle = CAT_COLORS[upg.cat] || '#aaa'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left'; ctx.fillText(CAT_LABELS[upg.cat] || upg.cat.toUpperCase(), sX, ly + 14); } row += 0.22; lastCat = upg.cat; }
+    const bx = sX + col * (cardW + gX), by = clipTop + row * (cardH + gY) - ui.metaScroll;
     if (by + cardH >= clipTop && by <= clipBot) {
-      const lvl = meta.upgrades[upg.id] || 0;
-      const maxed = lvl >= upg.max;
-      const canAfford = !maxed && meta.crystals >= upg.cost;
-      const catColor = CAT_COLORS[upg.cat] || '#8e44ad';
-      ctx.fillStyle = maxed ? '#1a3a1a' : canAfford ? '#0f1a2e' : '#111';
-      rrect(bx, by, cardW, cardH, 7); ctx.fill();
-      ctx.strokeStyle = maxed ? '#27ae60' : canAfford ? catColor : '#2a2a2a';
-      ctx.lineWidth = maxed || canAfford ? 2 : 1;
-      rrect(bx, by, cardW, cardH, 7); ctx.stroke();
+      const lvl = meta.upgrades[upg.id] || 0, maxed = lvl >= upg.max, canAfford = !maxed && meta.crystals >= upg.cost, catColor = CAT_COLORS[upg.cat] || '#8e44ad';
+      ctx.fillStyle = maxed ? '#1a3a1a' : canAfford ? '#0f1a2e' : '#111'; rrect(bx, by, cardW, cardH, 7); ctx.fill();
+      ctx.strokeStyle = maxed ? '#27ae60' : canAfford ? catColor : '#2a2a2a'; ctx.lineWidth = maxed || canAfford ? 2 : 1; rrect(bx, by, cardW, cardH, 7); ctx.stroke();
       ctx.fillStyle = catColor + '33'; rrect(bx, by, cardW, 5, 3); ctx.fill();
-      ctx.fillStyle = maxed ? '#2ecc71' : '#dfe6e9'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left';
-      ctx.fillText(upg.label, bx + 10, by + 22);
-      ctx.fillStyle = '#95a5a6'; ctx.font = '10px monospace';
-      const descBottom = wrapText(upg.desc, bx + 10, by + 38, cardW - 20, 12, 2);
-      const dotsY = descBottom + 15;
-      ctx.fillStyle = catColor;
-      ctx.fillText('●'.repeat(lvl) + '○'.repeat(upg.max - lvl), bx + 10, dotsY);
+      ctx.fillStyle = maxed ? '#2ecc71' : '#dfe6e9'; ctx.font = mobile ? 'bold 11px monospace' : 'bold 12px monospace'; ctx.textAlign = 'left'; ctx.fillText(upg.label, bx + 10, by + 20);
+      ctx.fillStyle = '#95a5a6'; ctx.font = '10px monospace'; const descBottom = wrapText(upg.desc, bx + 10, by + 34, cardW - 20, 12, 2); const dotsY = descBottom + 15;
+      ctx.fillStyle = catColor; ctx.fillText('●'.repeat(lvl) + '○'.repeat(upg.max - lvl), bx + 10, dotsY);
       if (!maxed) {
-        ctx.fillStyle = canAfford ? '#f1c40f' : '#555'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
-        ctx.fillText(`${upg.cost}💎`, bx + cardW - 8, by + 22);
-        if (canAfford) ui.metaBtns.push({ ...btn(bx + cardW / 2, by + cardH - 18, 'UNLOCK', catColor, cardW - 30, 26), id:upg.id, cost:upg.cost, max:upg.max });
+        ctx.fillStyle = canAfford ? '#f1c40f' : '#555'; ctx.font = '11px monospace'; ctx.textAlign = 'right'; ctx.fillText(`${upg.cost}💎`, bx + cardW - 8, by + 20);
+        if (canAfford) ui.metaBtns.push({ ...btn(bx + cardW / 2, by + cardH - 16, mobile ? 'BUY' : 'UNLOCK', catColor, cardW - 30, 24), id:upg.id, cost:upg.cost, max:upg.max });
       } else {
-        ctx.fillStyle = '#27ae60'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'center';
-        ctx.fillText('✓ MAXED', bx + cardW / 2, by + cardH - 10);
+        ctx.fillStyle = '#27ae60'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'center'; ctx.fillText('✓ MAXED', bx + cardW / 2, by + cardH - 10);
       }
     }
-    col++;
-    if (col >= cols) { col = 0; row++; }
+    col++; if (col >= cols) { col = 0; row++; }
   });
   ctx.restore();
   ctx.fillStyle = 'rgba(10,15,30,0.95)'; ctx.fillRect(0, clipBot, W, H - clipBot);
-  ctx.fillStyle = '#333'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('↕ scroll with mouse wheel', W / 2, clipBot + 16);
-  ui.metaBackBtn = btn(W / 2, H - 22, '← BACK', '#555', 160, 32);
+  ctx.fillStyle = '#333'; ctx.font = '11px monospace'; ctx.textAlign = 'center'; ctx.fillText(mobile ? 'scroll to browse relics' : '↕ scroll with mouse wheel', W / 2, clipBot + 16);
+  ui.metaBackBtn = btn(W / 2, H - 22, mobile ? 'BACK' : '← BACK', '#555', 160, 32);
 }
 
 export function handleMetaClick(mx: number, my: number) {
@@ -1999,7 +2049,7 @@ function getRunCardTooltipLines(entry: any) {
   } else {
     const stat = STAT_UPGRADES.find(s => s.id === entry.statId);
     if (stat?.count) {
-      const cur = stat.count(R.game.player);
+      const cur = stat.count(R.game.player, R.game);
       lines.push(stat.max ? `Stacks ${cur}/${stat.max}` : `Stacks ${cur}`);
     }
     if (entry.statId === 'outpostCheap') {
