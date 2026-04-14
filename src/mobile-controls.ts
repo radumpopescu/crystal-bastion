@@ -34,16 +34,16 @@ const buildBtn = root.querySelector('[data-action="build"]') as HTMLButtonElemen
 
 const joystick = nipplejs.create({
   zone: joystickZone,
-  mode: 'static',
-  position: { left: '50%', top: '50%' },
+  mode: 'dynamic',
   color: 'white',
   size: 120,
   restOpacity: 0.35,
   fadeTime: 120,
-  lockX: false,
-  lockY: false,
   dynamicPage: true,
 });
+
+let dragOriginX = 0;
+let dragOriginY = 0;
 
 function setTouchMove(x = 0, y = 0) {
   if (!R.game) return;
@@ -59,17 +59,18 @@ function setTouchMoveFromScreenVector(screenX = 0, screenY = 0) {
     setTouchMove(0, 0);
     return;
   }
-  const maxLen = Math.max(1, len);
-  setTouchMove(isoX / maxLen, isoY / maxLen);
+  setTouchMove(isoX / len, isoY / len);
+}
+
+function setDragOrigin(clientX: number, clientY: number) {
+  dragOriginX = clientX;
+  dragOriginY = clientY;
 }
 
 function setJoystickFromPoint(clientX: number, clientY: number) {
-  const rect = joystickShell.getBoundingClientRect();
-  const cx = rect.left + rect.width / 2;
-  const cy = rect.top + rect.height / 2;
-  const dx = clientX - cx;
-  const dy = clientY - cy;
-  const maxR = rect.width * 0.33;
+  const dx = clientX - dragOriginX;
+  const dy = clientY - dragOriginY;
+  const maxR = 60;
   const len = Math.hypot(dx, dy) || 1;
   const clamped = Math.min(maxR, len);
   const magnitude = clamped / maxR;
@@ -99,6 +100,12 @@ function shouldShowRotateOverlay() {
   return isTouchMobile() && window.innerHeight > window.innerWidth;
 }
 
+joystick.on('start', (evt: any, data: any) => {
+  const pos = data?.position || evt?.changedTouches?.[0] || evt;
+  if (pos?.x != null && pos?.y != null) setDragOrigin(pos.x, pos.y);
+  else if (pos?.clientX != null && pos?.clientY != null) setDragOrigin(pos.clientX, pos.clientY);
+});
+
 joystick.on('move', (_evt: any, data: any) => {
   const vector = data?.vector;
   if (!vector) return;
@@ -114,7 +121,8 @@ let pointerActive = false;
 joystickShell.addEventListener('pointerdown', e => {
   if (!visible()) return;
   pointerActive = true;
-  setJoystickFromPoint(e.clientX, e.clientY);
+  setDragOrigin(e.clientX, e.clientY);
+  setTouchMove(0, 0);
 });
 
 joystickShell.addEventListener('pointermove', e => {
