@@ -831,8 +831,6 @@ function renderHUD() {
       const earlyGold = Math.max(2, Math.round(7 * (game.waveTimer / (WAVE_INTERVAL + (game.waveDelayBonus || 0))) * (game.earlyBonusMult || 1) * (1 + game.wave * 0.12)));
       ui.waveStartBtn = btn(W / 2 - 12, H - 24, `▶ ${earlyGold}g`, '#e67e22', 112, 28);
     }
-    renderMobileDrawerToggle();
-    renderMobileDrawer('playing');
     renderMinimap();
     return;
   }
