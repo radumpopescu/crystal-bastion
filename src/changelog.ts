@@ -10,6 +10,16 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: GAME_VERSION,
+    title: 'Weapon level previews now show computed final values',
+    date: '2026-04-14',
+    changes: [
+      'Weapon balance data now stores per-level multipliers and additive bonuses instead of duplicated per-level raw stats.',
+      'The balance editor now shows editable base weapon stats, editable level modifiers, and a computed L1-L4 final-values table for each weapon.',
+      'This keeps weapon tuning readable now and sets the pattern for other scaling systems that need both formulas and resulting values.',
+    ],
+  },
+  {
+    version: '2026.04.14.15',
     title: 'Steeper waves and anti-tower-spam economy',
     date: '2026-04-14',
     changes: [

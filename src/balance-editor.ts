@@ -1,5 +1,5 @@
 import { R } from './state';
-import { balanceConfigStore, listBalanceSections, listNumericFields, setValueAtPath } from './balance-config';
+import { balanceConfigStore, computeWeaponLevelStats, listBalanceSections, listNumericFields, setValueAtPath, summarizeWeaponLevelPreviewRows } from './balance-config';
 
 const store = balanceConfigStore;
 
@@ -542,7 +542,7 @@ function renderEnemiesSection() {
 
 function renderWeaponsSection() {
   const weapons = draftConfig.weapons || {};
-  setSectionMeta('weapons', 'Weapons', `${Object.keys(weapons).length} weapons shown in a comparison table, plus per-weapon drill-down cards.`);
+  setSectionMeta('weapons', 'Weapons', `${Object.keys(weapons).length} weapons shown with editable base stats, per-level modifiers, and computed final values for each weapon level.`);
   fieldGridEl.innerHTML = '';
 
   const controlsCard = document.createElement('div');
@@ -559,14 +559,14 @@ function renderWeaponsSection() {
   fieldGridEl.appendChild(controlsCard);
 
   const rows = Object.entries(weapons).map(([id, weapon]: [string, any]) => {
-    const levelData = weapon.levels?.find((row: any) => row.level === selectedWeaponPreviewLevel) || {};
+    const levelData = computeWeaponLevelStats(weapon, selectedWeaponPreviewLevel);
     return {
       weapon: `${weapon.icon || ''} ${weapon.name || labelize(id)}`.trim(),
       rarity: weapon.rarity,
       mode: weapon.mode,
-      damage: levelData.dmg ?? weapon.dmg ?? '—',
-      range: levelData.range ?? weapon.range ?? '—',
-      rate: levelData.rate ?? weapon.rate ?? '—',
+      damage: levelData.dmg ?? '—',
+      range: levelData.range ?? '—',
+      rate: levelData.rate ?? '—',
       cost: levelData.cost ?? '—',
       level: levelData.bonusText || 'No specific override',
     };
@@ -591,11 +591,13 @@ function renderWeaponsSection() {
       renderWeaponsSection();
       setStatus(`Weapon preview level set to L${level}`);
     }));
-    const levelData = weapon.levels?.find((row: any) => row.level === selectedWeaponPreviewLevel) || {};
+
+    const selectedLevelData = computeWeaponLevelStats(weapon, selectedWeaponPreviewLevel);
     const preview = document.createElement('div');
     preview.className = 'be-level-preview';
-    preview.textContent = `Preview L${selectedWeaponPreviewLevel}: dmg ${levelData.dmg ?? '—'}, range ${levelData.range ?? '—'}, rate ${levelData.rate ?? '—'}, cost ${levelData.cost ?? '—'}${levelData.bonusText ? ` • ${levelData.bonusText}` : ''}`;
+    preview.textContent = `Computed L${selectedWeaponPreviewLevel}: dmg ${selectedLevelData.dmg ?? '—'}, range ${selectedLevelData.range ?? '—'}, rate ${selectedLevelData.rate ?? '—'}, cost ${selectedLevelData.cost ?? '—'}${selectedLevelData.bonusText ? ` • ${selectedLevelData.bonusText}` : ''}`;
     card.appendChild(preview);
+
     const identityTree = renderTreeNode({
       name: weapon.name,
       icon: weapon.icon,
@@ -604,9 +606,48 @@ function renderWeaponsSection() {
       mode: weapon.mode,
       rarity: weapon.rarity,
     }, ['weapons', id, 'identity'], 1);
-    const levelTree = renderTreeNode(levelData, ['weapons', id, 'levels', String(selectedWeaponPreviewLevel - 1)], 1);
+
+    const baseStatsTree = renderTreeNode({
+      dmg: weapon.dmg,
+      range: weapon.range,
+      rate: weapon.rate,
+      projSpeed: weapon.projSpeed,
+      projSize: weapon.projSize,
+      pellets: weapon.pellets,
+      spread: weapon.spread,
+      blastR: weapon.blastR,
+      chains: weapon.chains,
+      arcAngle: weapon.arcAngle,
+      maxRate: weapon.maxRate,
+      spinup: weapon.spinup,
+    }, ['weapons', id], 1);
+
+    const modifierTree = renderTreeNode(weapon.levels?.[selectedWeaponPreviewLevel - 1] || {}, ['weapons', id, 'levels', String(selectedWeaponPreviewLevel - 1)], 1);
     if (identityTree) card.appendChild(identityTree);
-    if (levelTree) card.appendChild(levelTree);
+    if (baseStatsTree) card.appendChild(baseStatsTree);
+    if (modifierTree) card.appendChild(modifierTree);
+
+    const previewRows = summarizeWeaponLevelPreviewRows(weapon).map(row => ({
+      level: `L${row.level}`,
+      damage: row.dmg ?? '—',
+      range: row.range ?? '—',
+      rate: row.rate ?? '—',
+      pellets: row.pellets ?? '—',
+      blast: row.blastR ?? '—',
+      chains: row.chains ?? '—',
+      note: row.bonusText || '—',
+    }));
+    card.appendChild(buildDataTable([
+      { key: 'level', label: 'Level' },
+      { key: 'damage', label: 'Damage' },
+      { key: 'range', label: 'Range' },
+      { key: 'rate', label: 'Rate' },
+      { key: 'pellets', label: 'Pellets' },
+      { key: 'blast', label: 'Blast' },
+      { key: 'chains', label: 'Chains' },
+      { key: 'note', label: 'Notes', className: 'be-cell-nowrap' },
+    ], previewRows));
+
     card.appendChild(buildRelatedLinks('weapons'));
     grid.appendChild(card);
   });

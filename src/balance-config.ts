@@ -163,6 +163,69 @@ export function setValueAtPath(target: any, path: string[], nextValue: any) {
   return root;
 }
 
+const WEAPON_MULTIPLIER_FIELDS = [
+  'dmg',
+  'range',
+  'rate',
+  'projSpeed',
+  'projSize',
+  'spread',
+  'blastR',
+  'arcAngle',
+  'maxRate',
+] as const;
+
+const WEAPON_ADDITIVE_FIELDS = [
+  'pellets',
+  'chains',
+  'spinup',
+] as const;
+
+function roundWeaponValue(value: number | null) {
+  if (value == null) return null;
+  if (Number.isInteger(value)) return value;
+  return Number(value.toFixed(2));
+}
+
+export function getWeaponLevelConfig(weapon: any, level: number) {
+  return (weapon?.levels || []).find((row: any) => row.level === level) || null;
+}
+
+export function computeWeaponLevelStats(weapon: any, level: number) {
+  const row = getWeaponLevelConfig(weapon, level) || {};
+  const computed: Record<string, any> = {
+    level,
+    cost: row.cost ?? null,
+  };
+
+  for (const field of WEAPON_MULTIPLIER_FIELDS) {
+    const base = weapon?.[field];
+    if (base == null) {
+      computed[field] = null;
+      continue;
+    }
+    const multiplier = row[`${field}Multiplier`] ?? 1;
+    computed[field] = roundWeaponValue(base * multiplier);
+  }
+
+  for (const field of WEAPON_ADDITIVE_FIELDS) {
+    const base = weapon?.[field];
+    const additive = row[`${field}Add`] ?? 0;
+    if (base == null && !additive) {
+      computed[field] = null;
+      continue;
+    }
+    computed[field] = roundWeaponValue((base ?? 0) + additive);
+  }
+
+  computed.bonusText = row.bonusText ?? null;
+  return computed;
+}
+
+export function summarizeWeaponLevelPreviewRows(weapon: any) {
+  return (weapon?.levels || []).map((row: any, index: number) => computeWeaponLevelStats(weapon, row.level ?? index + 1));
+}
+
 function humanizeKey(value: string) {
   return value
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
