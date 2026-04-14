@@ -802,4 +802,3 @@ window.addEventListener('crystal-bastion:balance-config-refresh-editor', () => {
   }
 });
 
-syncOpenButton();
