@@ -1,0 +1,2151 @@
+{
+  "schemaVersion": 1,
+  "notes": {
+    "purpose": "Default Crystal Bastion balance configuration. Local override uses the same shape.",
+    "coverage": [
+      "player base stats",
+      "economy values",
+      "base stats",
+      "tower stats",
+      "wave formulas",
+      "enemy definitions",
+      "weapons",
+      "run cards",
+      "meta upgrades",
+      "base upgrade shop"
+    ]
+  },
+  "player": {
+    "base": {
+      "hp": 100,
+      "speed": 280,
+      "radius": 18,
+      "dashSpeed": 480,
+      "dashDuration": 0.18,
+      "dashCooldown": 1.2,
+      "maxWeaponSlots": 6
+    }
+  },
+  "economy": {
+    "startingGold": 30,
+    "shopRefreshCost": 20,
+    "freeDeployGold": 35,
+    "rerollBaseCost": 2,
+    "cardCost": {
+      "common": 18,
+      "uncommon": 32,
+      "rare": 55,
+      "weaponUpgradeDiscountMultiplier": 0.75,
+      "waveScale": 0.08
+    },
+    "earlyStartBonus": {
+      "base": 7,
+      "minimum": 2,
+      "waveScale": 0.12
+    }
+  },
+  "base": {
+    "core": {
+      "hp": 600,
+      "buildRange": 700,
+      "attackRange": 300,
+      "damage": 28,
+      "attackSpeed": 0.9,
+      "auraRadius": 140,
+      "auraDamage": 4,
+      "multishot": 1
+    }
+  },
+  "towers": {
+    "generic": {
+      "hp": 100,
+      "buildRange": 550,
+      "damage": 20,
+      "attackRange": 240,
+      "attackSpeed": 0.85,
+      "levelDamageMultiplier": 1.28,
+      "levelRangeAdd": 18,
+      "cost": {
+        "base": 55,
+        "minimum": 10,
+        "perBuilt": 5,
+        "lateWaveStart": 8,
+        "lateWaveStep": 2
+      },
+      "placement": {
+        "minAnchorDistance": 65,
+        "connectionFactor": 0.6
+      }
+    }
+  },
+  "waves": {
+    "interval": 32,
+    "startingDelay": 8,
+    "baseMonsters": 4,
+    "monstersPerWave": 3,
+    "wavePower": 1.38,
+    "hpScalePerWave": 0.26,
+    "hpScaleAfterWave": 6,
+    "hpScaleLateBonus": 0.03,
+    "speedScalePerWave": 0.05,
+    "damageScalePerWave": 0.1,
+    "spawn": {
+      "baseOffset": 200,
+      "randomOffset": 220
+    },
+    "crystalReward": {
+      "base": 1,
+      "waveStep": 4
+    }
+  },
+  "enemies": {
+    "grunt": {
+      "hp": 50,
+      "speed": 70,
+      "damage": 9,
+      "gold": 3,
+      "radius": 14,
+      "color": "#e74c3c"
+    },
+    "rusher": {
+      "hp": 28,
+      "speed": 145,
+      "damage": 6,
+      "gold": 2,
+      "radius": 10,
+      "color": "#e67e22"
+    },
+    "brute": {
+      "hp": 220,
+      "speed": 48,
+      "damage": 24,
+      "gold": 7,
+      "radius": 22,
+      "color": "#8e44ad"
+    },
+    "tank": {
+      "hp": 500,
+      "speed": 32,
+      "damage": 35,
+      "gold": 14,
+      "radius": 28,
+      "color": "#2c3e50"
+    }
+  },
+  "weapons": {
+    "pistol": {
+      "id": "pistol",
+      "name": "Pistol",
+      "icon": "\ud83d\udd2b",
+      "color": "#5dade2",
+      "desc": "Reliable sidearm. Consistent single shots.",
+      "dmg": 22,
+      "range": 240,
+      "rate": 1.2,
+      "projSpeed": 420,
+      "projSize": 5,
+      "mode": "basic",
+      "rarity": "common",
+      "levelBonus": [
+        null,
+        "+25% dmg",
+        "+30% fire rate",
+        "+40% range & dmg"
+      ],
+      "levels": [
+        {
+          "level": 1,
+          "cost": null,
+          "dmg": 22,
+          "range": 240,
+          "rate": 1.2,
+          "projSpeed": 420,
+          "projSize": 5,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+25% dmg"
+        },
+        {
+          "level": 2,
+          "cost": null,
+          "dmg": 22,
+          "range": 240,
+          "rate": 1.2,
+          "projSpeed": 420,
+          "projSize": 5,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+30% fire rate"
+        },
+        {
+          "level": 3,
+          "cost": null,
+          "dmg": 22,
+          "range": 240,
+          "rate": 1.2,
+          "projSpeed": 420,
+          "projSize": 5,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+40% range & dmg"
+        },
+        {
+          "level": 4,
+          "cost": null,
+          "dmg": 22,
+          "range": 240,
+          "rate": 1.2,
+          "projSpeed": 420,
+          "projSize": 5,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": null
+        }
+      ]
+    },
+    "shotgun": {
+      "id": "shotgun",
+      "name": "Shotgun",
+      "icon": "\ud83d\udca5",
+      "color": "#e67e22",
+      "desc": "Devastating spread at close range.",
+      "dmg": 14,
+      "range": 160,
+      "rate": 0.55,
+      "projSpeed": 380,
+      "projSize": 5,
+      "mode": "shotgun",
+      "pellets": 6,
+      "spread": 0.45,
+      "rarity": "common",
+      "levelBonus": [
+        null,
+        "+2 pellets",
+        "+35% dmg",
+        "+45% dmg, +2 pellets"
+      ],
+      "levels": [
+        {
+          "level": 1,
+          "cost": null,
+          "dmg": 14,
+          "range": 160,
+          "rate": 0.55,
+          "projSpeed": 380,
+          "projSize": 5,
+          "pellets": 6,
+          "spread": 0.45,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+2 pellets"
+        },
+        {
+          "level": 2,
+          "cost": null,
+          "dmg": 14,
+          "range": 160,
+          "rate": 0.55,
+          "projSpeed": 380,
+          "projSize": 5,
+          "pellets": 6,
+          "spread": 0.45,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+35% dmg"
+        },
+        {
+          "level": 3,
+          "cost": null,
+          "dmg": 14,
+          "range": 160,
+          "rate": 0.55,
+          "projSpeed": 380,
+          "projSize": 5,
+          "pellets": 6,
+          "spread": 0.45,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+45% dmg, +2 pellets"
+        },
+        {
+          "level": 4,
+          "cost": null,
+          "dmg": 14,
+          "range": 160,
+          "rate": 0.55,
+          "projSpeed": 380,
+          "projSize": 5,
+          "pellets": 6,
+          "spread": 0.45,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": null
+        }
+      ]
+    },
+    "rifle": {
+      "id": "rifle",
+      "name": "Assault Rifle",
+      "icon": "\u26a1",
+      "color": "#2ecc71",
+      "desc": "High fire rate automatic. Melts groups.",
+      "dmg": 13,
+      "range": 220,
+      "rate": 3.5,
+      "projSpeed": 480,
+      "projSize": 4,
+      "mode": "basic",
+      "rarity": "common",
+      "levelBonus": [
+        null,
+        "+40% fire rate",
+        "+30% dmg",
+        "+50% dmg & rate"
+      ],
+      "levels": [
+        {
+          "level": 1,
+          "cost": null,
+          "dmg": 13,
+          "range": 220,
+          "rate": 3.5,
+          "projSpeed": 480,
+          "projSize": 4,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+40% fire rate"
+        },
+        {
+          "level": 2,
+          "cost": null,
+          "dmg": 13,
+          "range": 220,
+          "rate": 3.5,
+          "projSpeed": 480,
+          "projSize": 4,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+30% dmg"
+        },
+        {
+          "level": 3,
+          "cost": null,
+          "dmg": 13,
+          "range": 220,
+          "rate": 3.5,
+          "projSpeed": 480,
+          "projSize": 4,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+50% dmg & rate"
+        },
+        {
+          "level": 4,
+          "cost": null,
+          "dmg": 13,
+          "range": 220,
+          "rate": 3.5,
+          "projSpeed": 480,
+          "projSize": 4,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": null
+        }
+      ]
+    },
+    "sniper": {
+      "id": "sniper",
+      "name": "Sniper",
+      "icon": "\ud83c\udfaf",
+      "color": "#9b59b6",
+      "desc": "Extreme range. Pierces through enemies.",
+      "dmg": 70,
+      "range": 500,
+      "rate": 0.4,
+      "projSpeed": 700,
+      "projSize": 6,
+      "mode": "pierce",
+      "rarity": "rare",
+      "levelBonus": [
+        null,
+        "+50% dmg",
+        "+30% rate",
+        "+80% dmg, pierces all"
+      ],
+      "levels": [
+        {
+          "level": 1,
+          "cost": null,
+          "dmg": 70,
+          "range": 500,
+          "rate": 0.4,
+          "projSpeed": 700,
+          "projSize": 6,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+50% dmg"
+        },
+        {
+          "level": 2,
+          "cost": null,
+          "dmg": 70,
+          "range": 500,
+          "rate": 0.4,
+          "projSpeed": 700,
+          "projSize": 6,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+30% rate"
+        },
+        {
+          "level": 3,
+          "cost": null,
+          "dmg": 70,
+          "range": 500,
+          "rate": 0.4,
+          "projSpeed": 700,
+          "projSize": 6,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+80% dmg, pierces all"
+        },
+        {
+          "level": 4,
+          "cost": null,
+          "dmg": 70,
+          "range": 500,
+          "rate": 0.4,
+          "projSpeed": 700,
+          "projSize": 6,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": null
+        }
+      ]
+    },
+    "sword": {
+      "id": "sword",
+      "name": "Sword",
+      "icon": "\u2694\ufe0f",
+      "color": "#e74c3c",
+      "desc": "Melee arc attack. Hits all nearby enemies.",
+      "dmg": 45,
+      "range": 90,
+      "rate": 1.1,
+      "mode": "melee",
+      "arcAngle": 3.455751918948773,
+      "rarity": "common",
+      "levelBonus": [
+        null,
+        "+30% dmg & range",
+        "+50% dmg",
+        "+80% dmg, bigger arc"
+      ],
+      "levels": [
+        {
+          "level": 1,
+          "cost": null,
+          "dmg": 45,
+          "range": 90,
+          "rate": 1.1,
+          "projSpeed": null,
+          "projSize": null,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": 3.455751918948773,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+30% dmg & range"
+        },
+        {
+          "level": 2,
+          "cost": null,
+          "dmg": 45,
+          "range": 90,
+          "rate": 1.1,
+          "projSpeed": null,
+          "projSize": null,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": 3.455751918948773,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+50% dmg"
+        },
+        {
+          "level": 3,
+          "cost": null,
+          "dmg": 45,
+          "range": 90,
+          "rate": 1.1,
+          "projSpeed": null,
+          "projSize": null,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": 3.455751918948773,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+80% dmg, bigger arc"
+        },
+        {
+          "level": 4,
+          "cost": null,
+          "dmg": 45,
+          "range": 90,
+          "rate": 1.1,
+          "projSpeed": null,
+          "projSize": null,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": 3.455751918948773,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": null
+        }
+      ]
+    },
+    "flamethrower": {
+      "id": "flamethrower",
+      "name": "Flamethrower",
+      "icon": "\ud83d\udd25",
+      "color": "#ff6b35",
+      "desc": "Continuous short-range fire cone. Burns enemies.",
+      "dmg": 8,
+      "range": 140,
+      "rate": 8,
+      "projSpeed": 200,
+      "projSize": 7,
+      "mode": "flame",
+      "rarity": "uncommon",
+      "levelBonus": [
+        null,
+        "+40% dmg",
+        "+50% range",
+        "+60% dmg & range"
+      ],
+      "levels": [
+        {
+          "level": 1,
+          "cost": null,
+          "dmg": 8,
+          "range": 140,
+          "rate": 8,
+          "projSpeed": 200,
+          "projSize": 7,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+40% dmg"
+        },
+        {
+          "level": 2,
+          "cost": null,
+          "dmg": 8,
+          "range": 140,
+          "rate": 8,
+          "projSpeed": 200,
+          "projSize": 7,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+50% range"
+        },
+        {
+          "level": 3,
+          "cost": null,
+          "dmg": 8,
+          "range": 140,
+          "rate": 8,
+          "projSpeed": 200,
+          "projSize": 7,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+60% dmg & range"
+        },
+        {
+          "level": 4,
+          "cost": null,
+          "dmg": 8,
+          "range": 140,
+          "rate": 8,
+          "projSpeed": 200,
+          "projSize": 7,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": null
+        }
+      ]
+    },
+    "grenade": {
+      "id": "grenade",
+      "name": "Grenade",
+      "icon": "\ud83d\udca3",
+      "color": "#f1c40f",
+      "desc": "Arcing explosive. Destroys groups on impact.",
+      "dmg": 80,
+      "range": 300,
+      "rate": 0.5,
+      "projSpeed": 250,
+      "projSize": 9,
+      "mode": "grenade",
+      "blastR": 90,
+      "rarity": "uncommon",
+      "levelBonus": [
+        null,
+        "+40% blast radius",
+        "+50% dmg",
+        "+70% dmg & radius"
+      ],
+      "levels": [
+        {
+          "level": 1,
+          "cost": null,
+          "dmg": 80,
+          "range": 300,
+          "rate": 0.5,
+          "projSpeed": 250,
+          "projSize": 9,
+          "pellets": null,
+          "spread": null,
+          "blastR": 90,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+40% blast radius"
+        },
+        {
+          "level": 2,
+          "cost": null,
+          "dmg": 80,
+          "range": 300,
+          "rate": 0.5,
+          "projSpeed": 250,
+          "projSize": 9,
+          "pellets": null,
+          "spread": null,
+          "blastR": 90,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+50% dmg"
+        },
+        {
+          "level": 3,
+          "cost": null,
+          "dmg": 80,
+          "range": 300,
+          "rate": 0.5,
+          "projSpeed": 250,
+          "projSize": 9,
+          "pellets": null,
+          "spread": null,
+          "blastR": 90,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+70% dmg & radius"
+        },
+        {
+          "level": 4,
+          "cost": null,
+          "dmg": 80,
+          "range": 300,
+          "rate": 0.5,
+          "projSpeed": 250,
+          "projSize": 9,
+          "pellets": null,
+          "spread": null,
+          "blastR": 90,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": null
+        }
+      ]
+    },
+    "lightning": {
+      "id": "lightning",
+      "name": "Lightning",
+      "icon": "\u26a1\ud83c\udf29",
+      "color": "#a29bfe",
+      "desc": "Chains between 3 enemies instantly.",
+      "dmg": 35,
+      "range": 280,
+      "rate": 0.9,
+      "mode": "lightning",
+      "chains": 3,
+      "rarity": "rare",
+      "levelBonus": [
+        null,
+        "+2 chains",
+        "+45% dmg",
+        "+60% dmg, +3 chains"
+      ],
+      "levels": [
+        {
+          "level": 1,
+          "cost": null,
+          "dmg": 35,
+          "range": 280,
+          "rate": 0.9,
+          "projSpeed": null,
+          "projSize": null,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": 3,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+2 chains"
+        },
+        {
+          "level": 2,
+          "cost": null,
+          "dmg": 35,
+          "range": 280,
+          "rate": 0.9,
+          "projSpeed": null,
+          "projSize": null,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": 3,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+45% dmg"
+        },
+        {
+          "level": 3,
+          "cost": null,
+          "dmg": 35,
+          "range": 280,
+          "rate": 0.9,
+          "projSpeed": null,
+          "projSize": null,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": 3,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+60% dmg, +3 chains"
+        },
+        {
+          "level": 4,
+          "cost": null,
+          "dmg": 35,
+          "range": 280,
+          "rate": 0.9,
+          "projSpeed": null,
+          "projSize": null,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": 3,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": null
+        }
+      ]
+    },
+    "boomerang": {
+      "id": "boomerang",
+      "name": "Boomerang",
+      "icon": "\ud83e\ude83",
+      "color": "#fd79a8",
+      "desc": "Returns to you, hitting enemies twice.",
+      "dmg": 38,
+      "range": 260,
+      "rate": 0.7,
+      "projSpeed": 300,
+      "projSize": 8,
+      "mode": "boomerang",
+      "rarity": "uncommon",
+      "levelBonus": [
+        null,
+        "+3 bounces",
+        "+40% dmg",
+        "+60% dmg, extra spin"
+      ],
+      "levels": [
+        {
+          "level": 1,
+          "cost": null,
+          "dmg": 38,
+          "range": 260,
+          "rate": 0.7,
+          "projSpeed": 300,
+          "projSize": 8,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+3 bounces"
+        },
+        {
+          "level": 2,
+          "cost": null,
+          "dmg": 38,
+          "range": 260,
+          "rate": 0.7,
+          "projSpeed": 300,
+          "projSize": 8,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+40% dmg"
+        },
+        {
+          "level": 3,
+          "cost": null,
+          "dmg": 38,
+          "range": 260,
+          "rate": 0.7,
+          "projSpeed": 300,
+          "projSize": 8,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": "+60% dmg, extra spin"
+        },
+        {
+          "level": 4,
+          "cost": null,
+          "dmg": 38,
+          "range": 260,
+          "rate": 0.7,
+          "projSpeed": 300,
+          "projSize": 8,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": null,
+          "spinup": null,
+          "bonusText": null
+        }
+      ]
+    },
+    "minigun": {
+      "id": "minigun",
+      "name": "Minigun",
+      "icon": "\ud83c\udf00",
+      "color": "#74b9ff",
+      "desc": "Insane fire rate after spin-up.",
+      "dmg": 9,
+      "range": 200,
+      "rate": 0.5,
+      "maxRate": 9,
+      "projSpeed": 460,
+      "projSize": 4,
+      "mode": "minigun",
+      "spinup": 0,
+      "rarity": "rare",
+      "levelBonus": [
+        null,
+        "+50% dmg",
+        "faster spin-up",
+        "+70% dmg & rate"
+      ],
+      "levels": [
+        {
+          "level": 1,
+          "cost": null,
+          "dmg": 9,
+          "range": 200,
+          "rate": 0.5,
+          "projSpeed": 460,
+          "projSize": 4,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": 9,
+          "spinup": 0,
+          "bonusText": "+50% dmg"
+        },
+        {
+          "level": 2,
+          "cost": null,
+          "dmg": 9,
+          "range": 200,
+          "rate": 0.5,
+          "projSpeed": 460,
+          "projSize": 4,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": 9,
+          "spinup": 0,
+          "bonusText": "faster spin-up"
+        },
+        {
+          "level": 3,
+          "cost": null,
+          "dmg": 9,
+          "range": 200,
+          "rate": 0.5,
+          "projSpeed": 460,
+          "projSize": 4,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": 9,
+          "spinup": 0,
+          "bonusText": "+70% dmg & rate"
+        },
+        {
+          "level": 4,
+          "cost": null,
+          "dmg": 9,
+          "range": 200,
+          "rate": 0.5,
+          "projSpeed": 460,
+          "projSize": 4,
+          "pellets": null,
+          "spread": null,
+          "blastR": null,
+          "chains": null,
+          "arcAngle": null,
+          "maxRate": 9,
+          "spinup": 0,
+          "bonusText": null
+        }
+      ]
+    }
+  },
+  "runCards": {
+    "statCards": {
+      "maxHp": {
+        "id": "maxHp",
+        "icon": "\u2764\ufe0f",
+        "name": "Max HP",
+        "description": "+30 max health",
+        "rarity": "common",
+        "maxStacks": 8,
+        "tuning": {
+          "effectType": "flat_add",
+          "stat": "player.maxHp",
+          "perStack": 30
+        }
+      },
+      "regen": {
+        "id": "regen",
+        "icon": "\ud83d\udc9a",
+        "name": "Regeneration",
+        "description": "+0.1 HP/sec regen",
+        "rarity": "common",
+        "maxStacks": 6,
+        "tuning": {
+          "effectType": "flat_add",
+          "stat": "player.regen",
+          "perStack": 0.1
+        }
+      },
+      "lifesteal": {
+        "id": "lifesteal",
+        "icon": "\ud83e\ude78",
+        "name": "Life Steal",
+        "description": "+0.15 HP on hit",
+        "rarity": "common",
+        "maxStacks": 5,
+        "tuning": {
+          "effectType": "flat_add",
+          "stat": "player.lifesteal",
+          "perStack": 0.15
+        }
+      },
+      "damage": {
+        "id": "damage",
+        "icon": "\ud83d\udca2",
+        "name": "Raw Damage",
+        "description": "+22% all weapon damage",
+        "rarity": "common",
+        "maxStacks": 6,
+        "tuning": {
+          "effectType": "multiplier",
+          "stat": "player.damage",
+          "perStack": 1.22
+        }
+      },
+      "atkspd": {
+        "id": "atkspd",
+        "icon": "\u26a1",
+        "name": "Attack Speed",
+        "description": "+22% attack speed",
+        "rarity": "common",
+        "maxStacks": 6,
+        "tuning": {
+          "effectType": "multiplier",
+          "stat": "player.attackSpeed",
+          "perStack": 1.22
+        }
+      },
+      "movespd": {
+        "id": "movespd",
+        "icon": "\ud83d\udc5f",
+        "name": "Move Speed",
+        "description": "+35 movement speed",
+        "rarity": "common",
+        "maxStacks": 5,
+        "tuning": {
+          "effectType": "flat_add",
+          "stat": "player.speed",
+          "perStack": 35
+        }
+      },
+      "range": {
+        "id": "range",
+        "icon": "\ud83d\udd2d",
+        "name": "Range",
+        "description": "+22% weapon range",
+        "rarity": "common",
+        "maxStacks": 5,
+        "tuning": {
+          "effectType": "multiplier",
+          "stat": "player.range",
+          "perStack": 1.22
+        }
+      },
+      "armor": {
+        "id": "armor",
+        "icon": "\ud83d\udee1\ufe0f",
+        "name": "Armor",
+        "description": "Reduce all damage by 12%",
+        "rarity": "common",
+        "maxStacks": 5,
+        "tuning": {
+          "effectType": "flat_add_clamped",
+          "stat": "player.armor",
+          "perStack": 0.12,
+          "clampMax": 0.85
+        }
+      },
+      "goldFinder": {
+        "id": "goldFinder",
+        "icon": "\ud83d\udcb5",
+        "name": "Gold Finder",
+        "description": "+20% gold from kills",
+        "rarity": "common",
+        "maxStacks": 5,
+        "tuning": {
+          "effectType": "flat_add",
+          "stat": "player.goldFinder",
+          "perStack": 0.2
+        }
+      },
+      "luck": {
+        "id": "luck",
+        "icon": "\ud83c\udf40",
+        "name": "Lucky",
+        "description": "+1 luck: rarer cards more often",
+        "rarity": "uncommon",
+        "maxStacks": 4,
+        "tuning": {
+          "effectType": "flat_add",
+          "stat": "player.luck",
+          "perStack": 1
+        }
+      },
+      "dashLevel": {
+        "id": "dashLevel",
+        "icon": "\ud83c\udf00",
+        "name": "Dash Level",
+        "description": "+15% dash speed and +12% dash length",
+        "rarity": "common",
+        "maxStacks": 5,
+        "tuning": {
+          "effectType": "compound",
+          "values": {
+            "levelPerStack": 1,
+            "dashSpeedMultiplier": 1.15,
+            "dashDurationMultiplier": 1.12
+          }
+        }
+      },
+      "dash": {
+        "id": "dash",
+        "icon": "\ud83d\udca8",
+        "name": "Dash Charge",
+        "description": "+1 max dash charge",
+        "rarity": "common",
+        "maxStacks": 5,
+        "tuning": {
+          "effectType": "flat_add",
+          "stat": "player.maxDashes",
+          "perStack": 1
+        }
+      },
+      "towerRepair": {
+        "id": "towerRepair",
+        "icon": "\ud83c\udff0",
+        "name": "Base Repair",
+        "description": "Restore 200 base HP",
+        "rarity": "uncommon",
+        "maxStacks": null,
+        "tuning": {
+          "effectType": "instant_restore",
+          "stat": "base.hp",
+          "amount": 200
+        }
+      },
+      "towerBoost": {
+        "id": "towerBoost",
+        "icon": "\ud83d\uddfc",
+        "name": "Base Overcharge",
+        "description": "+30% base damage this run",
+        "rarity": "uncommon",
+        "maxStacks": null,
+        "tuning": {
+          "effectType": "multiplier",
+          "stat": "base.damage",
+          "perStack": 1.3
+        }
+      },
+      "towerRadar": {
+        "id": "towerRadar",
+        "icon": "\ud83d\udce1",
+        "name": "Base Radar",
+        "description": "+120 base attack range",
+        "rarity": "uncommon",
+        "maxStacks": null,
+        "tuning": {
+          "effectType": "flat_add",
+          "stat": "base.attackRange",
+          "perStack": 120
+        }
+      },
+      "towerSpeed": {
+        "id": "towerSpeed",
+        "icon": "\ud83c\udf00",
+        "name": "Base Rapid Fire",
+        "description": "+35% base fire rate",
+        "rarity": "uncommon",
+        "maxStacks": null,
+        "tuning": {
+          "effectType": "multiplier",
+          "stat": "base.attackSpeed",
+          "perStack": 1.35
+        }
+      },
+      "outpostRepair": {
+        "id": "outpostRepair",
+        "icon": "\ud83d\udd27",
+        "name": "Repair Towers",
+        "description": "Fully heal all towers",
+        "rarity": "uncommon",
+        "maxStacks": null,
+        "tuning": {
+          "effectType": "instant_full_heal",
+          "stat": "towers.all"
+        }
+      },
+      "outpostBoost": {
+        "id": "outpostBoost",
+        "icon": "\u2694\ufe0f",
+        "name": "Tower Arsenal",
+        "description": "+55% tower damage this run",
+        "rarity": "uncommon",
+        "maxStacks": null,
+        "tuning": {
+          "effectType": "multiplier",
+          "stat": "towers.damage",
+          "perStack": 1.55
+        }
+      },
+      "outpostCheap": {
+        "id": "outpostCheap",
+        "icon": "\ud83d\udcb0",
+        "name": "Supply Lines",
+        "description": "Towers cost 5 less gold",
+        "rarity": "uncommon",
+        "maxStacks": null,
+        "tuning": {
+          "effectType": "flat_add",
+          "stat": "towers.costDiscount",
+          "perStack": 5
+        }
+      },
+      "outpostLevel": {
+        "id": "outpostLevel",
+        "icon": "\u2b06\ufe0f",
+        "name": "Tower Mastery",
+        "description": "All towers +1 level (max 5)",
+        "rarity": "rare",
+        "maxStacks": 4,
+        "tuning": {
+          "effectType": "level_up_all_towers",
+          "maxLevel": 5,
+          "perStack": 1
+        }
+      }
+    }
+  },
+  "metaUpgrades": {
+    "playerHp": {
+      "id": "playerHp",
+      "label": "Iron Constitution",
+      "description": "+20 max HP",
+      "category": "player",
+      "maxLevel": 8,
+      "baseCost": 6,
+      "perLevelValue": 20,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 6,
+          "value": 20
+        },
+        {
+          "level": 2,
+          "cost": 6,
+          "value": 40
+        },
+        {
+          "level": 3,
+          "cost": 6,
+          "value": 60
+        },
+        {
+          "level": 4,
+          "cost": 6,
+          "value": 80
+        },
+        {
+          "level": 5,
+          "cost": 6,
+          "value": 100
+        },
+        {
+          "level": 6,
+          "cost": 6,
+          "value": 120
+        },
+        {
+          "level": 7,
+          "cost": 6,
+          "value": 140
+        },
+        {
+          "level": 8,
+          "cost": 6,
+          "value": 160
+        }
+      ]
+    },
+    "playerRegen": {
+      "id": "playerRegen",
+      "label": "Second Wind",
+      "description": "+0.1 HP/sec regen",
+      "category": "player",
+      "maxLevel": 5,
+      "baseCost": 8,
+      "perLevelValue": 0.1,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 8,
+          "value": 0.1
+        },
+        {
+          "level": 2,
+          "cost": 8,
+          "value": 0.2
+        },
+        {
+          "level": 3,
+          "cost": 8,
+          "value": 0.30000000000000004
+        },
+        {
+          "level": 4,
+          "cost": 8,
+          "value": 0.4
+        },
+        {
+          "level": 5,
+          "cost": 8,
+          "value": 0.5
+        }
+      ]
+    },
+    "playerArmor": {
+      "id": "playerArmor",
+      "label": "Hardened Scales",
+      "description": "+6% damage reduction",
+      "category": "player",
+      "maxLevel": 5,
+      "baseCost": 10,
+      "perLevelValue": 0.06,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 10,
+          "value": 0.06
+        },
+        {
+          "level": 2,
+          "cost": 10,
+          "value": 0.12
+        },
+        {
+          "level": 3,
+          "cost": 10,
+          "value": 0.18
+        },
+        {
+          "level": 4,
+          "cost": 10,
+          "value": 0.24
+        },
+        {
+          "level": 5,
+          "cost": 10,
+          "value": 0.3
+        }
+      ]
+    },
+    "playerDmg": {
+      "id": "playerDmg",
+      "label": "Wrath Sigil",
+      "description": "+15% all damage",
+      "category": "player",
+      "maxLevel": 6,
+      "baseCost": 10,
+      "perLevelValue": 0.15,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 10,
+          "value": 1.15
+        },
+        {
+          "level": 2,
+          "cost": 10,
+          "value": 1.3
+        },
+        {
+          "level": 3,
+          "cost": 10,
+          "value": 1.45
+        },
+        {
+          "level": 4,
+          "cost": 10,
+          "value": 1.6
+        },
+        {
+          "level": 5,
+          "cost": 10,
+          "value": 1.75
+        },
+        {
+          "level": 6,
+          "cost": 10,
+          "value": 1.9
+        }
+      ]
+    },
+    "extraDash": {
+      "id": "extraDash",
+      "label": "Phantom Step",
+      "description": "+1 starting dash",
+      "category": "player",
+      "maxLevel": 3,
+      "baseCost": 8,
+      "perLevelValue": 1,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 8,
+          "value": 1
+        },
+        {
+          "level": 2,
+          "cost": 8,
+          "value": 2
+        },
+        {
+          "level": 3,
+          "cost": 8,
+          "value": 3
+        }
+      ]
+    },
+    "playerSpeed": {
+      "id": "playerSpeed",
+      "label": "Windwalker",
+      "description": "+15 movement speed",
+      "category": "player",
+      "maxLevel": 4,
+      "baseCost": 8,
+      "perLevelValue": 15,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 8,
+          "value": 15
+        },
+        {
+          "level": 2,
+          "cost": 8,
+          "value": 30
+        },
+        {
+          "level": 3,
+          "cost": 8,
+          "value": 45
+        },
+        {
+          "level": 4,
+          "cost": 8,
+          "value": 60
+        }
+      ]
+    },
+    "startGold": {
+      "id": "startGold",
+      "label": "Buried Stash",
+      "description": "+35 starting gold",
+      "category": "econ",
+      "maxLevel": 6,
+      "baseCost": 5,
+      "perLevelValue": 35,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 5,
+          "value": 35
+        },
+        {
+          "level": 2,
+          "cost": 5,
+          "value": 70
+        },
+        {
+          "level": 3,
+          "cost": 5,
+          "value": 105
+        },
+        {
+          "level": 4,
+          "cost": 5,
+          "value": 140
+        },
+        {
+          "level": 5,
+          "cost": 5,
+          "value": 175
+        },
+        {
+          "level": 6,
+          "cost": 5,
+          "value": 210
+        }
+      ]
+    },
+    "crystalBonus": {
+      "id": "crystalBonus",
+      "label": "Crystal Attunement",
+      "description": "+15% crystals per wave",
+      "category": "econ",
+      "maxLevel": 4,
+      "baseCost": 14,
+      "perLevelValue": 0.2,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 14,
+          "value": 0.2
+        },
+        {
+          "level": 2,
+          "cost": 14,
+          "value": 0.4
+        },
+        {
+          "level": 3,
+          "cost": 14,
+          "value": 0.6000000000000001
+        },
+        {
+          "level": 4,
+          "cost": 14,
+          "value": 0.8
+        }
+      ]
+    },
+    "earlyBonus": {
+      "id": "earlyBonus",
+      "label": "Blitz Pact",
+      "description": "+30% early wave gold bonus",
+      "category": "econ",
+      "maxLevel": 4,
+      "baseCost": 10,
+      "perLevelValue": 0.3,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 10,
+          "value": 0.3
+        },
+        {
+          "level": 2,
+          "cost": 10,
+          "value": 0.6
+        },
+        {
+          "level": 3,
+          "cost": 10,
+          "value": 0.8999999999999999
+        },
+        {
+          "level": 4,
+          "cost": 10,
+          "value": 1.2
+        }
+      ]
+    },
+    "shopDiscount": {
+      "id": "shopDiscount",
+      "label": "Black Market",
+      "description": "-5 gold on shop cards",
+      "category": "econ",
+      "maxLevel": 3,
+      "baseCost": 12,
+      "perLevelValue": 5,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 12,
+          "value": 5
+        },
+        {
+          "level": 2,
+          "cost": 12,
+          "value": 10
+        },
+        {
+          "level": 3,
+          "cost": 12,
+          "value": 15
+        }
+      ]
+    },
+    "rerolls": {
+      "id": "rerolls",
+      "label": "Loaded Dice",
+      "description": "-1 starting reroll cost",
+      "category": "econ",
+      "maxLevel": 2,
+      "baseCost": 10,
+      "perLevelValue": 1,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 10,
+          "value": 1
+        },
+        {
+          "level": 2,
+          "cost": 10,
+          "value": 2
+        }
+      ]
+    },
+    "towerHp": {
+      "id": "towerHp",
+      "label": "Ancient Foundation",
+      "description": "+200 base HP",
+      "category": "tower",
+      "maxLevel": 6,
+      "baseCost": 8,
+      "perLevelValue": 200,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 8,
+          "value": 200
+        },
+        {
+          "level": 2,
+          "cost": 8,
+          "value": 400
+        },
+        {
+          "level": 3,
+          "cost": 8,
+          "value": 600
+        },
+        {
+          "level": 4,
+          "cost": 8,
+          "value": 800
+        },
+        {
+          "level": 5,
+          "cost": 8,
+          "value": 1000
+        },
+        {
+          "level": 6,
+          "cost": 8,
+          "value": 1200
+        }
+      ]
+    },
+    "towerAtk": {
+      "id": "towerAtk",
+      "label": "Siege Runes",
+      "description": "+25% base damage",
+      "category": "tower",
+      "maxLevel": 5,
+      "baseCost": 10,
+      "perLevelValue": 0.25,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 10,
+          "value": 1.25
+        },
+        {
+          "level": 2,
+          "cost": 10,
+          "value": 1.5
+        },
+        {
+          "level": 3,
+          "cost": 10,
+          "value": 1.75
+        },
+        {
+          "level": 4,
+          "cost": 10,
+          "value": 2
+        },
+        {
+          "level": 5,
+          "cost": 10,
+          "value": 2.25
+        }
+      ]
+    },
+    "towerRange": {
+      "id": "towerRange",
+      "label": "Beacon Lens",
+      "description": "+100 base attack range",
+      "category": "tower",
+      "maxLevel": 4,
+      "baseCost": 9,
+      "perLevelValue": 100,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 9,
+          "value": 100
+        },
+        {
+          "level": 2,
+          "cost": 9,
+          "value": 200
+        },
+        {
+          "level": 3,
+          "cost": 9,
+          "value": 300
+        },
+        {
+          "level": 4,
+          "cost": 9,
+          "value": 400
+        }
+      ]
+    },
+    "towerAtkSpd": {
+      "id": "towerAtkSpd",
+      "label": "Overclock",
+      "description": "+20% base fire rate",
+      "category": "tower",
+      "maxLevel": 4,
+      "baseCost": 10,
+      "perLevelValue": 0.2,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 10,
+          "value": 1.2
+        },
+        {
+          "level": 2,
+          "cost": 10,
+          "value": 1.4
+        },
+        {
+          "level": 3,
+          "cost": 10,
+          "value": 1.6
+        },
+        {
+          "level": 4,
+          "cost": 10,
+          "value": 1.8
+        }
+      ]
+    },
+    "towerAura": {
+      "id": "towerAura",
+      "label": "Scorched Earth",
+      "description": "+25% base aura damage",
+      "category": "tower",
+      "maxLevel": 4,
+      "baseCost": 10,
+      "perLevelValue": 0.25,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 10,
+          "value": 1.25
+        },
+        {
+          "level": 2,
+          "cost": 10,
+          "value": 1.5
+        },
+        {
+          "level": 3,
+          "cost": 10,
+          "value": 1.75
+        },
+        {
+          "level": 4,
+          "cost": 10,
+          "value": 2
+        }
+      ]
+    },
+    "outpostHp": {
+      "id": "outpostHp",
+      "label": "Granite Walls",
+      "description": "+80 tower HP",
+      "category": "outpost",
+      "maxLevel": 5,
+      "baseCost": 9,
+      "perLevelValue": 80,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 9,
+          "value": 80
+        },
+        {
+          "level": 2,
+          "cost": 9,
+          "value": 160
+        },
+        {
+          "level": 3,
+          "cost": 9,
+          "value": 240
+        },
+        {
+          "level": 4,
+          "cost": 9,
+          "value": 320
+        },
+        {
+          "level": 5,
+          "cost": 9,
+          "value": 400
+        }
+      ]
+    },
+    "outpostAtk": {
+      "id": "outpostAtk",
+      "label": "Ballistae",
+      "description": "+40% tower damage",
+      "category": "outpost",
+      "maxLevel": 4,
+      "baseCost": 10,
+      "perLevelValue": 0.4,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 10,
+          "value": 1.4
+        },
+        {
+          "level": 2,
+          "cost": 10,
+          "value": 1.8
+        },
+        {
+          "level": 3,
+          "cost": 10,
+          "value": 2.2
+        },
+        {
+          "level": 4,
+          "cost": 10,
+          "value": 2.6
+        }
+      ]
+    },
+    "outpostRange": {
+      "id": "outpostRange",
+      "label": "Signal Fires",
+      "description": "+100 tower zone range",
+      "category": "outpost",
+      "maxLevel": 4,
+      "baseCost": 9,
+      "perLevelValue": 100,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 9,
+          "value": 100
+        },
+        {
+          "level": 2,
+          "cost": 9,
+          "value": 200
+        },
+        {
+          "level": 3,
+          "cost": 9,
+          "value": 300
+        },
+        {
+          "level": 4,
+          "cost": 9,
+          "value": 400
+        }
+      ]
+    },
+    "outpostCheap": {
+      "id": "outpostCheap",
+      "label": "Supply Lines",
+      "description": "-8 gold tower cost",
+      "category": "outpost",
+      "maxLevel": 3,
+      "baseCost": 12,
+      "perLevelValue": 8,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 12,
+          "value": 8
+        },
+        {
+          "level": 2,
+          "cost": 12,
+          "value": 16
+        },
+        {
+          "level": 3,
+          "cost": 12,
+          "value": 24
+        }
+      ]
+    },
+    "startWpn": {
+      "id": "startWpn",
+      "label": "Ancestral Armory",
+      "description": "Start with Assault Rifle",
+      "category": "unlock",
+      "maxLevel": 1,
+      "baseCost": 12,
+      "perLevelValue": 1,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 12,
+          "value": 1
+        }
+      ]
+    },
+    "waveDelay": {
+      "id": "waveDelay",
+      "label": "Ceasefire Accord",
+      "description": "+8s between waves",
+      "category": "unlock",
+      "maxLevel": 4,
+      "baseCost": 8,
+      "perLevelValue": 8,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 8,
+          "value": 8
+        },
+        {
+          "level": 2,
+          "cost": 8,
+          "value": 16
+        },
+        {
+          "level": 3,
+          "cost": 8,
+          "value": 24
+        },
+        {
+          "level": 4,
+          "cost": 8,
+          "value": 32
+        }
+      ]
+    },
+    "freeDeploy": {
+      "id": "freeDeploy",
+      "label": "Pioneer's Kit",
+      "description": "Start with extra gold",
+      "category": "unlock",
+      "maxLevel": 3,
+      "baseCost": 15,
+      "perLevelValue": 1,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 15,
+          "value": 1
+        },
+        {
+          "level": 2,
+          "cost": 15,
+          "value": 2
+        },
+        {
+          "level": 3,
+          "cost": 15,
+          "value": 3
+        }
+      ]
+    },
+    "autoConstruct": {
+      "id": "autoConstruct",
+      "label": "Arcane Masons",
+      "description": "Hold Shift to auto-build towers while walking",
+      "category": "unlock",
+      "maxLevel": 1,
+      "baseCost": 20,
+      "perLevelValue": 1,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 20,
+          "value": 1
+        }
+      ]
+    },
+    "startSlot": {
+      "id": "startSlot",
+      "label": "Dual Wielder",
+      "description": "Start with extra weapon slot",
+      "category": "unlock",
+      "maxLevel": 1,
+      "baseCost": 18,
+      "perLevelValue": 1,
+      "levels": [
+        {
+          "level": 1,
+          "cost": 18,
+          "value": 1
+        }
+      ]
+    }
+  },
+  "baseUpgradeShop": {
+    "hp": {
+      "id": "hp",
+      "label": "Base HP +150",
+      "maxLevel": 5,
+      "effect": {
+        "target": "base.core.hp",
+        "mode": "add",
+        "value": 150
+      },
+      "costs": [
+        60,
+        100,
+        150,
+        210,
+        280
+      ]
+    },
+    "range": {
+      "id": "range",
+      "label": "Base Range +60",
+      "maxLevel": 8,
+      "effect": {
+        "target": "base.core.buildRange",
+        "mode": "add",
+        "value": 60
+      },
+      "costs": [
+        70,
+        120,
+        180,
+        250,
+        330,
+        430,
+        560,
+        720
+      ]
+    },
+    "dmg": {
+      "id": "dmg",
+      "label": "Base Damage +40%",
+      "maxLevel": 5,
+      "effect": {
+        "target": "base.core.damage",
+        "mode": "multiply",
+        "value": 1.4
+      },
+      "costs": [
+        80,
+        130,
+        190,
+        260,
+        340
+      ]
+    },
+    "multishot": {
+      "id": "multishot",
+      "label": "Multishot +1 target",
+      "maxLevel": 4,
+      "effect": {
+        "target": "base.core.multishot",
+        "mode": "add",
+        "value": 1
+      },
+      "costs": [
+        90,
+        150,
+        220,
+        300
+      ]
+    }
+  }
+}
