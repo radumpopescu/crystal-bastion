@@ -10,6 +10,15 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: GAME_VERSION,
+    title: 'Tower HP display clarified',
+    date: '2026-04-14',
+    changes: [
+      'Clarified the tower sidebar HP line so it explicitly shows total tower HP across all built towers.',
+      'This makes it easier to judge how much HP a tower-heal card would restore overall.',
+    ],
+  },
+  {
+    version: '2026.04.14.8',
     title: 'Wave-end freeze fix',
     date: '2026-04-14',
     changes: [

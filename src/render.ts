@@ -1,4 +1,4 @@
-import { ENTITY_H, ISO_SCALE, MAX_WEAPON_SLOTS, OUTPOST_HP_BASE, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES } from './constants';
+import { ENTITY_H, ISO_SCALE, MAX_WEAPON_SLOTS, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES } from './constants';
 import { R, devCardColor, devCardLimit, finishDevSession, newGame, resetDevConfig, w2s } from './state';
 import { buildDropChanceTable, getAnchors, getBaseStats, getLoadoutStats, getMobileLevelupLayout, getOutpostCost, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave, weaponCardNeedsSlot } from './systems';
 import { clamp, dist, inBtn } from './utils';
@@ -1614,7 +1614,6 @@ function renderLoadoutSidebar(panelX: number, panelW: number, options: { title?:
   const outposts = game.outposts || [];
   const opLv = game.outpostLevel || 1;
   const op0 = outposts[0];
-  const fallbackOpHp = OUTPOST_HP_BASE + (game.opHpBonus || 0);
   const totalHp = outposts.reduce((s: number, o: any) => s + o.hp, 0);
   const totalMaxHp = outposts.reduce((s: number, o: any) => s + o.maxHp, 0);
   const hpPct = totalMaxHp > 0 ? totalHp / totalMaxHp : 0;
@@ -1636,7 +1635,13 @@ function renderLoadoutSidebar(panelX: number, panelW: number, options: { title?:
   }
   sideY += 8;
   ctx.fillStyle = '#cbd5e1'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
-  ctx.fillText(outposts.length > 0 ? `${Math.ceil(totalHp)}/${totalMaxHp} HP total` : `0/${fallbackOpHp} HP each`, barX, sideY);
+  ctx.fillText(
+    outposts.length > 0
+      ? `tower HP ${Math.ceil(totalHp)}/${totalMaxHp} total`
+      : 'tower HP 0/0 total',
+    barX,
+    sideY,
+  );
   ctx.fillStyle = '#f5c26b'; ctx.textAlign = 'right';
   ctx.fillText(`${towerDmg}dmg  ${towerRange}rng`, panelX + panelW - 4, sideY);
   sideY += 14;
