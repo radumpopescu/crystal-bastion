@@ -1209,7 +1209,6 @@ function drawMenuActionCard(rect: BtnRect, title: string, subtitle: string, colo
 
 function renderMenu() {
   const { ctx, W, H, meta, ui, mouseX, mouseY } = R;
-  const autoConstructUnlocked = (meta.upgrades['autoConstruct'] || 0) > 0;
   const t = performance.now() * 0.001;
 
   const bg = ctx.createLinearGradient(0, 0, W, H);
@@ -1345,12 +1344,12 @@ function renderMenu() {
   ctx.font = 'bold 16px monospace';
   ctx.textAlign = 'left';
   ctx.fillText(`💎 ${meta.crystals} relic shards`, heroX + 52, heroY + heroH - 88);
-  ctx.fillStyle = autoConstructUnlocked ? '#2ecc71' : '#7f8c8d';
+  ctx.fillStyle = '#8fd3ff';
   ctx.font = '12px monospace';
-  ctx.fillText(autoConstructUnlocked ? 'Auto-Construct unlocked: hold SHIFT to chain towers while walking.' : 'Meta unlock available: Auto-Construct chains towers while you walk.', heroX + 52, heroY + heroH - 60);
+  ctx.fillText('Spend relic shards on permanent upgrades between runs.', heroX + 52, heroY + heroH - 60);
   ctx.fillStyle = '#5f7287';
   ctx.font = '11px monospace';
-  ctx.fillText(autoConstructUnlocked ? 'Current behavior: 1m spacing, only while SHIFT is held.' : 'Buy it in Relics to surface it inside every run.', heroX + 52, heroY + heroH - 38);
+  ctx.fillText('Build stronger starts, faster waves, and a tougher crystal core.', heroX + 52, heroY + heroH - 38);
 
   const actionPanelY = heroY + 26;
   const actionPanelH = heroH - 52;
