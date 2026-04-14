@@ -86,21 +86,6 @@ export function tryPlaceOutpost() {
 }
 
 export function handlePlayingClick(mx: number, my: number) {
-  if (R.ui.isMobileLandscape && R.ui.mobileDrawerToggleBtn && inBtn(mx, my, R.ui.mobileDrawerToggleBtn)) {
-    R.ui.mobileDrawerOpen = !R.ui.mobileDrawerOpen;
-    R.ui.mobileScrollY = 0;
-    return;
-  }
-  if (R.ui.isMobileLandscape) {
-    for (const tabBtn of R.ui.mobileDrawerTabBtns || []) {
-      if (mx >= tabBtn.x && mx <= tabBtn.x + tabBtn.w && my >= tabBtn.y && my <= tabBtn.y + tabBtn.h) {
-        R.ui.mobileDrawerTab = tabBtn.tab;
-        R.ui.mobileScrollY = 0;
-        R.ui.mobileDrawerOpen = true;
-        return;
-      }
-    }
-  }
   if (mx >= R.W - 46 && mx <= R.W - 10 && my >= 10 && my <= 46) { R.state = 'paused'; return; }
   if (R.ui.waveStartBtn && !R.game.waveActive && inBtn(mx, my, R.ui.waveStartBtn)) {
     startNextWave(true);
@@ -465,18 +450,67 @@ export function luPositions() {
   return { cW, cH, gap, centerX, freeTop, shopTop, BOT_H, leftPanelX, leftPanelW, rightPanelX, rightPanelW };
 }
 
+export function getMobileLevelupLayout(game = R.game) {
+  const { w: cW, h: cH, gap } = luCardDims();
+  const sidePad = 10;
+  const topY = 56;
+  const botBarH = 44;
+  const clipTop = 52;
+  const clipBottom = R.H - botBarH - 6;
+  const contentW = R.W - sidePad * 2;
+  const maxCols = Math.max(1, Math.min(4, Math.floor((contentW + gap) / (cW + gap))));
+  const freeCards = game.levelUpCards || [];
+  const shopCards = game.shopCards || [];
+  const freePicked = freeCards.length === 0;
+  const gridHeight = (count: number) => {
+    if (count <= 0) return 0;
+    const cols = Math.min(maxCols, count);
+    const rows = Math.ceil(count / cols);
+    return rows * cH + Math.max(0, rows - 1) * gap;
+  };
+  const getCardRect = (count: number, index: number, startY: number) => {
+    const cols = Math.min(maxCols, Math.max(1, count));
+    const row = Math.floor(index / cols);
+    const col = index % cols;
+    const itemsInRow = Math.min(cols, count - row * cols);
+    const rowW = itemsInRow * cW + Math.max(0, itemsInRow - 1) * gap;
+    const startX = sidePad + (contentW - rowW) / 2;
+    return { x: startX + col * (cW + gap), y: startY + row * (cH + gap), w: cW, h: cH };
+  };
+
+  let y = topY;
+  const pickedCardY = freePicked && game._pickedFreeCard ? y + 24 : null;
+  if (pickedCardY != null) y = pickedCardY + cH + 18;
+  const freeGridY = !freePicked ? y + 24 : null;
+  if (freeGridY != null) y = freeGridY + gridHeight(freeCards.length) + 18;
+  const shopGridY = freePicked ? y + 24 : null;
+  if (shopGridY != null) y = shopGridY + gridHeight(shopCards.length) + 18;
+
+  return {
+    cW,
+    cH,
+    gap,
+    sidePad,
+    topY,
+    botBarH,
+    clipTop,
+    clipBottom,
+    contentW,
+    maxCols,
+    freePicked,
+    freeCards,
+    shopCards,
+    pickedCardY,
+    freeGridY,
+    shopGridY,
+    contentHeight: y + 8,
+    getCardRect,
+  };
+}
+
 export function handleCardClick(mx: number, my: number) {
   const game = R.game;
   if (!game.levelUpCards) return;
-  if (R.ui.isMobileLandscape) {
-    for (const tabBtn of R.ui.mobileDrawerTabBtns || []) {
-      if (mx >= tabBtn.x && mx <= tabBtn.x + tabBtn.w && my >= tabBtn.y && my <= tabBtn.y + tabBtn.h) {
-        R.ui.mobileDrawerTab = tabBtn.tab;
-        R.ui.mobileScrollY = 0;
-        return;
-      }
-    }
-  }
   for (const btn of R.ui.levelupBaseUpgradeBtns || []) {
     if (mx >= btn.x && mx <= btn.x + btn.w && my >= btn.y && my <= btn.y + btn.h) {
       buyTowerUpgrade(btn.upgradeId);
@@ -503,52 +537,101 @@ export function handleCardClick(mx: number, my: number) {
       return;
     }
   }
-  const { cW, cH, gap, centerX, freeTop, shopTop } = luPositions();
 
-  const freeN = game.levelUpCards.length;
-  const fTotalW = freeN * cW + (freeN - 1) * gap;
-  const fStartX = centerX - fTotalW / 2;
-  for (let i = 0; i < freeN; i++) {
-    const bx = fStartX + i * (cW + gap);
-    const by = freeTop;
-    if (mx >= bx && mx <= bx + cW && my >= by && my <= by + cH) {
-      const card = game.levelUpCards[i];
-      if (weaponCardNeedsSlot(card, game)) {
-        game._cardActionHint = `Sell a weapon slot first to take ${WEAPONS[card.weaponId].name}.`;
-        return;
+  if (R.ui.isMobileLandscape) {
+    const layout = getMobileLevelupLayout(game);
+    const contentY = my + R.ui.mobileScrollY;
+    if (!layout.freePicked && layout.freeGridY != null) {
+      for (let i = 0; i < layout.freeCards.length; i++) {
+        const rect = layout.getCardRect(layout.freeCards.length, i, layout.freeGridY);
+        if (mx >= rect.x && mx <= rect.x + rect.w && contentY >= rect.y && contentY <= rect.y + rect.h) {
+          const card = layout.freeCards[i];
+          if (weaponCardNeedsSlot(card, game)) {
+            game._cardActionHint = `Sell a weapon slot first to take ${WEAPONS[card.weaponId].name}.`;
+            return;
+          }
+          const applied = applyCard(card);
+          if (!applied) return;
+          game._pickedFreeCard = game.levelUpCards[i];
+          game.levelUpCards = [];
+          R.ui.mobileScrollY = 0;
+          return;
+        }
       }
-      const applied = applyCard(card);
-      if (!applied) return;
-      game._pickedFreeCard = game.levelUpCards[i];
-      game.levelUpCards = [];
       return;
     }
-  }
-
-  const sCards = game.shopCards || [];
-  const sTotalW = sCards.length * cW + (sCards.length - 1) * gap;
-  const sStartX = centerX - sTotalW / 2;
-  for (let i = 0; i < sCards.length; i++) {
-    const card = sCards[i];
-    const bx = sStartX + i * (cW + gap);
-    const by = shopTop;
-    if (mx >= bx && mx <= bx + cW && my >= by && my <= by + cH) {
-      if (game.gold >= card.cost && !card._bought) {
-        if (weaponCardNeedsSlot(card, game)) {
-          game._cardActionHint = `Sell a weapon slot first to buy ${WEAPONS[card.weaponId].name}.`;
+    if (layout.freePicked && layout.shopGridY != null) {
+      for (let i = 0; i < layout.shopCards.length; i++) {
+        const rect = layout.getCardRect(layout.shopCards.length, i, layout.shopGridY);
+        if (mx >= rect.x && mx <= rect.x + rect.w && contentY >= rect.y && contentY <= rect.y + rect.h) {
+          const card = layout.shopCards[i];
+          if (game.gold >= card.cost && !card._bought) {
+            if (weaponCardNeedsSlot(card, game)) {
+              game._cardActionHint = `Sell a weapon slot first to buy ${WEAPONS[card.weaponId].name}.`;
+              return;
+            }
+            game.gold -= card.cost;
+            const applied = applyCard(card);
+            if (!applied) {
+              game.gold += card.cost;
+              return;
+            }
+            card._locked = false;
+            card._bought = true;
+            game._anyBought = true;
+          }
           return;
         }
-        game.gold -= card.cost;
-        const applied = applyCard(card);
-        if (!applied) {
-          game.gold += card.cost;
-          return;
-        }
-        card._locked = false;
-        card._bought = true;
-        game._anyBought = true;
       }
-      return;
+    }
+  } else {
+    const { cW, cH, gap, centerX, freeTop, shopTop } = luPositions();
+
+    const freeN = game.levelUpCards.length;
+    const fTotalW = freeN * cW + (freeN - 1) * gap;
+    const fStartX = centerX - fTotalW / 2;
+    for (let i = 0; i < freeN; i++) {
+      const bx = fStartX + i * (cW + gap);
+      const by = freeTop;
+      if (mx >= bx && mx <= bx + cW && my >= by && my <= by + cH) {
+        const card = game.levelUpCards[i];
+        if (weaponCardNeedsSlot(card, game)) {
+          game._cardActionHint = `Sell a weapon slot first to take ${WEAPONS[card.weaponId].name}.`;
+          return;
+        }
+        const applied = applyCard(card);
+        if (!applied) return;
+        game._pickedFreeCard = game.levelUpCards[i];
+        game.levelUpCards = [];
+        return;
+      }
+    }
+
+    const sCards = game.shopCards || [];
+    const sTotalW = sCards.length * cW + (sCards.length - 1) * gap;
+    const sStartX = centerX - sTotalW / 2;
+    for (let i = 0; i < sCards.length; i++) {
+      const card = sCards[i];
+      const bx = sStartX + i * (cW + gap);
+      const by = shopTop;
+      if (mx >= bx && mx <= bx + cW && my >= by && my <= by + cH) {
+        if (game.gold >= card.cost && !card._bought) {
+          if (weaponCardNeedsSlot(card, game)) {
+            game._cardActionHint = `Sell a weapon slot first to buy ${WEAPONS[card.weaponId].name}.`;
+            return;
+          }
+          game.gold -= card.cost;
+          const applied = applyCard(card);
+          if (!applied) {
+            game.gold += card.cost;
+            return;
+          }
+          card._locked = false;
+          card._bought = true;
+          game._anyBought = true;
+        }
+        return;
+      }
     }
   }
 
@@ -567,6 +650,7 @@ export function handleCardClick(mx: number, my: number) {
   if (R.ui.continueBtn && inBtn(mx, my, R.ui.continueBtn)) {
     game.levelUpCards = null;
     game._cardActionHint = null;
+    R.ui.mobileScrollY = 0;
     R.state = 'playing';
     game.waveTimer = WAVE_INTERVAL + (game.waveDelayBonus || 0);
   }

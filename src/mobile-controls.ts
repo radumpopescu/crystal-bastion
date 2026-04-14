@@ -10,7 +10,6 @@ root.innerHTML = `
     <div id="mobile-joystick-zone" class="mc-joystick-zone"></div>
   </div>
   <div class="mc-actions">
-    <button class="mc-btn mc-btn-secondary" data-action="fullscreen" type="button">FULL</button>
     <button class="mc-btn mc-btn-primary" data-action="dash" type="button">DASH</button>
     <button class="mc-btn" data-action="build" type="button">BUILD</button>
   </div>
@@ -23,18 +22,13 @@ rotateOverlay.innerHTML = `
   <div class="rotate-card">
     <div class="rotate-icon">📱↻</div>
     <div class="rotate-title">Please rotate your device</div>
-    <div class="rotate-copy">Crystal Bastion is designed for landscape on mobile. Rotate your phone or tablet, then tap fullscreen for the best fit.</div>
-    <div class="rotate-actions">
-      <button type="button" data-rotate-action="fullscreen">FULLSCREEN</button>
-    </div>
+    <div class="rotate-copy">Crystal Bastion is designed for landscape on mobile. Rotate your phone or tablet to continue.</div>
   </div>
 `;
 document.body.appendChild(rotateOverlay);
 
 const joystickShell = root.querySelector('.mc-joystick-shell') as HTMLDivElement;
 const joystickZone = root.querySelector('#mobile-joystick-zone') as HTMLDivElement;
-const fullscreenBtn = root.querySelector('[data-action="fullscreen"]') as HTMLButtonElement;
-const rotateFullscreenBtn = rotateOverlay.querySelector('[data-rotate-action="fullscreen"]') as HTMLButtonElement;
 const dashBtn = root.querySelector('[data-action="dash"]') as HTMLButtonElement;
 const buildBtn = root.querySelector('[data-action="build"]') as HTMLButtonElement;
 
@@ -57,6 +51,18 @@ function setTouchMove(x = 0, y = 0) {
   (window as any).__CB_TOUCHMOVE = { x, y };
 }
 
+function setTouchMoveFromScreenVector(screenX = 0, screenY = 0) {
+  const isoX = screenX + screenY;
+  const isoY = screenY - screenX;
+  const len = Math.hypot(isoX, isoY);
+  if (len <= 0.0001) {
+    setTouchMove(0, 0);
+    return;
+  }
+  const maxLen = Math.max(1, len);
+  setTouchMove(isoX / maxLen, isoY / maxLen);
+}
+
 function setJoystickFromPoint(clientX: number, clientY: number) {
   const rect = joystickShell.getBoundingClientRect();
   const cx = rect.left + rect.width / 2;
@@ -66,7 +72,8 @@ function setJoystickFromPoint(clientX: number, clientY: number) {
   const maxR = rect.width * 0.33;
   const len = Math.hypot(dx, dy) || 1;
   const clamped = Math.min(maxR, len);
-  setTouchMove(dx / len * (clamped / maxR), dy / len * (clamped / maxR));
+  const magnitude = clamped / maxR;
+  setTouchMoveFromScreenVector((dx / len) * magnitude, (dy / len) * magnitude);
 }
 
 function clearActionKey(code: string) {
@@ -95,7 +102,7 @@ function shouldShowRotateOverlay() {
 joystick.on('move', (_evt: any, data: any) => {
   const vector = data?.vector;
   if (!vector) return;
-  setTouchMove(vector.x || 0, vector.y || 0);
+  setTouchMoveFromScreenVector(vector.x || 0, vector.y || 0);
 });
 
 joystick.on('end', () => {
@@ -124,46 +131,19 @@ joystickShell.addEventListener('pointerup', endPointer);
 joystickShell.addEventListener('pointercancel', endPointer);
 joystickShell.addEventListener('pointerleave', endPointer);
 
-async function requestFullscreenMode() {
-  const target = (document.documentElement || document.body) as any;
-  try {
-    if (document.fullscreenElement) {
-      await document.exitFullscreen?.();
-    } else if (target.requestFullscreen) {
-      await target.requestFullscreen();
-    } else if (target.webkitRequestFullscreen) {
-      target.webkitRequestFullscreen();
-    } else if (target.msRequestFullscreen) {
-      target.msRequestFullscreen();
-    }
-  } catch {
-    // Safari/iOS may reject or not support document fullscreen.
-  }
-  try {
-    await screen.orientation?.lock?.('landscape');
-  } catch {
-    // Ignore unsupported orientation lock.
-  }
-}
-
-rotateFullscreenBtn.addEventListener('click', () => {
-  void requestFullscreenMode();
-});
-
-[fullscreenBtn, dashBtn, buildBtn].forEach(btn => {
+[dashBtn, buildBtn].forEach(btn => {
   btn.addEventListener('touchstart', e => {
     e.preventDefault();
     if (!visible()) return;
     const action = (e.currentTarget as HTMLElement).dataset.action;
-    if (action === 'fullscreen') { void requestFullscreenMode(); return; }
     if (action === 'dash') pulseAction('Space', tryDash);
     if (action === 'build') pulseAction('KeyE', tryPlaceOutpost);
   }, { passive: false });
+
   btn.addEventListener('click', e => {
     e.preventDefault();
     if (!visible()) return;
     const action = (e.currentTarget as HTMLElement).dataset.action;
-    if (action === 'fullscreen') { void requestFullscreenMode(); return; }
     if (action === 'dash') pulseAction('Space', tryDash);
     if (action === 'build') pulseAction('KeyE', tryPlaceOutpost);
   });

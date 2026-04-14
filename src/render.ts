@@ -1,6 +1,6 @@
 import { ENTITY_H, ISO_SCALE, MAX_WEAPON_SLOTS, OUTPOST_HP_BASE, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES } from './constants';
 import { R, devCardColor, devCardLimit, finishDevSession, newGame, resetDevConfig, w2s } from './state';
-import { buildDropChanceTable, getAnchors, getBaseStats, getLoadoutStats, getOutpostCost, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave, weaponCardNeedsSlot } from './systems';
+import { buildDropChanceTable, getAnchors, getBaseStats, getLoadoutStats, getMobileLevelupLayout, getOutpostCost, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave, weaponCardNeedsSlot } from './systems';
 import { clamp, dist, inBtn } from './utils';
 import { saveMeta } from './meta';
 import { GAME_VERSION } from './version';
@@ -831,8 +831,6 @@ function renderHUD() {
       const earlyGold = Math.max(2, Math.round(7 * (game.waveTimer / (WAVE_INTERVAL + (game.waveDelayBonus || 0))) * (game.earlyBonusMult || 1) * (1 + game.wave * 0.12)));
       ui.waveStartBtn = btn(W / 2 - 12, H - 24, `▶ ${earlyGold}g`, '#e67e22', 112, 28);
     }
-    renderMobileDrawerToggle();
-    renderMobileDrawer('playing');
     renderMinimap();
     return;
   }
@@ -984,61 +982,78 @@ function drawCard(card: any, bx: number, by: number, cW: number, cH: number, opt
   const accentColor = isWeapon ? def.color : (opts.shopCard ? '#e67e22' : '#2ecc71');
   const bgColor = opts.picked ? '#0d2210' : opts.dimmed ? '#0a0a14' : opts.locked ? '#1b1620' : '#0f1a2e';
   const borderColor = opts.picked ? '#27ae60' : opts.locked ? '#f1c40f' : opts.dimmed ? '#333' : accentColor;
+  const compact = cW <= 110 || cH <= 150;
+  const iconSize = compact ? 24 : 38;
+  const titleSize = compact ? 10 : 13;
+  const descSize = compact ? 8 : 10;
+  const badgeFont = compact ? 8 : 10;
+  const actionFont = compact ? 9 : 11;
+  const lineH = compact ? 10 : 14;
+
   ctx.fillStyle = bgColor;
   rrect(bx, by, cW, cH, 10); ctx.fill();
   ctx.strokeStyle = borderColor; ctx.lineWidth = opts.picked ? 2.5 : 2;
   rrect(bx, by, cW, cH, 10); ctx.stroke();
   ctx.fillStyle = opts.picked ? '#27ae60' : rarityColor;
   rrect(bx, by, cW, 5, 4); ctx.fill();
-  ctx.font = '38px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(isWeapon ? def.icon : stat.icon, bx + cW / 2, by + 50);
+
+  ctx.font = `${iconSize}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(isWeapon ? def.icon : stat.icon, bx + cW / 2, by + (compact ? 30 : 50));
+
   ctx.fillStyle = opts.dimmed ? '#666' : '#ecf0f1';
-  ctx.font = 'bold 13px monospace'; ctx.textBaseline = 'alphabetic';
-  ctx.fillText(isWeapon ? def.name : stat.name, bx + cW / 2, by + 92);
+  ctx.font = `bold ${titleSize}px monospace`;
+  ctx.textBaseline = 'alphabetic';
+  const titleLines = wrapTextLines(isWeapon ? def.name : stat.name, cW - 12).slice(0, compact ? 2 : 2);
+  let titleY = by + (compact ? 52 : 82);
+  titleLines.forEach((line, index) => ctx.fillText(line, bx + cW / 2, titleY + index * (compact ? 11 : 13)));
+  let contentY = titleY + titleLines.length * (compact ? 11 : 13) + 4;
+
   if (isWeapon) {
+    const badgeW = compact ? 60 : 72;
+    const badgeH = compact ? 15 : 18;
     ctx.fillStyle = rarityColor;
-    rrect(bx + cW / 2 - 36, by + 98, 72, 18, 4); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 10px monospace';
+    rrect(bx + cW / 2 - badgeW / 2, contentY, badgeW, badgeH, 4); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = `bold ${badgeFont}px monospace`;
     const existing = game.player.weapons.find((w: any) => w.id === card.weaponId);
-    ctx.fillText(existing ? `LVL ${card.newLevel - 1}→${card.newLevel}` : 'NEW', bx + cW / 2, by + 111);
+    ctx.fillText(existing ? `LVL ${card.newLevel - 1}→${card.newLevel}` : 'NEW', bx + cW / 2, contentY + badgeH - 4);
+    contentY += badgeH + 8;
+  } else {
+    contentY += 2;
   }
+
   ctx.fillStyle = opts.dimmed ? '#444' : '#aaa';
-  ctx.font = '10px monospace';
-  const desc = isWeapon ? def.desc : stat.desc;
-  const words = desc.split(' ');
-  let line = '', lineY = by + (isWeapon ? 132 : 112);
-  for (const word of words) {
-    const test = line + (line ? ' ' : '') + word;
-    if (ctx.measureText(test).width > cW - 16) { ctx.fillText(line, bx + cW / 2, lineY); lineY += 14; line = word; }
-    else line = test;
-  }
-  if (line) ctx.fillText(line, bx + cW / 2, lineY);
+  ctx.font = `${descSize}px monospace`;
+  const descLines = wrapTextLines(isWeapon ? def.desc : stat.desc, cW - 14).slice(0, compact ? 4 : 5);
+  descLines.forEach((line, index) => ctx.fillText(line, bx + cW / 2, contentY + index * lineH));
+
   if (isWeapon && def.levelBonus[card.newLevel - 1]) {
     ctx.fillStyle = opts.dimmed ? '#555' : '#f1c40f';
-    ctx.font = 'bold 10px monospace';
-    ctx.fillText(def.levelBonus[card.newLevel - 1], bx + cW / 2, by + cH - 30);
+    ctx.font = `bold ${compact ? 8 : 10}px monospace`;
+    ctx.fillText(def.levelBonus[card.newLevel - 1], bx + cW / 2, by + cH - (compact ? 36 : 30));
   }
   if (opts.needsSlot) {
     ctx.fillStyle = '#e67e22';
-    ctx.font = 'bold 10px monospace';
-    ctx.fillText('SELL A SLOT FIRST', bx + cW / 2, by + cH - 44);
+    ctx.font = `bold ${compact ? 8 : 10}px monospace`;
+    ctx.fillText('SELL A SLOT FIRST', bx + cW / 2, by + cH - (compact ? 48 : 44));
   }
   if (opts.locked) {
     ctx.fillStyle = '#f1c40f';
-    ctx.font = 'bold 10px monospace';
-    ctx.fillText('HELD FOR NEXT SHOP', bx + cW / 2, by + cH - 58);
+    ctx.font = `bold ${compact ? 8 : 10}px monospace`;
+    ctx.fillText('HELD FOR NEXT SHOP', bx + cW / 2, by + cH - (compact ? 60 : 58));
   }
   if (opts.costLabel) {
     const canAfford = game.gold >= card.cost;
     ctx.fillStyle = canAfford ? '#f1c40f' : '#e74c3c';
-    ctx.font = 'bold 12px monospace';
+    ctx.font = `bold ${compact ? 10 : 12}px monospace`;
     ctx.fillText(opts.costLabel, bx + cW / 2, by + cH - 12);
   } else if (opts.dropChance != null) {
-    ctx.fillStyle = '#555'; ctx.font = '10px monospace';
+    ctx.fillStyle = '#555'; ctx.font = `${compact ? 8 : 10}px monospace`;
     ctx.fillText(`~${opts.dropChance}% chance`, bx + cW / 2, by + cH - 12);
   } else if (!opts.dimmed) {
-    ctx.fillStyle = accentColor; ctx.font = 'bold 11px monospace';
-    ctx.fillText('CLICK TO CHOOSE', bx + cW / 2, by + cH - 12);
+    ctx.fillStyle = accentColor; ctx.font = `bold ${actionFont}px monospace`;
+    ctx.fillText(compact ? 'CHOOSE' : 'CLICK TO CHOOSE', bx + cW / 2, by + cH - 12);
   }
   ctx.textBaseline = 'alphabetic';
 }
@@ -1322,51 +1337,88 @@ function renderLevelUpCards() {
   ui.levelupBaseUpgradeBtns = [];
   ctx.fillStyle = 'rgba(4,8,20,0.93)'; ctx.fillRect(0, 0, W, H);
   if (isMobileUI()) {
-    const { cW, cH, gap, freeTop, shopTop, rightPanelX, centerX, BOT_H } = luPositions();
-    const leftX = 10;
-    const contentRight = rightPanelX - 10;
-    const contentW = contentRight - leftX;
-    ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 18px monospace'; ctx.textAlign = 'center';
-    ctx.fillText(`WAVE ${game.wave} COMPLETE`, centerX, 22);
-    ctx.fillStyle = '#cbd5e1'; ctx.font = '10px monospace';
-    ctx.fillText(`Gold ${game.gold}⬡`, centerX - 56, 40);
-    const freePicked = !cards || cards.length === 0;
-    ctx.fillStyle = freePicked ? '#2ecc71' : '#e74c3c';
-    ctx.fillText(freePicked ? 'free pick chosen' : 'choose a free card', centerX + 48, 40);
-    const freeCards = cards || [];
-    const freeVisible = Math.max(1, freeCards.length);
-    const freeTotalW = Math.max(1, freeVisible) * cW + (Math.max(1, freeVisible) - 1) * gap;
-    const freeStartX = centerX - freeTotalW / 2;
-    ctx.fillStyle = '#0e1e2e'; rrect(leftX, freeTop - 18, contentW, cH + 24, 8); ctx.fill();
-    ctx.fillStyle = '#5dade2'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left'; ctx.fillText('FREE PICK', leftX + 8, freeTop - 5);
-    if (freePicked && game._pickedFreeCard) drawCard(game._pickedFreeCard, centerX - cW / 2, freeTop, cW, cH, { picked: true, needsSlot: weaponCardNeedsSlot(game._pickedFreeCard, game) });
-    else freeCards.forEach((card: any, i: number) => drawCard(card, freeStartX + i * (cW + gap), freeTop, cW, cH, { needsSlot: weaponCardNeedsSlot(card, game) }));
-    const sCards = game.shopCards || [];
-    const shopVisible = Math.max(1, sCards.length);
-    const sTotalW = Math.max(1, shopVisible) * cW + (Math.max(1, shopVisible) - 1) * gap;
-    const sStartX = centerX - sTotalW / 2;
-    ctx.fillStyle = '#120e04'; rrect(leftX, shopTop - 18, contentW, cH + 32, 8); ctx.fill();
-    ctx.fillStyle = '#f39c12'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left'; ctx.fillText('SHOP', leftX + 8, shopTop - 5);
-    sCards.forEach((card: any, i: number) => {
-      const bx = sStartX + i * (cW + gap);
-      const needsSlot = weaponCardNeedsSlot(card, game);
-      if (card._bought) drawCard(card, bx, shopTop, cW, cH, { picked: true, costLabel: 'BOUGHT', needsSlot, locked: card._locked });
-      else drawCard(card, bx, shopTop, cW, cH, { shopCard: true, dimmed: game.gold < card.cost, costLabel: `${card.cost}⬡`, needsSlot, locked: card._locked });
-      if (!card._bought) {
-        const lockW = 44, lockH = 16, lockX = bx + cW - lockW - 6, lockY = shopTop + 6;
-        ctx.fillStyle = card._locked ? '#6b5200' : '#223047'; rrect(lockX, lockY, lockW, lockH, 4); ctx.fill();
-        ctx.strokeStyle = card._locked ? '#f1c40f' : '#7f8c8d'; rrect(lockX, lockY, lockW, lockH, 4); ctx.stroke();
-        ctx.fillStyle = card._locked ? '#f8e27a' : '#cbd5e1'; ctx.font = 'bold 8px monospace'; ctx.textAlign = 'center'; ctx.fillText(card._locked ? 'HELD' : 'LOCK', lockX + lockW / 2, lockY + 11);
-        ui.levelupShopLockBtns.push({ x: lockX, y: lockY, w: lockW, h: lockH, cardIndex: i });
+    const layout = getMobileLevelupLayout(game);
+    const botY = H - layout.botBarH;
+    const visibleH = botY - layout.clipTop;
+    setMobileScrollArea(0, layout.clipTop, W, visibleH, layout.contentHeight - visibleH);
+
+    ctx.fillStyle = '#f1c40f';
+    ctx.font = 'bold 18px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`WAVE ${game.wave} COMPLETE`, W / 2, 22);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '10px monospace';
+    ctx.fillText(`Gold ${game.gold}⬡`, W / 2, 40);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, layout.clipTop, W, visibleH);
+    ctx.clip();
+    ctx.translate(0, -R.ui.mobileScrollY);
+
+    if (!layout.freePicked && layout.freeGridY != null) {
+      ctx.fillStyle = '#0e1e2e';
+      rrect(layout.sidePad, layout.topY, layout.contentW, layout.contentHeight - layout.topY - 8, 10); ctx.fill();
+      ctx.fillStyle = '#5dade2';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('FREE PICK', layout.sidePad + 10, layout.topY + 16);
+      ctx.fillStyle = '#e74c3c';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText('pick one card to continue', W - layout.sidePad - 10, layout.topY + 16);
+      layout.freeCards.forEach((card: any, i: number) => {
+        const rect = layout.getCardRect(layout.freeCards.length, i, layout.freeGridY!);
+        drawCard(card, rect.x, rect.y, rect.w, rect.h, { needsSlot: weaponCardNeedsSlot(card, game) });
+      });
+    } else {
+      const pickedPanelY = layout.topY;
+      if (game._pickedFreeCard && layout.pickedCardY != null) {
+        ctx.fillStyle = '#132215';
+        rrect(layout.sidePad, pickedPanelY, layout.contentW, layout.cH + 36, 10); ctx.fill();
+        ctx.fillStyle = '#27ae60';
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('FREE PICKED', layout.sidePad + 10, pickedPanelY + 16);
+        drawCard(game._pickedFreeCard, W / 2 - layout.cW / 2, layout.pickedCardY, layout.cW, layout.cH, { picked: true, needsSlot: weaponCardNeedsSlot(game._pickedFreeCard, game) });
       }
-    });
-    const botY = H - BOT_H;
-    ctx.fillStyle = '#0b1220'; ctx.fillRect(0, botY, rightPanelX - 4, BOT_H);
+
+      if (layout.shopGridY != null) {
+        const shopPanelY = (layout.pickedCardY != null ? layout.pickedCardY + layout.cH + 18 : layout.topY);
+        const shopPanelH = Math.max(layout.cH + 42, layout.contentHeight - shopPanelY - 8);
+        ctx.fillStyle = '#120e04';
+        rrect(layout.sidePad, shopPanelY, layout.contentW, shopPanelH, 10); ctx.fill();
+        ctx.fillStyle = '#f39c12';
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('SHOP', layout.sidePad + 10, shopPanelY + 16);
+        ctx.fillStyle = '#95a5a6';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText('scroll for more if needed', W - layout.sidePad - 10, shopPanelY + 16);
+        layout.shopCards.forEach((card: any, i: number) => {
+          const rect = layout.getCardRect(layout.shopCards.length, i, layout.shopGridY!);
+          const needsSlot = weaponCardNeedsSlot(card, game);
+          if (card._bought) drawCard(card, rect.x, rect.y, rect.w, rect.h, { picked: true, costLabel: 'BOUGHT', needsSlot, locked: card._locked });
+          else drawCard(card, rect.x, rect.y, rect.w, rect.h, { shopCard: true, dimmed: game.gold < card.cost, costLabel: `${card.cost}⬡`, needsSlot, locked: card._locked });
+          if (!card._bought) {
+            const lockW = 44, lockH = 16, lockX = rect.x + rect.w - lockW - 6, lockY = rect.y + 6 - R.ui.mobileScrollY;
+            ctx.fillStyle = card._locked ? '#6b5200' : '#223047'; rrect(lockX, lockY + R.ui.mobileScrollY, lockW, lockH, 4); ctx.fill();
+            ctx.strokeStyle = card._locked ? '#f1c40f' : '#7f8c8d'; rrect(lockX, lockY + R.ui.mobileScrollY, lockW, lockH, 4); ctx.stroke();
+            ctx.fillStyle = card._locked ? '#f8e27a' : '#cbd5e1'; ctx.font = 'bold 8px monospace'; ctx.textAlign = 'center'; ctx.fillText(card._locked ? 'HELD' : 'LOCK', lockX + lockW / 2, lockY + R.ui.mobileScrollY + 11);
+            ui.levelupShopLockBtns.push({ x: lockX, y: lockY, w: lockW, h: lockH, cardIndex: i });
+          }
+        });
+      }
+    }
+
+    ctx.restore();
+
     const rerollCost = game._rerollCost ?? 2;
     const canReroll = game.gold >= rerollCost;
-    ui.refreshAllBtn = btn(84, botY + BOT_H / 2, `🔀 ${rerollCost}⬡`, canReroll ? '#5b2d8e' : '#252535', 132, 28);
-    ui.continueBtn = btn(rightPanelX - 72, botY + BOT_H / 2, 'DONE', '#27ae60', 116, 28);
-    renderMobileDrawer('levelup');
+    ctx.fillStyle = '#0b1220'; ctx.fillRect(0, botY, W, layout.botBarH);
+    ui.refreshAllBtn = btn(82, botY + layout.botBarH / 2, `🔀 ${rerollCost}⬡`, canReroll ? '#5b2d8e' : '#252535', 132, 28);
+    ui.continueBtn = btn(W - 72, botY + layout.botBarH / 2, 'DONE', '#27ae60', 116, 28);
     return;
   }
   const { w: cW, h: cH, gap } = luCardDims();
@@ -1775,12 +1827,10 @@ function renderPauseScreen() {
   ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0, 0, W, H);
   ui.levelupBaseUpgradeBtns = [];
   if (mobile) {
-    renderMobileDrawer('paused');
-    const leftW = getMobileDrawerRect().x - 20;
-    ctx.fillStyle = '#ecf0f1'; ctx.font = 'bold 26px monospace'; ctx.textAlign = 'center'; ctx.fillText('PAUSED', leftW / 2, H / 2 - 70);
-    ctx.fillStyle = '#aaa'; ctx.font = '12px monospace'; ctx.fillText('Tap resume or quit', leftW / 2, H / 2 - 40);
+    ctx.fillStyle = '#ecf0f1'; ctx.font = 'bold 26px monospace'; ctx.textAlign = 'center'; ctx.fillText('PAUSED', W / 2, H / 2 - 70);
+    ctx.fillStyle = '#aaa'; ctx.font = '12px monospace'; ctx.fillText('Tap resume or quit', W / 2, H / 2 - 40);
     const quitLabel = game?.devSession ? 'DEV MENU' : 'QUIT TO MENU';
-    ui.pauseBtns = [btn(leftW / 2, H / 2 + 4, '▶ RESUME', '#27ae60', 160, 34), btn(leftW / 2, H / 2 + 46, quitLabel, '#c0392b', 160, 34)];
+    ui.pauseBtns = [btn(W / 2, H / 2 + 4, '▶ RESUME', '#27ae60', 160, 34), btn(W / 2, H / 2 + 46, quitLabel, '#c0392b', 160, 34)];
     return;
   }
   const { leftPanelX, leftPanelW, rightPanelX, rightPanelW } = luPositions();
@@ -1794,15 +1844,6 @@ function renderPauseScreen() {
 
 export function handlePauseClick(mx: number, my: number) {
   const ui = R.ui;
-  if (ui.isMobileLandscape) {
-    for (const tabBtn of ui.mobileDrawerTabBtns || []) {
-      if (mx >= tabBtn.x && mx <= tabBtn.x + tabBtn.w && my >= tabBtn.y && my <= tabBtn.y + tabBtn.h) {
-        ui.mobileDrawerTab = tabBtn.tab;
-        ui.mobileScrollY = 0;
-        return;
-      }
-    }
-  }
   if (ui.pauseBtns[0] && inBtn(mx, my, ui.pauseBtns[0])) R.state = 'playing';
   if (ui.pauseBtns[1] && inBtn(mx, my, ui.pauseBtns[1])) {
     if (R.game?.devSession) finishDevSession(`Returned from wave ${R.game.wave} without finishing it.`);
