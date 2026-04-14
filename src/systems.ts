@@ -142,7 +142,7 @@ export function startNextWave(early = false) {
 
 export function isStatUpgradeAvailable(stat: any, p = R.game.player, g = R.game) {
   if (stat.available && !stat.available(p, g)) return false;
-  if (stat.max !== undefined && stat.count && stat.count(p) >= stat.max) return false;
+  if (stat.max !== undefined && stat.count && stat.count(p, g) >= stat.max) return false;
   return true;
 }
 
