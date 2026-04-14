@@ -160,7 +160,8 @@ function getWeaponCardPool(game = R.game) {
     }
   }
   const atCap = p.weapons.length >= (game.maxWeaponSlots || MAX_WEAPON_SLOTS);
-  return atCap && newCards.length > 0 ? newCards : [...upgradeCards, ...newCards];
+  if (atCap) return upgradeCards;
+  return [...upgradeCards, ...upgradeCards, ...newCards];
 }
 
 export function weaponCardNeedsSlot(card: any, game = R.game) {
@@ -1193,6 +1194,22 @@ export function updateAutoConstruct() {
   }
 }
 
+export function getBaseTurretMounts(t: any) {
+  const count = Math.max(1, Math.min(5, t?.multishot || 1));
+  const layouts: Record<number, Array<{ dx: number; dy: number }>> = {
+    1: [{ dx: 0, dy: 0 }],
+    2: [{ dx: -12, dy: 0 }, { dx: 12, dy: 0 }],
+    3: [{ dx: -14, dy: -4 }, { dx: 14, dy: -4 }, { dx: 0, dy: 12 }],
+    4: [{ dx: -14, dy: -8 }, { dx: 14, dy: -8 }, { dx: -14, dy: 10 }, { dx: 14, dy: 10 }],
+    5: [{ dx: -14, dy: -8 }, { dx: 14, dy: -8 }, { dx: -14, dy: 10 }, { dx: 14, dy: 10 }, { dx: 0, dy: 2 }],
+  };
+  return (layouts[count] || layouts[1]).map((mount, index) => ({
+    index,
+    x: t.x + mount.dx,
+    y: t.y + mount.dy,
+  }));
+}
+
 export function updateStructures(dt: number) {
   const game = R.game;
   const t = game.tower;
@@ -1200,8 +1217,13 @@ export function updateStructures(dt: number) {
   else {
     const targets = nearestMonsters(t.x, t.y, t.atkRange, t.multishot || 1);
     if (targets.length > 0) {
-      for (const m of targets) {
-        spawnProj(t.x, t.y, m.x, m.y, t.atkDmg, 460, 8, '#f1c40f', 'base', false, {
+      const mounts = getBaseTurretMounts(t);
+      targets.forEach((m: any, index: number) => {
+        const mount = mounts[Math.min(index, mounts.length - 1)] || { x: t.x, y: t.y };
+        const aimD = dist(mount.x, mount.y, m.x, m.y) || 1;
+        const muzzleX = mount.x + (m.x - mount.x) / aimD * 12;
+        const muzzleY = mount.y + (m.y - mount.y) / aimD * 12;
+        spawnProj(muzzleX, muzzleY, m.x, m.y, t.atkDmg, 460, 8, '#f1c40f', 'base', false, {
           visual:'tower',
           trailColor:'#ffe082',
           coreColor:'#fffbe8',
@@ -1211,7 +1233,7 @@ export function updateStructures(dt: number) {
           life:1.2,
           startZ:70,
         });
-      }
+      });
       t.atkCooldown = 1 / t.atkSpeed;
     }
   }

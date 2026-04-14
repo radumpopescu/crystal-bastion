@@ -1,6 +1,6 @@
 import { ENTITY_H, ISO_SCALE, MAX_WEAPON_SLOTS, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES } from './constants';
 import { R, devCardColor, devCardLimit, finishDevSession, newGame, resetDevConfig, w2s } from './state';
-import { buildDropChanceTable, getAnchors, getBaseStats, getLoadoutStats, getMobileLevelupLayout, getOutpostCost, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave, weaponCardNeedsSlot } from './systems';
+import { buildDropChanceTable, getAnchors, getBaseStats, getBaseTurretMounts, getLoadoutStats, getMobileLevelupLayout, getOutpostCost, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave, weaponCardNeedsSlot } from './systems';
 import { clamp, dist, inBtn } from './utils';
 import { saveMeta } from './meta';
 import { GAME_VERSION } from './version';
@@ -287,17 +287,16 @@ function renderGame() {
     ...game.outposts.map((op: any) => ({ ...op, _type:'outpost', _depth: op.x + op.y })),
     ...game.monsters.map((m: any)  => ({ ...m,  _type:'monster', _depth: m.x + m.y })),
     { ...game.player, _type:'player', _depth: game.player.x + game.player.y },
-    { ...game.tower,  _type:'tower',  _depth: game.tower.x + game.tower.y - 999 },
   ];
   entities.sort((a: any, b: any) => a._depth - b._depth);
 
   renderStructuralBase();
   for (const e of entities) {
-    if (e._type === 'tower')   renderTower();
     if (e._type === 'outpost') renderOutpost(game.outposts.find((op: any) => op.x === e.x && op.y === e.y));
     if (e._type === 'monster') renderMonster(game.monsters.find((m: any) => m.x === e.x && m.y === e.y));
     if (e._type === 'player')  renderPlayer();
   }
+  renderTower();
 
   renderProjectilesWorld();
   renderParticlesWorld();
@@ -450,30 +449,36 @@ function renderTower() {
   const sprite = buildTowerSprite();
   ctx.drawImage(sprite.canvas, sx - sprite.w / 2, sy - sprite.h + 20);
 
-  const turretX = sx;
-  const turretY = sy - bh - 14;
-  let barrelAng = -Math.PI / 4;
-  if (R.game.monsters.length > 0) {
-    let nearest: any = null, nd = Infinity;
-    for (const m of R.game.monsters) {
-      const d = Math.hypot(m.x - t.x, m.y - t.y);
-      if (d < nd) { nd = d; nearest = m; }
-    }
-    if (nearest) {
-      const dx = nearest.x - t.x, dy = nearest.y - t.y;
+  const targets = R.game.monsters.length > 0
+    ? R.game.monsters
+      .map((m: any) => ({ m, d: Math.hypot(m.x - t.x, m.y - t.y) }))
+      .sort((a: any, b: any) => a.d - b.d)
+      .slice(0, Math.max(1, t.multishot || 1))
+      .map((entry: any) => entry.m)
+    : [];
+  const mounts = getBaseTurretMounts(t);
+  mounts.forEach((mount: any, index: number) => {
+    const target = targets[index] || targets[0] || null;
+    let barrelAng = -Math.PI / 4;
+    if (target) {
+      const dx = target.x - mount.x;
+      const dy = target.y - mount.y;
       barrelAng = Math.atan2((dx + dy) * 0.5, (dx - dy));
     }
-  }
+    const { sx: mountSx, sy: mountSy } = w2s(mount.x, mount.y, 68);
+    const baseX = mountSx;
+    const baseY = mountSy - 6;
+    const barrelLen = 14;
 
-  const turretCount = Math.max(1, t.multishot || 1);
-  const barrelLen = 14;
-  const lateralStep = 6;
-  const lateralX = -Math.sin(barrelAng);
-  const lateralY = Math.cos(barrelAng);
-  for (let i = 0; i < turretCount; i++) {
-    const offset = (i - (turretCount - 1) / 2) * lateralStep;
-    const baseX = turretX + lateralX * offset;
-    const baseY = turretY + lateralY * offset * 0.6;
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath(); ctx.ellipse(baseX, baseY + 5, 7, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = '#22344f';
+    ctx.beginPath(); ctx.arc(baseX, baseY, 6.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#7f95b8';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(baseX, baseY, 6.5, 0, Math.PI * 2); ctx.stroke();
+
     ctx.strokeStyle = '#5a6f8f';
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
@@ -481,10 +486,15 @@ function renderTower() {
     ctx.moveTo(baseX, baseY);
     ctx.lineTo(baseX + Math.cos(barrelAng) * barrelLen, baseY + Math.sin(barrelAng) * barrelLen);
     ctx.stroke();
+
+    ctx.strokeStyle = '#b8cae6';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(baseX + Math.cos(barrelAng) * 4, baseY + Math.sin(barrelAng) * 4);
+    ctx.lineTo(baseX + Math.cos(barrelAng) * barrelLen, baseY + Math.sin(barrelAng) * barrelLen);
+    ctx.stroke();
     ctx.lineCap = 'butt';
-    ctx.fillStyle = '#354a72';
-    ctx.beginPath(); ctx.arc(baseX, baseY, 3.5, 0, Math.PI * 2); ctx.fill();
-  }
+  });
 
   const auraPulse = 0.6 + Math.sin(tick * 1.4) * 0.15;
   ctx.fillStyle = `rgba(243,156,18,${auraPulse * 0.12})`;
@@ -1633,7 +1643,7 @@ function renderLoadoutSidebar(panelX: number, panelW: number, options: { title?:
     ctx.fillStyle = hpPct > 0.5 ? '#27ae60' : hpPct > 0.25 ? '#f39c12' : '#e74c3c';
     ctx.fillRect(barX, sideY, Math.round(barW * hpPct), 4);
   }
-  sideY += 8;
+  sideY += 14;
   ctx.fillStyle = '#cbd5e1'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
   ctx.fillText(
     outposts.length > 0

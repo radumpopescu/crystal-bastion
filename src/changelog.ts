@@ -10,6 +10,17 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: GAME_VERSION,
+    title: 'Base turret layout and weapon-card balance',
+    date: '2026-04-14',
+    changes: [
+      'Base multishot now renders as distinct turret heads mounted on the same base instead of a single spread barrel cluster.',
+      'Base projectiles now leave from the matching turret mount so multishot visually tracks each turret better.',
+      'Weapon card offers now favor upgrades over brand-new weapons, and once all weapon slots are filled the weapon pool only offers upgrades.',
+      'Also polished the tower HP overlay spacing and made the base render above nearby towers/outposts.',
+    ],
+  },
+  {
+    version: '2026.04.14.9',
     title: 'Tower HP display clarified',
     date: '2026-04-14',
     changes: [
