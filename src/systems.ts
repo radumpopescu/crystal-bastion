@@ -1,4 +1,4 @@
-import { AUTO_CONSTRUCT_SPACING, BASE_MONSTERS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, LEASH_DMG, MAX_WEAPON_SLOTS, MONSTER_DEF, MONSTER_SCALE, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_RANGE, PLAYER_RADIUS, PLAYER_SPEED, STAT_UPGRADES, TILE_SIZE, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS } from './constants';
+import { ACTIVE_BALANCE_CONFIG, AUTO_CONSTRUCT_SPACING, BASE_MONSTERS, CARD_RARITY_WEIGHTS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, EARLY_START_BONUS, LEASH_DMG, LEVELUP_OFFER_COUNT, MAX_WEAPON_SLOTS, MONSTER_ATTACK_COOLDOWN, MONSTER_CONTACT_BUFFER, MONSTER_DEF, MONSTER_SCALE, MONSTER_SPAWN_ATTACK_COOLDOWN_MAX, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_PLACEMENT, OUTPOST_RANGE, PLAYER_DASH_INVULN_BONUS, PLAYER_HIT_FLASH, PLAYER_HIT_INVULN, PLAYER_RADIUS, PLAYER_SPEED, SHOP_OFFER_COUNT, STAT_UPGRADES, STRUCTURE_CONTACT_RADIUS, TILE_SIZE, TOWER_UPGRADES, WAVE_CONFIG, WAVE_CRYSTAL_REWARD, WAVE_ENEMY_MIX, WAVE_INTERVAL, WAVE_SPAWN_CONFIG, WEAPONS, computeCardGoldCost, computeOutpostCost, computeRerollBaseCost, getOutpostStatsForLevel, getWeaponMaxLevel, getWeaponStats } from './constants';
 import { DEV_WEAPON_IDS, R, devCardLimit, finishDevSession, makeWeapon, metaVal, newGame } from './state';
 import { clamp, dist, inBtn, shuffle } from './utils';
 import { saveMeta } from './meta';
@@ -21,9 +21,7 @@ export function nearestAnchor(x: number, y: number) {
 }
 
 export function getOutpostCost() {
-  const base = OUTPOST_COST - (R.game.outpostDiscount || 0);
-  const scaling = (R.game.outposts?.length || 0) * 5 + Math.max(0, (R.game.wave || 0) - 8) * 2;
-  return Math.max(10, Math.round(base + scaling));
+  return computeOutpostCost(ACTIVE_BALANCE_CONFIG, R.game);
 }
 
 function canPlaceOutpostAt(px: number, py: number) {
@@ -31,22 +29,17 @@ function canPlaceOutpostAt(px: number, py: number) {
   const opRange = OUTPOST_RANGE + (game.opRangeBonus || 0);
   let canConnect = false;
   for (const a of getAnchors()) {
-    if (dist(px, py, a.x, a.y) <= a.range + opRange * 0.6) { canConnect = true; break; }
+    if (dist(px, py, a.x, a.y) <= a.range + opRange * (OUTPOST_PLACEMENT.connectionFactor || 0.6)) { canConnect = true; break; }
   }
   if (!canConnect) return false;
   for (const a of getAnchors()) {
-    if (dist(px, py, a.x, a.y) < 65) return false;
+    if (dist(px, py, a.x, a.y) < (OUTPOST_PLACEMENT.minAnchorDistance || 65)) return false;
   }
   return true;
 }
 
 function outpostStatsForLevel(level: number, game: any) {
-  const base = 20 * (game.opAtkMult || 1);
-  return {
-    atkDmg: base * Math.pow(1.28, level - 1),
-    atkRange: 240 + (level - 1) * 18,
-    atkSpeed: 0.85,
-  };
+  return getOutpostStatsForLevel(ACTIVE_BALANCE_CONFIG, level, game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0);
 }
 
 function placeOutpostAt(px: number, py: number) {
@@ -97,36 +90,40 @@ export function handlePlayingClick(mx: number, my: number) {
 export function startNextWave(early = false) {
   const game = R.game;
   if (early && game.waveTimer > 0) {
-    const bonusFraction = game.waveTimer / (WAVE_INTERVAL + (game.waveDelayBonus || 0));
-    const bonusGold = Math.max(2, Math.round(7 * bonusFraction * (game.earlyBonusMult || 1) * (1 + game.wave * 0.12)));
+    const totalWindow = WAVE_INTERVAL + (game.waveDelayBonus || 0);
+    const bonusFraction = totalWindow > 0 ? game.waveTimer / totalWindow : 0;
+    const bonusGold = Math.max(
+      EARLY_START_BONUS.minimum || 0,
+      Math.round((EARLY_START_BONUS.base || 0) * bonusFraction * (game.earlyBonusMult || 1) * (1 + game.wave * (EARLY_START_BONUS.waveScale || 0)))
+    );
     game.gold += bonusGold;
     spawnDmgNum(game.player.x, game.player.y - 40, `+${bonusGold}g EARLY BONUS`, '#f1c40f');
   }
 
   game.wave++;
-  const count = Math.floor(BASE_MONSTERS + game.wave * 3 + Math.pow(game.wave, 1.38));
-  const hpScale = 1 + (game.wave - 1) * 0.26 + Math.max(0, game.wave - 6) * 0.03;
-  const spdScale = 1 + (game.wave - 1) * 0.05;
-  const dmgScale = 1 + (game.wave - 1) * 0.10;
+  const count = Math.floor(BASE_MONSTERS + game.wave * (WAVE_CONFIG.monstersPerWave || 0) + Math.pow(game.wave, WAVE_CONFIG.wavePower || 1));
+  const hpScale = 1 + (game.wave - 1) * (WAVE_CONFIG.hpScalePerWave || 0) + Math.max(0, game.wave - (WAVE_CONFIG.hpScaleAfterWave || 0)) * (WAVE_CONFIG.hpScaleLateBonus || 0);
+  const spdScale = 1 + (game.wave - 1) * (WAVE_CONFIG.speedScalePerWave || 0);
+  const dmgScale = 1 + (game.wave - 1) * (WAVE_CONFIG.damageScalePerWave || 0);
 
   let maxAnchorDist = game.tower.range;
   for (const op of game.outposts) {
     const d = Math.hypot(op.x - game.tower.x, op.y - game.tower.y) + op.range;
     if (d > maxAnchorDist) maxAnchorDist = d;
   }
-  const spawnBase = maxAnchorDist + 200;
+  const spawnBase = maxAnchorDist + (WAVE_SPAWN_CONFIG.baseOffset || 0);
 
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
-    const spawnR = spawnBase + Math.random() * 220;
+    const spawnR = spawnBase + Math.random() * (WAVE_SPAWN_CONFIG.randomOffset || 0);
     const sx = game.tower.x + Math.cos(angle) * spawnR;
     const sy = game.tower.y + Math.sin(angle) * spawnR;
 
     let type = 'grunt';
     const r = Math.random();
-    if (game.wave >= 1 && r < 0.28) type = 'rusher';
-    if (game.wave >= 3 && r < 0.18) type = 'brute';
-    if (game.wave >= 6 && r < 0.09) type = 'tank';
+    if (game.wave >= (WAVE_ENEMY_MIX.rusher?.startWave || Infinity) && r < (WAVE_ENEMY_MIX.rusher?.chance || -1)) type = 'rusher';
+    if (game.wave >= (WAVE_ENEMY_MIX.brute?.startWave || Infinity) && r < (WAVE_ENEMY_MIX.brute?.chance || -1)) type = 'brute';
+    if (game.wave >= (WAVE_ENEMY_MIX.tank?.startWave || Infinity) && r < (WAVE_ENEMY_MIX.tank?.chance || -1)) type = 'tank';
 
     const T = MONSTER_DEF[type];
     game.monsters.push({
@@ -134,13 +131,13 @@ export function startNextWave(early = false) {
       hp: T.hp * hpScale, maxHp: T.hp * hpScale,
       speed: T.speed * spdScale, dmg: T.dmg * dmgScale,
       gold: T.gold, radius: T.radius, color: T.color,
-      atkCooldown: Math.random() * 1.5,
+      atkCooldown: Math.random() * MONSTER_SPAWN_ATTACK_COOLDOWN_MAX,
       animPhase: Math.random() * Math.PI * 2,
     });
   }
   game.monstersLeft = count;
   game.waveActive = true;
-  game._waveCrystalReward = Math.max(1, Math.floor((1 + Math.floor(game.wave / 4)) * (1 + (metaVal('crystalBonus') || 0))));
+  game._waveCrystalReward = Math.max(1, Math.floor(((WAVE_CRYSTAL_REWARD.base || 1) + Math.floor(game.wave / (WAVE_CRYSTAL_REWARD.waveStep || 4))) * (1 + (metaVal('crystalBonus') || 0))));
 }
 
 export function isStatUpgradeAvailable(stat: any, p = R.game.player, g = R.game) {
@@ -155,8 +152,9 @@ function getWeaponCardPool(game = R.game) {
   const upgradeCards: any[] = [];
   for (const id of Object.keys(WEAPONS)) {
     const existing = p.weapons.find((w: any) => w.id === id);
+    const maxLevel = getWeaponMaxLevel(id);
     if (existing) {
-      if (existing.level < 4) upgradeCards.push({ type:'weapon', weaponId:id, newLevel: existing.level + 1, rarity: WEAPONS[id].rarity });
+      if (existing.level < maxLevel) upgradeCards.push({ type:'weapon', weaponId:id, newLevel: existing.level + 1, rarity: WEAPONS[id].rarity });
     } else {
       newCards.push({ type:'weapon', weaponId:id, newLevel:1, rarity: WEAPONS[id].rarity });
     }
@@ -185,9 +183,9 @@ export function generateCards() {
   }
 
   const lk = game.player.luck || 0;
-  const wCommon = Math.max(1, 4 - lk);
-  const wUncommon = 2 + Math.floor(lk * 0.5);
-  const wRare = 1 + lk;
+  const wCommon = Math.max(1, (CARD_RARITY_WEIGHTS.commonBase || 4) - lk * (CARD_RARITY_WEIGHTS.commonLuckPenaltyPerPoint || 1));
+  const wUncommon = (CARD_RARITY_WEIGHTS.uncommonBase || 2) + Math.floor(lk * (CARD_RARITY_WEIGHTS.uncommonPerLuckHalf || 0.5));
+  const wRare = (CARD_RARITY_WEIGHTS.rareBase || 1) + lk * (CARD_RARITY_WEIGHTS.rarePerLuck || 1);
   const weighted = pool.flatMap(c =>
     c.rarity === 'rare' ? Array(wRare).fill(c) : c.rarity === 'uncommon' ? Array(wUncommon).fill(c) : Array(wCommon).fill(c)
   );
@@ -197,25 +195,20 @@ export function generateCards() {
   for (const c of weighted) {
     const key = c.type === 'weapon' ? c.weaponId : c.statId;
     if (!seen.has(key)) { seen.add(key); cards.push(c); }
-    if (cards.length >= 4) break;
+    if (cards.length >= LEVELUP_OFFER_COUNT) break;
   }
   return cards;
 }
 
 function rerollBaseCost() {
-  return Math.max(1, 2 - (metaVal('rerolls') || 0));
+  return computeRerollBaseCost(ACTIVE_BALANCE_CONFIG, R.meta);
 }
 
 function cardGoldCost(card: any) {
-  const rarityBase: Record<string, number> = { common: 18, uncommon: 32, rare: 55 };
-  const base = rarityBase[card.rarity] || 18;
-  const waveMult = 1 + (R.game.wave - 1) * 0.08;
-  const discount = R.game?.shopDiscount || 0;
-  if (card.type === 'weapon' && card.newLevel > 1) return Math.max(1, Math.round(base * 0.75 * waveMult) - discount);
-  return Math.max(1, Math.round(base * waveMult) - discount);
+  return computeCardGoldCost(ACTIVE_BALANCE_CONFIG, card, R.game.wave, R.game?.shopDiscount || 0);
 }
 
-export function generateShopCards(n = 4) {
+export function generateShopCards(n = SHOP_OFFER_COUNT) {
   const game = R.game;
   const pool: any[] = [];
   const p = game.player;
@@ -230,9 +223,9 @@ export function generateShopCards(n = 4) {
   }
 
   const lk2 = game.player.luck || 0;
-  const wC2 = Math.max(1, 4 - lk2);
-  const wU2 = 2 + Math.floor(lk2 * 0.5);
-  const wR2 = 1 + lk2;
+  const wC2 = Math.max(1, (CARD_RARITY_WEIGHTS.commonBase || 4) - lk2 * (CARD_RARITY_WEIGHTS.commonLuckPenaltyPerPoint || 1));
+  const wU2 = (CARD_RARITY_WEIGHTS.uncommonBase || 2) + Math.floor(lk2 * (CARD_RARITY_WEIGHTS.uncommonPerLuckHalf || 0.5));
+  const wR2 = (CARD_RARITY_WEIGHTS.rareBase || 1) + lk2 * (CARD_RARITY_WEIGHTS.rarePerLuck || 1);
   const weighted = pool.flatMap(c => c.rarity === 'rare' ? Array(wR2).fill(c) : c.rarity === 'uncommon' ? Array(wU2).fill(c) : Array(wC2).fill(c));
   shuffle(weighted);
   const seen = new Set();
@@ -254,7 +247,7 @@ function isCardStillAvailable(card: any, game = R.game) {
   if (!card) return false;
   if (card.type === 'weapon') {
     const existing = game.player.weapons.find((w: any) => w.id === card.weaponId);
-    if (existing) return existing.level < 4 && card.newLevel === existing.level + 1;
+    if (existing) return existing.level < getWeaponMaxLevel(card.weaponId) && card.newLevel === existing.level + 1;
     return card.newLevel === 1;
   }
   const stat = STAT_UPGRADES.find(s => s.id === card.statId);
@@ -359,10 +352,14 @@ export function buyTowerUpgrade(upgradeId: string) {
   if (game.gold < cost) return false;
   game.gold -= cost;
   game.tower.upgrades[upg.id]++;
-  if (upg.id === 'hp')        { game.tower.maxHp += 150; game.tower.hp = Math.min(game.tower.hp + 150, game.tower.maxHp); }
-  if (upg.id === 'range')     { game.tower.range += 60; }
-  if (upg.id === 'dmg')       { game.tower.atkDmg = Math.round(game.tower.atkDmg * 1.4); }
-  if (upg.id === 'multishot') { game.tower.multishot = (game.tower.multishot || 1) + 1; }
+  const effect = upg.effect || {};
+  if (effect.target === 'base.core.hp' && effect.mode === 'add') {
+    game.tower.maxHp += effect.value;
+    game.tower.hp = Math.min(game.tower.hp + effect.value, game.tower.maxHp);
+  }
+  if (effect.target === 'base.core.buildRange' && effect.mode === 'add') game.tower.range += effect.value;
+  if (effect.target === 'base.core.damage' && effect.mode === 'multiply') game.tower.atkDmg = Math.round(game.tower.atkDmg * effect.value);
+  if (effect.target === 'base.core.multishot' && effect.mode === 'add') game.tower.multishot = (game.tower.multishot || 1) + effect.value;
   return true;
 }
 
@@ -383,7 +380,7 @@ export function applyCard(card: any) {
     if (existing) existing.level = card.newLevel;
     else {
       if (p.weapons.length >= (R.game?.maxWeaponSlots || MAX_WEAPON_SLOTS)) return false;
-      p.weapons.push({ ...makeWeapon(card.weaponId), level: clamp(card.newLevel || 1, 1, 4) });
+      p.weapons.push({ ...makeWeapon(card.weaponId), level: clamp(card.newLevel || 1, 1, getWeaponMaxLevel(card.weaponId)) });
     }
   } else {
     const s = STAT_UPGRADES.find(s => s.id === card.statId);
@@ -752,26 +749,25 @@ export function updatePlayer(dt: number) {
 }
 
 function calcDmg(def: any, w: any, p: any) {
-  let dmg = def.dmg * p.dmgMult;
-  if (w.level >= 2) dmg *= 1.25;
-  if (w.level >= 3) dmg *= 1.35;
-  if (w.level >= 4) dmg *= 1.50;
-  return dmg;
+  const stats = getWeaponStats(w.id, w.level) || {};
+  return (stats.dmg ?? def.dmg) * (p.dmgMult || 1);
 }
 
 function calcRate(def: any, w: any, p: any) {
-  let rate = def.rate * p.atkSpdMult;
-  if (def.mode === 'minigun') rate = def.rate + (def.maxRate - def.rate) * w.spinup;
-  if (w.level >= 2 && def.levelBonus[1]?.includes('fire rate')) rate *= 1.40;
-  if (w.level >= 3 && def.levelBonus[2]?.includes('fire rate')) rate *= 1.30;
-  if (w.level >= 4 && def.levelBonus[3]?.includes('rate')) rate *= 1.50;
+  const stats = getWeaponStats(w.id, w.level) || {};
+  let rate = (stats.rate ?? def.rate) * (p.atkSpdMult || 1);
+  if (def.mode === 'minigun') {
+    const baseRate = stats.rate ?? def.rate;
+    const maxRate = stats.maxRate ?? def.maxRate ?? baseRate;
+    rate = baseRate + (maxRate - baseRate) * (w.spinup || 0);
+    rate *= (p.atkSpdMult || 1);
+  }
   return rate;
 }
 
 function calcRange(def: any, w: any, p: any) {
-  let range = def.range * p.rangeMult;
-  if (w.level >= 4 && def.levelBonus[3]?.includes('range')) range *= 1.40;
-  return range;
+  const stats = getWeaponStats(w.id, w.level) || {};
+  return (stats.range ?? def.range) * (p.rangeMult || 1);
 }
 
 function nearestMonster(x: number, y: number, maxR: number) {
@@ -905,6 +901,7 @@ function spawnProjectileImpact(p: any) {
 
 function fireWeapon(w: any, def: any, owner: any, target: any) {
   const dmg = calcDmg(def, w, owner);
+  const weaponStats = getWeaponStats(w.id, w.level) || {};
   const ox = owner.x, oy = owner.y;
   const tx = target.x, ty = target.y;
   const aimAng = Math.atan2(ty - oy, tx - ox);
@@ -949,7 +946,7 @@ function fireWeapon(w: any, def: any, owner: any, target: any) {
       break;
 
     case 'shotgun': {
-      const pellets = def.pellets + (w.level >= 2 ? 2 : 0) + (w.level >= 4 ? 2 : 0);
+      const pellets = weaponStats.pellets ?? def.pellets;
       const baseAng = aimAng;
       for (let i = 0; i < pellets; i++) {
         const spread = (i / (pellets - 1) - 0.5) * def.spread;
@@ -986,8 +983,7 @@ function fireWeapon(w: any, def: any, owner: any, target: any) {
       break;
 
     case 'melee': {
-      const arcMult = w.level >= 2 ? 1.3 : 1;
-      const range = def.range * arcMult;
+      const range = weaponStats.range ?? def.range;
       const baseAng = Math.atan2(ty - oy, tx - ox);
       const halfArc = def.arcAngle / 2;
       const hits = new Set();
@@ -1042,7 +1038,7 @@ function fireWeapon(w: any, def: any, owner: any, target: any) {
         vx:(tx - ox) / dist(ox, oy, tx, ty) * def.projSpeed,
         vy:(ty - oy) / dist(ox, oy, tx, ty) * def.projSpeed,
         dmg,
-        blastR: def.blastR * (w.level >= 2 ? 1.4 : 1),
+        blastR: weaponStats.blastR ?? def.blastR,
         size:def.projSize,
         color:def.color,
         life:1.2,
@@ -1060,7 +1056,7 @@ function fireWeapon(w: any, def: any, owner: any, target: any) {
       break;
 
     case 'lightning': {
-      const chains = def.chains + (w.level >= 2 ? 2 : 0) + (w.level >= 4 ? 3 : 0);
+      const chains = weaponStats.chains ?? def.chains;
       let current = { x:ox, y:oy };
       const hit = new Set();
       let near = target;
@@ -1153,7 +1149,7 @@ export function updateMonsters(dt: number) {
     if (!tgt) continue;
 
     const d = nearest.d;
-    const contactR = (tgt.isStruct ? 22 : PLAYER_RADIUS) + m.radius;
+    const contactR = (tgt.isStruct ? STRUCTURE_CONTACT_RADIUS : PLAYER_RADIUS) + m.radius;
 
     if (d > contactR) {
       m.x += (tgt.x - m.x) / d * m.speed * dt;
@@ -1161,15 +1157,15 @@ export function updateMonsters(dt: number) {
     }
 
     if (m.atkCooldown > 0) { m.atkCooldown -= dt; continue; }
-    if (d > contactR + 8) continue;
-    m.atkCooldown = 0.95;
+    if (d > contactR + MONSTER_CONTACT_BUFFER) continue;
+    m.atkCooldown = MONSTER_ATTACK_COOLDOWN;
 
     if (!tgt.isStruct) {
       if (game.player.invincible <= 0 && !game.player.dashing) {
         const dmg = m.dmg * (1 - (game.player.armor || 0));
         game.player.hp -= dmg;
-        game.player.flashTimer = 0.15;
-        game.player.invincible = 0.16;
+        game.player.flashTimer = PLAYER_HIT_FLASH;
+        game.player.invincible = PLAYER_HIT_INVULN;
         spawnDmgNum(game.player.x, game.player.y - 24, Math.round(dmg), '#ff6b6b');
       }
     } else {
@@ -1453,7 +1449,7 @@ export function tryDash() {
   p.dashTimer = dashDuration;
   p.dashes--;
   if (p.dashCooldown <= 0) p.dashCooldown = DASH_COOLDOWN;
-  p.invincible = dashDuration + 0.05;
+  p.invincible = dashDuration + PLAYER_DASH_INVULN_BONUS;
   p.dashVx = p.facing.x * dashSpeed;
   p.dashVy = p.facing.y * dashSpeed;
   spawnParticles(p.x, p.y, '#3498db', 8, 80);

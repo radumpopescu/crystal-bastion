@@ -1,4 +1,4 @@
-import { ENTITY_H, ISO_SCALE, MAX_WEAPON_SLOTS, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES } from './constants';
+import { ENTITY_H, ISO_SCALE, MAX_WEAPON_SLOTS, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES, EARLY_START_BONUS, getWeaponMaxLevel, getOutpostStatsForLevel, ACTIVE_BALANCE_CONFIG } from './constants';
 import { R, devCardColor, devCardLimit, finishDevSession, newGame, resetDevConfig, w2s } from './state';
 import { buildDropChanceTable, getAnchors, getBaseStats, getBaseTurretMounts, getLoadoutStats, getMobileLevelupLayout, getOutpostCost, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave, weaponCardNeedsSlot } from './systems';
 import { clamp, dist, inBtn } from './utils';
@@ -1258,7 +1258,11 @@ function renderHUD() {
 
     if (game.waveActive) ui.waveStartBtn = null;
     else {
-      const earlyGold = Math.max(2, Math.round(7 * (game.waveTimer / (WAVE_INTERVAL + (game.waveDelayBonus || 0))) * (game.earlyBonusMult || 1) * (1 + game.wave * 0.12)));
+      const totalWindow = WAVE_INTERVAL + (game.waveDelayBonus || 0);
+      const earlyGold = Math.max(
+        EARLY_START_BONUS.minimum || 0,
+        Math.round((EARLY_START_BONUS.base || 0) * ((totalWindow > 0 ? game.waveTimer / totalWindow : 0)) * (game.earlyBonusMult || 1) * (1 + game.wave * (EARLY_START_BONUS.waveScale || 0)))
+      );
       ctx.fillStyle = '#f5c26b';
       ctx.font = '10px monospace';
       ctx.textAlign = 'center';
@@ -1323,7 +1327,11 @@ function renderHUD() {
   } else {
     ctx.fillStyle = '#2ecc71'; ctx.font = 'bold 15px monospace';
     ctx.fillText(`⏱ Next in ${Math.ceil(game.waveTimer)}s`, 20, 56);
-    const earlyGold = Math.max(2, Math.round(7 * (game.waveTimer / (WAVE_INTERVAL + (game.waveDelayBonus || 0))) * (game.earlyBonusMult || 1) * (1 + game.wave * 0.12)));
+    const totalWindow = WAVE_INTERVAL + (game.waveDelayBonus || 0);
+    const earlyGold = Math.max(
+      EARLY_START_BONUS.minimum || 0,
+      Math.round((EARLY_START_BONUS.base || 0) * ((totalWindow > 0 ? game.waveTimer / totalWindow : 0)) * (game.earlyBonusMult || 1) * (1 + game.wave * (EARLY_START_BONUS.waveScale || 0)))
+    );
     ctx.fillStyle = '#f5c26b'; ctx.font = '11px monospace';
     ctx.fillText(`Start early for +${earlyGold} gold`, 20, 78);
     ctx.fillStyle = '#3498db'; ctx.font = '12px monospace';
@@ -1624,7 +1632,8 @@ function renderLoadoutSidebar(panelX: number, panelW: number, options: { title?:
       const pipGap = 2;
       const barX = panelX + 14;
       const barY = rowY + 6;
-      for (let lv = 0; lv < 4; lv++) {
+      const maxLevel = getWeaponMaxLevel(weapon.id);
+      for (let lv = 0; lv < maxLevel; lv++) {
         ctx.fillStyle = lv < weapon.level ? def.color : '#1e2a38';
         ctx.fillRect(barX + lv * (pipW + pipGap), barY, pipW, 4);
       }
@@ -1669,8 +1678,9 @@ function renderLoadoutSidebar(panelX: number, panelW: number, options: { title?:
   const totalHp = outposts.reduce((s: number, o: any) => s + o.hp, 0);
   const totalMaxHp = outposts.reduce((s: number, o: any) => s + o.maxHp, 0);
   const hpPct = totalMaxHp > 0 ? totalHp / totalMaxHp : 0;
-  const towerDmg = Math.round(op0?.atkDmg || (20 * (game.opAtkMult || 1) * Math.pow(1.28, opLv - 1)));
-  const towerRange = Math.round(op0?.atkRange || (240 + (opLv - 1) * 18));
+  const towerStats = getOutpostStatsForLevel(ACTIVE_BALANCE_CONFIG, opLv, game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0);
+  const towerDmg = Math.round(op0?.atkDmg || towerStats.atkDmg);
+  const towerRange = Math.round(op0?.atkRange || towerStats.atkRange);
 
   sideY += 4;
   ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
@@ -2360,14 +2370,15 @@ function renderCardBook() {
     const cols = Math.max(1, Math.floor((CONTENT_W + CARD_GAP) / (CARD_W + CARD_GAP)));
     const weaponIds = Object.keys(WEAPONS);
     const weaponHeaderH = mobile ? 36 : 48;
-    const weaponRowsPerWeapon = Math.max(1, Math.ceil(4 / cols));
-    const wpnSecH = weaponHeaderH + weaponIds.length * (weaponRowsPerWeapon * (CARD_H + CARD_GAP) + 24);
-    if (draw && y + wpnSecH >= clipTop && y < clipBot) drawSectionHeader(y, '⚔️', 'WEAPONS', '#e74c3c', 'Each weapon has 4 upgrade levels.', weaponIds.length * 4);
+    const totalWeaponLevels = weaponIds.reduce((sum, id) => sum + getWeaponMaxLevel(id), 0);
+    const weaponRowsPerWeapon = (weaponId: string) => Math.max(1, Math.ceil(getWeaponMaxLevel(weaponId) / cols));
+    const wpnSecH = weaponHeaderH + weaponIds.reduce((sum, id) => sum + weaponRowsPerWeapon(id) * (CARD_H + CARD_GAP) + 24 + CARD_GAP, 0);
+    if (draw && y + wpnSecH >= clipTop && y < clipBot) drawSectionHeader(y, '⚔️', 'WEAPONS', '#e74c3c', `Weapon upgrade ladders from config (${totalWeaponLevels} total levels).`, totalWeaponLevels);
     y += weaponHeaderH;
     for (const id of weaponIds) {
       const def = WEAPONS[id] as any;
-      const rowCards = [1,2,3,4].map(lv => ({ type:'weapon', weaponId:id, newLevel:lv, rarity:def.rarity }));
-      const rowH = weaponRowsPerWeapon * (CARD_H + CARD_GAP) + 24;
+      const rowCards = Array.from({ length: getWeaponMaxLevel(id) }, (_, idx) => ({ type:'weapon', weaponId:id, newLevel:idx + 1, rarity:def.rarity }));
+      const rowH = weaponRowsPerWeapon(id) * (CARD_H + CARD_GAP) + 24;
       if (draw && y + rowH >= clipTop && y < clipBot) {
         ctx.fillStyle = def.color + '22'; ctx.fillRect(CONTENT_X, y, CONTENT_W, 20); ctx.fillStyle = def.color; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left'; ctx.fillText(`${def.icon}  ${def.name}`, CONTENT_X + 8, y + 14);
         rowCards.forEach((card: any, i: number) => {

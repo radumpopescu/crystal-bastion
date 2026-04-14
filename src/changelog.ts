@@ -10,6 +10,16 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: GAME_VERSION,
+    title: 'Runtime balance now reads from the editor config',
+    date: '2026-04-14',
+    changes: [
+      'Gameplay runtime now derives core player, economy, base, tower, enemy, wave, weapon, meta-upgrade, and base-upgrade data from the balance config instead of separate hardcoded tables.',
+      'Meta upgrade values, initial run setup, tower cost/scaling, wave formulas, shop pricing, and weapon level stats now share the same config source used by the balance editor.',
+      'Added runtime-authority tests so config-to-game wiring is checked automatically instead of relying only on manual balancing passes.',
+    ],
+  },
+  {
+    version: '2026.04.14.16',
     title: 'Weapon level previews now show computed final values',
     date: '2026-04-14',
     changes: [

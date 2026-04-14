@@ -23,7 +23,15 @@
       "dashSpeed": 480,
       "dashDuration": 0.18,
       "dashCooldown": 1.2,
-      "maxWeaponSlots": 6
+      "maxWeaponSlots": 6,
+      "startingDashCharges": 2,
+      "spawnOffsetY": -70,
+      "hitFlashDuration": 0.15,
+      "hitInvulnerability": 0.16,
+      "dashInvulnerabilityBonus": 0.05,
+      "startWeapons": [
+        "pistol"
+      ]
     }
   },
   "economy": {
@@ -42,6 +50,16 @@
       "base": 7,
       "minimum": 2,
       "waveScale": 0.12
+    },
+    "shopOfferCount": 4,
+    "levelupOfferCount": 4,
+    "rarityWeights": {
+      "commonBase": 4,
+      "uncommonBase": 2,
+      "rareBase": 1,
+      "commonLuckPenaltyPerPoint": 1,
+      "uncommonPerLuckHalf": 0.5,
+      "rarePerLuck": 1
     }
   },
   "base": {
@@ -75,7 +93,8 @@
       "placement": {
         "minAnchorDistance": 65,
         "connectionFactor": 0.6
-      }
+      },
+      "maxLevel": 5
     }
   },
   "waves": {
@@ -96,7 +115,25 @@
     "crystalReward": {
       "base": 1,
       "waveStep": 4
-    }
+    },
+    "enemyMix": {
+      "rusher": {
+        "startWave": 1,
+        "chance": 0.28
+      },
+      "brute": {
+        "startWave": 3,
+        "chance": 0.18
+      },
+      "tank": {
+        "startWave": 6,
+        "chance": 0.09
+      }
+    },
+    "initialAttackCooldownMax": 1.5,
+    "attackCooldown": 0.95,
+    "monsterContactBuffer": 8,
+    "structureContactRadius": 22
   },
   "enemies": {
     "grunt": {
@@ -1354,7 +1391,8 @@
           "cost": 6,
           "value": 160
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "playerRegen": {
       "id": "playerRegen",
@@ -1390,7 +1428,8 @@
           "cost": 8,
           "value": 0.5
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "playerArmor": {
       "id": "playerArmor",
@@ -1426,7 +1465,8 @@
           "cost": 10,
           "value": 0.3
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "playerDmg": {
       "id": "playerDmg",
@@ -1467,7 +1507,8 @@
           "cost": 10,
           "value": 1.9
         }
-      ]
+      ],
+      "baseValue": 1
     },
     "extraDash": {
       "id": "extraDash",
@@ -1493,7 +1534,8 @@
           "cost": 8,
           "value": 3
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "playerSpeed": {
       "id": "playerSpeed",
@@ -1524,7 +1566,8 @@
           "cost": 8,
           "value": 60
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "startGold": {
       "id": "startGold",
@@ -1565,7 +1608,8 @@
           "cost": 5,
           "value": 210
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "crystalBonus": {
       "id": "crystalBonus",
@@ -1596,7 +1640,8 @@
           "cost": 14,
           "value": 0.8
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "earlyBonus": {
       "id": "earlyBonus",
@@ -1627,7 +1672,8 @@
           "cost": 10,
           "value": 1.2
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "shopDiscount": {
       "id": "shopDiscount",
@@ -1653,7 +1699,8 @@
           "cost": 12,
           "value": 15
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "rerolls": {
       "id": "rerolls",
@@ -1674,7 +1721,8 @@
           "cost": 10,
           "value": 2
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "towerHp": {
       "id": "towerHp",
@@ -1715,7 +1763,8 @@
           "cost": 8,
           "value": 1200
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "towerAtk": {
       "id": "towerAtk",
@@ -1751,7 +1800,8 @@
           "cost": 10,
           "value": 2.25
         }
-      ]
+      ],
+      "baseValue": 1
     },
     "towerRange": {
       "id": "towerRange",
@@ -1782,7 +1832,8 @@
           "cost": 9,
           "value": 400
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "towerAtkSpd": {
       "id": "towerAtkSpd",
@@ -1813,7 +1864,8 @@
           "cost": 10,
           "value": 1.8
         }
-      ]
+      ],
+      "baseValue": 1
     },
     "towerAura": {
       "id": "towerAura",
@@ -1844,7 +1896,8 @@
           "cost": 10,
           "value": 2
         }
-      ]
+      ],
+      "baseValue": 1
     },
     "outpostHp": {
       "id": "outpostHp",
@@ -1880,7 +1933,8 @@
           "cost": 9,
           "value": 400
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "outpostAtk": {
       "id": "outpostAtk",
@@ -1911,7 +1965,8 @@
           "cost": 10,
           "value": 2.6
         }
-      ]
+      ],
+      "baseValue": 1
     },
     "outpostRange": {
       "id": "outpostRange",
@@ -1942,7 +1997,8 @@
           "cost": 9,
           "value": 400
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "outpostCheap": {
       "id": "outpostCheap",
@@ -1968,7 +2024,8 @@
           "cost": 12,
           "value": 24
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "startWpn": {
       "id": "startWpn",
@@ -1984,7 +2041,8 @@
           "cost": 12,
           "value": 1
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "waveDelay": {
       "id": "waveDelay",
@@ -2015,7 +2073,8 @@
           "cost": 8,
           "value": 32
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "freeDeploy": {
       "id": "freeDeploy",
@@ -2041,7 +2100,8 @@
           "cost": 15,
           "value": 3
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "autoConstruct": {
       "id": "autoConstruct",
@@ -2057,7 +2117,8 @@
           "cost": 20,
           "value": 1
         }
-      ]
+      ],
+      "baseValue": 0
     },
     "startSlot": {
       "id": "startSlot",
@@ -2073,7 +2134,8 @@
           "cost": 18,
           "value": 1
         }
-      ]
+      ],
+      "baseValue": 0
     }
   },
   "baseUpgradeShop": {

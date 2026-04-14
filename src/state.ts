@@ -1,5 +1,5 @@
 import type { Runtime } from './types';
-import { AUTO_CONSTRUCT_MODES, DASH_DURATION, DASH_SPEED, ISO_SCALE, MAX_WEAPON_SLOTS, META_UPGRADES, OUTPOST_HP_BASE, OUTPOST_RANGE, PLAYER_HP_BASE, PLAYER_SPEED, STAT_UPGRADES, TOWER_ATK_DMG, TOWER_ATK_RANGE, TOWER_ATK_SPEED, TOWER_AURA_DMG, TOWER_AURA_R, TOWER_HP_BASE, TOWER_RANGE, WEAPONS, WAVE_INTERVAL } from './constants';
+import { ACTIVE_BALANCE_CONFIG, AUTO_CONSTRUCT_MODES, DASH_DURATION, DASH_SPEED, ISO_SCALE, MAX_WEAPON_SLOTS, META_UPGRADES, OUTPOST_HP_BASE, OUTPOST_RANGE, PLAYER_HP_BASE, PLAYER_SPEED, PLAYER_SPAWN_OFFSET_Y, SHOP_REFRESH_COST, STARTING_GOLD, STAT_UPGRADES, TOWER_ATK_DMG, TOWER_ATK_RANGE, TOWER_ATK_SPEED, TOWER_AURA_DMG, TOWER_AURA_R, TOWER_HP_BASE, TOWER_MULTISHOT, TOWER_RANGE, WEAPONS, WAVE_INTERVAL, buildInitialGameState } from './constants';
 import { clamp } from './utils';
 import { loadMeta, metaValue, saveMeta } from './meta';
 
@@ -133,112 +133,18 @@ export function makeWeapon(id: string) {
 }
 
 export function newGame(opts: any = {}) {
-  const playerHpBonus = metaVal('playerHp');
-  const startGold = opts.startGold ?? (30 + metaVal('startGold'));
-  const baseDashCharges = 2 + metaVal('extraDash');
-  const towerHpBonus = metaVal('towerHp');
-  const opHpBonus = metaVal('outpostHp');
-  const towerAtkMult = metaVal('towerAtk') || 1;
-  const towerRangeBonus = metaVal('towerRange');
-  const towerSpdMult = metaVal('towerAtkSpd') || 1;
-  const opAtkMult = metaVal('outpostAtk') || 1;
-  const opRangeBonus = metaVal('outpostRange');
-  const waveDelayBonus = metaVal('waveDelay');
-  const freeOutposts = metaVal('freeDeploy');
-
-  const startWeapons = Array.isArray(opts.startWeapons)
-    ? opts.startWeapons
-        .filter((w: any) => w?.id && WEAPONS[w.id] && (w.level || 0) > 0)
-        .map((w: any) => ({ ...makeWeapon(w.id), level: clamp(w.level || 1, 1, 4) }))
-    : (() => {
-        const defaults = [makeWeapon('pistol')];
-        if (metaVal('startWpn') > 0) defaults.push(makeWeapon('rifle'));
-        return defaults;
-      })();
-
-  R.game = {
-    tick: 0,
-    wave: 0,
-    waveTimer: 8,
-    waveActive: false,
-    monstersLeft: 0,
-    gold: startGold,
-    crystalsEarned: 0,
-    waveDelayBonus,
-    earlyBonusMult: 1 + metaVal('earlyBonus'),
-    outpostDiscount: metaVal('outpostCheap'),
-    shopDiscount: metaVal('shopDiscount'),
-    freeOutpost: freeOutposts,
-
-    tower: {
-      x:0, y:0,
-      hp: TOWER_HP_BASE + towerHpBonus,
-      maxHp: TOWER_HP_BASE + towerHpBonus,
-      range: TOWER_RANGE,
-      auraR: TOWER_AURA_R, auraDmg: TOWER_AURA_DMG * (metaVal('towerAura') || 1),
-      atkRange: TOWER_ATK_RANGE + towerRangeBonus,
-      atkDmg: TOWER_ATK_DMG * towerAtkMult,
-      atkSpeed: TOWER_ATK_SPEED * towerSpdMult,
-      atkCooldown: 0,
-      multishot: 1,
-      upgrades: { hp:0, range:0, dmg:0, multishot:0 },
-    },
-
-    player: {
-      x:0, y:-70,
-      hp: PLAYER_HP_BASE + playerHpBonus,
-      maxHp: PLAYER_HP_BASE + playerHpBonus,
-      _baseMaxHp: PLAYER_HP_BASE + playerHpBonus,
-      speed: PLAYER_SPEED + metaVal('playerSpeed'),
-      dmgMult: metaVal('playerDmg') || 1,
-      atkSpdMult: 1, rangeMult: 1,
-      armor: metaVal('playerArmor') || 0,
-      lifesteal: 0,
-      regen: metaVal('playerRegen') || 0,
-      luck: 0, goldFinder: 0,
-      maxDashes: baseDashCharges,
-      dashes: baseDashCharges,
-      _baseMaxDashes: baseDashCharges,
-      dashLevel: 0,
-      dashSpeed: DASH_SPEED,
-      dashDuration: DASH_DURATION,
-      dashCooldown: 0,
-      dashing: false, dashTimer: 0,
-      dashVx: 0, dashVy: 0,
-      weapons: startWeapons,
-      invincible: 0, flashTimer: 0, dead: false,
-      facing: { x:1, y:0 },
-    },
-
-    outpostLevel: 1,
-    killStats: { player: 0, base: 0, tower: 0 },
-    outposts: [],
-    opHpBonus, opAtkMult, opRangeBonus,
-    monsters: [],
-    projectiles: [],
-    particles: [],
-    dmgNumbers: [],
-    levelUpCards: null,
-    rerollsLeft: 1 + metaVal('rerolls'),
-    shopCards: null,
-    shopRefreshCost: 20,
-    maxWeaponSlots: MAX_WEAPON_SLOTS + metaVal('startSlot'),
-    keys: {},
-    touchMove: { x: 0, y: 0 },
-    runCardCounts: {},
-    runCardOrder: [],
-    devSession: !!opts.devSession,
-  };
-
-  if (opts.startGold == null) R.game.gold += freeOutposts * 35;
+  R.game = buildInitialGameState(ACTIVE_BALANCE_CONFIG, R.meta, opts);
 }
 
 export function createDefaultDevConfig() {
   const weaponLevels = Object.fromEntries(DEV_WEAPON_IDS.map(id => [id, 0]));
-  weaponLevels.pistol = 1;
-  if (metaVal('startWpn') > 0) weaponLevels.rifle = Math.max(weaponLevels.rifle, 1);
+  const defaults = Array.isArray(ACTIVE_BALANCE_CONFIG?.player?.base?.startWeapons) ? ACTIVE_BALANCE_CONFIG.player.base.startWeapons : ['pistol'];
+  defaults.forEach((id: string) => {
+    if (weaponLevels[id] !== undefined) weaponLevels[id] = 1;
+  });
+  if (metaVal('startWpn') > 0 && weaponLevels.rifle !== undefined) weaponLevels.rifle = Math.max(weaponLevels.rifle, 1);
   return {
-    gold: 30 + metaVal('startGold') + metaVal('freeDeploy') * 35,
+    gold: STARTING_GOLD + metaVal('startGold') + metaVal('freeDeploy') * (ACTIVE_BALANCE_CONFIG?.economy?.freeDeployGold || 0),
     wave: 1,
     weaponLevels,
     cardCounts: Object.fromEntries(DEV_CARD_IDS.map(id => [id, 0])),
