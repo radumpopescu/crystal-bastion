@@ -7,6 +7,21 @@ import { GAME_VERSION } from './version';
 import type { BtnRect } from './types';
 
 const CB_W = 148, CB_H = 215, CB_GAP = 10;
+
+// ── Offscreen sprite cache ─────────────────────────────────
+const _spriteCache: Map<string, { canvas: HTMLCanvasElement; w: number; h: number }> = new Map();
+function getSprite(key: string, w: number, h: number, drawFn: (ctx: CanvasRenderingContext2D, w: number, h: number) => void) {
+  let entry = _spriteCache.get(key);
+  if (!entry) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const sctx = c.getContext('2d')!;
+    drawFn(sctx, w, h);
+    entry = { canvas: c, w, h };
+    _spriteCache.set(key, entry);
+  }
+  return entry;
+}
 const CAT_COLORS: Record<string, string> = { player:'#e74c3c', econ:'#f1c40f', tower:'#f39c12', outpost:'#3498db', unlock:'#8e44ad' };
 const CAT_LABELS: Record<string, string> = { player:'⚔️ PLAYER', econ:'💰 ECONOMY', tower:'🏰 BASE', outpost:'🔵 TOWERS', unlock:'🔓 UNLOCKS' };
 
@@ -347,71 +362,341 @@ function renderStructuralBase() {
   ctx.setLineDash([]);
 }
 
+function buildTowerSprite() {
+  const bw = 32, bh = 56;
+  const w = bw * 2 + 20, h = bh + 40 + 20;
+  return getSprite('tower_base', w, h, (ctx) => {
+    const cx = w / 2, baseY = h - 20;
+    // Left face (darker)
+    ctx.fillStyle = '#1a2540';
+    ctx.beginPath();
+    ctx.moveTo(cx - bw, baseY);
+    ctx.lineTo(cx, baseY + TH * 0.8);
+    ctx.lineTo(cx, baseY + TH * 0.8 - bh);
+    ctx.lineTo(cx - bw, baseY - bh);
+    ctx.closePath(); ctx.fill();
+    // Brick lines on left face
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 0.5;
+    for (let i = 1; i <= 5; i++) {
+      const y1 = baseY - i * (bh / 6);
+      const y2 = baseY + TH * 0.8 - i * (bh / 6);
+      ctx.beginPath(); ctx.moveTo(cx - bw, y1); ctx.lineTo(cx, y2); ctx.stroke();
+    }
+    // Right face (lighter)
+    ctx.fillStyle = '#253555';
+    ctx.beginPath();
+    ctx.moveTo(cx + bw, baseY);
+    ctx.lineTo(cx, baseY + TH * 0.8);
+    ctx.lineTo(cx, baseY + TH * 0.8 - bh);
+    ctx.lineTo(cx + bw, baseY - bh);
+    ctx.closePath(); ctx.fill();
+    // Brick lines on right face
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 0.5;
+    for (let i = 1; i <= 5; i++) {
+      const y1 = baseY - i * (bh / 6);
+      const y2 = baseY + TH * 0.8 - i * (bh / 6);
+      ctx.beginPath(); ctx.moveTo(cx + bw, y1); ctx.lineTo(cx, y2); ctx.stroke();
+    }
+    // Top face
+    ctx.fillStyle = '#2c4070';
+    ctx.strokeStyle = '#f39c12'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, baseY - bh - TH * 0.8);
+    ctx.lineTo(cx + bw, baseY - bh);
+    ctx.lineTo(cx, baseY - bh + TH * 0.8);
+    ctx.lineTo(cx - bw, baseY - bh);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // Crenellations — small raised blocks on top edges
+    ctx.fillStyle = '#1e3358';
+    const crenH = 5, crenW = 6;
+    // Left edge crenellations
+    for (let i = 0; i < 3; i++) {
+      const t2 = (i + 0.5) / 3;
+      const mx = cx + (cx - bw - cx) * (1 - t2);
+      const my = baseY - bh + (baseY - bh - TH * 0.8 - (baseY - bh)) * t2;
+      ctx.fillRect(mx - crenW / 2, my - crenH, crenW, crenH);
+    }
+    // Right edge crenellations
+    for (let i = 0; i < 3; i++) {
+      const t2 = (i + 0.5) / 3;
+      const mx = cx + (cx + bw - cx) * (1 - t2);
+      const my = baseY - bh + (baseY - bh - TH * 0.8 - (baseY - bh)) * t2;
+      ctx.fillRect(mx - crenW / 2, my - crenH, crenW, crenH);
+    }
+    // Center turret base (cylinder)
+    ctx.fillStyle = '#354a72';
+    ctx.beginPath(); ctx.ellipse(cx, baseY - bh - 2, 10, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2a3d60';
+    ctx.fillRect(cx - 10, baseY - bh - 14, 20, 12);
+    ctx.fillStyle = '#354a72';
+    ctx.beginPath(); ctx.ellipse(cx, baseY - bh - 14, 10, 5, 0, 0, Math.PI * 2); ctx.fill();
+  });
+}
+
 function renderTower() {
   const { ctx } = R;
   const t = R.game.tower;
   const { sx, sy } = w2s(t.x, t.y, 0);
-  const bw = 30, bh = 48;
+  const bw = 32, bh = 56;
+  const tick = R.game.tick || 0;
+
+  // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath(); ctx.ellipse(sx, sy, bw * 1.2, bw * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#1a2540';
+
+  // Draw cached tower body
+  const sprite = buildTowerSprite();
+  ctx.drawImage(sprite.canvas, sx - sprite.w / 2, sy - sprite.h + 20);
+
+  // Turret barrel — rotates toward nearest monster
+  const barrelLen = 14;
+  const turretX = sx, turretY = sy - bh - 14;
+  let barrelAng = -Math.PI / 4; // default aim
+  if (R.game.monsters.length > 0) {
+    let nearest: any = null, nd = Infinity;
+    for (const m of R.game.monsters) {
+      const d = Math.hypot(m.x - t.x, m.y - t.y);
+      if (d < nd) { nd = d; nearest = m; }
+    }
+    if (nearest) {
+      const dx = nearest.x - t.x, dy = nearest.y - t.y;
+      barrelAng = Math.atan2((dx + dy) * 0.5, (dx - dy)) ; // iso-projected angle
+    }
+  }
+  ctx.strokeStyle = '#5a6f8f'; ctx.lineWidth = 4; ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(sx - bw, sy);
-  ctx.lineTo(sx, sy + TH * 0.8);
-  ctx.lineTo(sx, sy + TH * 0.8 - bh);
-  ctx.lineTo(sx - bw, sy - bh);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#253555';
-  ctx.beginPath();
-  ctx.moveTo(sx + bw, sy);
-  ctx.lineTo(sx, sy + TH * 0.8);
-  ctx.lineTo(sx, sy + TH * 0.8 - bh);
-  ctx.lineTo(sx + bw, sy - bh);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#2c4070';
-  ctx.strokeStyle = '#f39c12';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(sx, sy - bh - TH * 0.8);
-  ctx.lineTo(sx + bw, sy - bh);
-  ctx.lineTo(sx, sy - bh + TH * 0.8);
-  ctx.lineTo(sx - bw, sy - bh);
-  ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#f39c12';
-  ctx.font = 'bold 20px monospace';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('⊕', sx, sy - bh - 2);
-  ctx.textBaseline = 'alphabetic';
-  drawHpBar(sx - 36, sy - bh - 30, 72, 7, t.hp, t.maxHp, '#c0392b', '#27ae60');
+  ctx.moveTo(turretX, turretY);
+  ctx.lineTo(turretX + Math.cos(barrelAng) * barrelLen, turretY + Math.sin(barrelAng) * barrelLen);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // Aura glow pulse
+  const auraPulse = 0.6 + Math.sin(tick * 1.4) * 0.15;
+  ctx.fillStyle = `rgba(243,156,18,${auraPulse * 0.12})`;
+  ctx.beginPath(); ctx.ellipse(sx, sy, t.auraR * ISO_SCALE * 2, t.auraR * ISO_SCALE, 0, 0, Math.PI * 2); ctx.fill();
+
+  // HP bar
+  drawHpBar(sx - 36, sy - bh - 34, 72, 7, t.hp, t.maxHp, '#c0392b', '#27ae60');
+}
+
+function buildOutpostSprite(level: number) {
+  const bw = 14, bh = 28;
+  const w = bw * 2 + 20, h = bh + 40;
+  // Color tint by level: L1 blue → L3 cyan → L5 gold
+  const lvColors = ['#3498db', '#2eadd4', '#1abc9c', '#e67e22', '#f1c40f'];
+  const accent = lvColors[Math.min(level - 1, 4)];
+  return getSprite(`outpost_lv${level}`, w, h, (ctx) => {
+    const cx = w / 2, baseY = h - 12;
+    // Base platform
+    ctx.fillStyle = '#0c1a2e';
+    ctx.beginPath();
+    ctx.moveTo(cx, baseY + 4); ctx.lineTo(cx + bw + 4, baseY); ctx.lineTo(cx, baseY - 4); ctx.lineTo(cx - bw - 4, baseY);
+    ctx.closePath(); ctx.fill();
+    // Pillar — left face
+    ctx.fillStyle = '#0e2040';
+    ctx.beginPath();
+    ctx.moveTo(cx - bw, baseY);
+    ctx.lineTo(cx, baseY + TH * 0.5);
+    ctx.lineTo(cx, baseY + TH * 0.5 - bh);
+    ctx.lineTo(cx - bw, baseY - bh);
+    ctx.closePath(); ctx.fill();
+    // Right face
+    ctx.fillStyle = '#163060';
+    ctx.beginPath();
+    ctx.moveTo(cx + bw, baseY);
+    ctx.lineTo(cx, baseY + TH * 0.5);
+    ctx.lineTo(cx, baseY + TH * 0.5 - bh);
+    ctx.lineTo(cx + bw, baseY - bh);
+    ctx.closePath(); ctx.fill();
+    // Top face
+    ctx.fillStyle = '#1e4080';
+    ctx.strokeStyle = accent; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, baseY - bh - TH * 0.5);
+    ctx.lineTo(cx + bw, baseY - bh);
+    ctx.lineTo(cx, baseY - bh + TH * 0.5);
+    ctx.lineTo(cx - bw, baseY - bh);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // Vertical accent lines on faces
+    ctx.strokeStyle = accent; ctx.globalAlpha = 0.2; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx - bw / 2, baseY - bh + 2); ctx.lineTo(cx - bw / 2, baseY - 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + bw / 2, baseY - bh + 2); ctx.lineTo(cx + bw / 2, baseY - 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+    // Orb on top
+    const orbY = baseY - bh - 8;
+    const orbR = 5 + level * 0.5;
+    ctx.fillStyle = accent;
+    ctx.shadowColor = accent; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(cx, orbY, orbR, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Orb highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath(); ctx.arc(cx - orbR * 0.25, orbY - orbR * 0.25, orbR * 0.35, 0, Math.PI * 2); ctx.fill();
+  });
 }
 
 function renderOutpost(op: any) {
   if (!op) return;
   const { ctx } = R;
   const { sx, sy } = w2s(op.x, op.y, 0);
-  const bw = 14, bh = 24;
+  const tick = R.game.tick || 0;
+  const lv = R.game.outpostLevel || 1;
+
+  // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
-  ctx.beginPath(); ctx.ellipse(sx, sy, bw, bw * 0.45, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#0e2040';
-  ctx.beginPath(); ctx.moveTo(sx - bw, sy); ctx.lineTo(sx, sy + TH * 0.5); ctx.lineTo(sx, sy + TH * 0.5 - bh); ctx.lineTo(sx - bw, sy - bh); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#163060';
-  ctx.beginPath(); ctx.moveTo(sx + bw, sy); ctx.lineTo(sx, sy + TH * 0.5); ctx.lineTo(sx, sy + TH * 0.5 - bh); ctx.lineTo(sx + bw, sy - bh); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#1e4080';
-  ctx.strokeStyle = '#3498db'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(sx, sy - bh - TH * 0.5); ctx.lineTo(sx + bw, sy - bh); ctx.lineTo(sx, sy - bh + TH * 0.5); ctx.lineTo(sx - bw, sy - bh); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(sx, sy, 14, 14 * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Draw cached sprite
+  const sprite = buildOutpostSprite(lv);
+  ctx.drawImage(sprite.canvas, sx - sprite.w / 2, sy - sprite.h + 12);
+
+  // Orb pulse glow (per-frame animation)
+  const lvColors = ['#3498db', '#2eadd4', '#1abc9c', '#e67e22', '#f1c40f'];
+  const accent = lvColors[Math.min(lv - 1, 4)];
+  const pulse = 0.08 + Math.sin(tick * 1.8 + op.x * 3 + op.y * 7) * 0.05;
+  ctx.fillStyle = accent;
+  ctx.globalAlpha = pulse;
+  ctx.beginPath(); ctx.arc(sx, sy - 36 - 8, 10 + lv, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Range ring
   const rsx = op.atkRange * ISO_SCALE * 2;
   const rsy = rsx * 0.5;
-  ctx.strokeStyle = 'rgba(52,152,219,0.18)';
+  ctx.strokeStyle = `rgba(52,152,219,0.18)`;
   ctx.lineWidth = 1;
   ctx.setLineDash([3, 6]);
   ctx.beginPath(); ctx.ellipse(sx, sy, rsx, rsy, 0, 0, Math.PI * 2); ctx.stroke();
   ctx.setLineDash([]);
-  drawHpBar(sx - 20, sy - bh - 18, 40, 5, op.hp, op.maxHp, '#e74c3c', '#3498db');
-  const lv = op.level || 1;
+
+  // HP bar
+  drawHpBar(sx - 20, sy - 44, 40, 5, op.hp, op.maxHp, '#e74c3c', '#3498db');
+
+  // Level label
   ctx.fillStyle = lv >= 5 ? '#f1c40f' : '#8bd3ff';
   ctx.font = `bold ${lv >= 5 ? 11 : 10}px monospace`;
   ctx.textAlign = 'center';
-  ctx.fillText(`Lv${lv}`, sx, sy - bh - 22);
+  ctx.fillText(`Lv${lv}`, sx, sy - 48);
+}
+
+function buildMonsterSprite(type: string, r: number, color: string) {
+  const pad = 8;
+  const w = (r + pad) * 2;
+  const h = (r + pad) * 2 + r;
+  return getSprite(`monster_${type}`, w, h, (ctx, w, h) => {
+    const cx = w / 2, cy = r + pad;
+    const darker = darkenColor(color, 0.3);
+    const lighter = lightenColor(color, 0.2);
+    switch (type) {
+      case 'grunt': {
+        // Blob body — teardrop shape
+        ctx.fillStyle = color;
+        ctx.strokeStyle = darker; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, Math.PI, 0); // top half circle
+        ctx.quadraticCurveTo(cx + r * 0.6, cy + r * 1.2, cx, cy + r * 1.5);
+        ctx.quadraticCurveTo(cx - r * 0.6, cy + r * 1.2, cx - r, cy);
+        ctx.fill(); ctx.stroke();
+        // Highlight
+        ctx.fillStyle = lighter;
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath(); ctx.arc(cx - r * 0.25, cy - r * 0.3, r * 0.35, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+        // Angry eyebrow
+        ctx.strokeStyle = darker; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(cx + r * 0.05, cy - r * 0.55); ctx.lineTo(cx + r * 0.55, cy - r * 0.45); ctx.stroke();
+        break;
+      }
+      case 'rusher': {
+        // Spike — diamond/kite shape
+        ctx.fillStyle = color;
+        ctx.strokeStyle = darker; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - r * 1.1);
+        ctx.lineTo(cx + r * 0.7, cy);
+        ctx.lineTo(cx + r * 0.3, cy + r * 1.0);
+        ctx.lineTo(cx - r * 0.3, cy + r * 1.0);
+        ctx.lineTo(cx - r * 0.7, cy);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        // Speed stripes
+        ctx.strokeStyle = lighter; ctx.lineWidth = 1; ctx.globalAlpha = 0.4;
+        ctx.beginPath(); ctx.moveTo(cx - r * 0.3, cy - r * 0.4); ctx.lineTo(cx - r * 0.3, cy + r * 0.4); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx + r * 0.3, cy - r * 0.4); ctx.lineTo(cx + r * 0.3, cy + r * 0.4); ctx.stroke();
+        ctx.globalAlpha = 1;
+        break;
+      }
+      case 'brute': {
+        // Chunk — wide rounded body with horns
+        ctx.fillStyle = color;
+        ctx.strokeStyle = darker; ctx.lineWidth = 2;
+        // Wide body
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + r * 0.15, r, r * 0.8, 0, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+        // Horns
+        ctx.fillStyle = darker;
+        ctx.beginPath();
+        ctx.moveTo(cx - r * 0.5, cy - r * 0.6);
+        ctx.lineTo(cx - r * 0.8, cy - r * 1.2);
+        ctx.lineTo(cx - r * 0.15, cy - r * 0.65);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(cx + r * 0.5, cy - r * 0.6);
+        ctx.lineTo(cx + r * 0.8, cy - r * 1.2);
+        ctx.lineTo(cx + r * 0.15, cy - r * 0.65);
+        ctx.fill();
+        // Arms (stumpy rectangles)
+        ctx.fillStyle = color; ctx.strokeStyle = darker; ctx.lineWidth = 1.5;
+        ctx.fillRect(cx - r * 1.15, cy - r * 0.1, r * 0.3, r * 0.6);
+        ctx.strokeRect(cx - r * 1.15, cy - r * 0.1, r * 0.3, r * 0.6);
+        ctx.fillRect(cx + r * 0.85, cy - r * 0.1, r * 0.3, r * 0.6);
+        ctx.strokeRect(cx + r * 0.85, cy - r * 0.1, r * 0.3, r * 0.6);
+        break;
+      }
+      case 'tank': {
+        // Shell — hexagonal armored body
+        ctx.fillStyle = color;
+        ctx.strokeStyle = '#4a6070'; ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = Math.PI / 6 + (i * Math.PI * 2 / 6);
+          const px = cx + Math.cos(a) * r;
+          const py = cy + Math.sin(a) * r * 0.85;
+          i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        }
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        // Inner armor plate
+        ctx.fillStyle = lightenColor(color, 0.12);
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = Math.PI / 6 + (i * Math.PI * 2 / 6);
+          const px = cx + Math.cos(a) * r * 0.6;
+          const py = cy + Math.sin(a) * r * 0.85 * 0.6;
+          i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        }
+        ctx.closePath(); ctx.fill();
+        // Visor slits
+        ctx.strokeStyle = '#1a2a3a'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(cx + r * 0.15, cy - r * 0.3); ctx.lineTo(cx + r * 0.15, cy + r * 0.1); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx + r * 0.35, cy - r * 0.25); ctx.lineTo(cx + r * 0.35, cy + r * 0.05); ctx.stroke();
+        break;
+      }
+    }
+  });
+}
+
+function darkenColor(hex: string, amt: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, ((n >> 16) & 0xff) * (1 - amt)) | 0;
+  const g = Math.max(0, ((n >> 8) & 0xff) * (1 - amt)) | 0;
+  const b = Math.max(0, (n & 0xff) * (1 - amt)) | 0;
+  return `rgb(${r},${g},${b})`;
+}
+function lightenColor(hex: string, amt: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, ((n >> 16) & 0xff) + 255 * amt) | 0;
+  const g = Math.min(255, ((n >> 8) & 0xff) + 255 * amt) | 0;
+  const b = Math.min(255, (n & 0xff) + 255 * amt) | 0;
+  return `rgb(${r},${g},${b})`;
 }
 
 function renderMonster(m: any) {
@@ -419,18 +704,62 @@ function renderMonster(m: any) {
   const { ctx } = R;
   const { sx, sy } = w2s(m.x, m.y, 0);
   const r = m.radius;
+  const tick = R.game.tick || 0;
+  const idOff = m.x * 7 + m.y * 13; // per-monster phase offset
+
+  // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.30)';
   ctx.beginPath(); ctx.ellipse(sx, sy, r * 0.9, r * SHADOW_SCALE, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = m.color;
-  ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(sx, sy - ENTITY_H, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+  // Walk bob
+  const bobSpeed = m.type === 'rusher' ? 6 : m.type === 'tank' ? 1.8 : 3.5;
+  const bobAmt = m.type === 'tank' ? 1 : m.type === 'brute' ? 2.5 : 3;
+  const bob = Math.sin(tick * bobSpeed + idOff) * bobAmt;
+
+  // Draw cached sprite
+  const sprite = buildMonsterSprite(m.type, r, m.color);
+  const drawY = sy - ENTITY_H - r - 8 + bob;
+  ctx.drawImage(sprite.canvas, sx - sprite.w / 2, drawY);
+
+  // Grunt feet animation
+  if (m.type === 'grunt') {
+    const footOff = Math.sin(tick * 4.5 + idOff) * 3;
+    ctx.fillStyle = darkenColor(m.color, 0.2);
+    ctx.beginPath(); ctx.arc(sx - 4 - footOff, sy - 2, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx + 4 + footOff, sy - 2, 3, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Rusher motion lines
+  if (m.type === 'rusher') {
+    const spd = Math.hypot(m.speed, 0);
+    if (spd > 0) {
+      ctx.strokeStyle = m.color; ctx.lineWidth = 1; ctx.globalAlpha = 0.25;
+      for (let i = 1; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.moveTo(sx - r * 0.5, sy - ENTITY_H + bob - i * 6);
+        ctx.lineTo(sx - r * 1.4, sy - ENTITY_H + bob - i * 6 + 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // Googly eye (per-frame: pupil tracks player)
+  const eyeX = sx + r * 0.25;
+  const eyeY = sy - ENTITY_H - r * 0.15 + bob;
+  const eyeR = m.type === 'brute' ? r * 0.3 : r * 0.28;
   ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(sx + r * 0.28, sy - ENTITY_H - r * 0.2, r * 0.28, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2); ctx.stroke();
+  // Pupil tracks player
+  const pa = Math.atan2(R.game.player.y - m.y, R.game.player.x - m.x);
+  const pupilOff = eyeR * 0.4;
   ctx.fillStyle = '#000';
-  ctx.beginPath(); ctx.arc(sx + r * 0.35, sy - ENTITY_H - r * 0.2, r * 0.14, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(sx, sy - ENTITY_H + r); ctx.lineTo(sx, sy); ctx.stroke();
-  if (m.hp < m.maxHp) drawHpBar(sx - r, sy - ENTITY_H - r - 10, r * 2, 4, m.hp, m.maxHp, '#e74c3c', '#e74c3c');
+  ctx.beginPath(); ctx.arc(eyeX + Math.cos(pa) * pupilOff, eyeY + Math.sin(pa) * pupilOff * 0.5, eyeR * 0.5, 0, Math.PI * 2); ctx.fill();
+
+  // HP bar
+  if (m.hp < m.maxHp) drawHpBar(sx - r, sy - ENTITY_H - r - 10 + bob, r * 2, 4, m.hp, m.maxHp, '#e74c3c', '#e74c3c');
 }
 
 function renderPlayer() {
@@ -439,6 +768,10 @@ function renderPlayer() {
   const { sx, sy } = w2s(p.x, p.y, 0);
   const r = PLAYER_RADIUS;
   const flash = p.flashTimer > 0;
+  const tick = R.game.tick || 0;
+  const fa = Math.atan2(p.facing.y, p.facing.x);
+
+  // Dash afterimages
   if (p.dashing) {
     for (let i = 1; i <= 3; i++) {
       const tx = sx - p.dashVx * (i * 0.025) * ISO_SCALE;
@@ -449,29 +782,59 @@ function renderPlayer() {
     }
     ctx.globalAlpha = 1;
   }
+
+  // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.40)';
   ctx.beginPath(); ctx.ellipse(sx, sy, r * 1.1, r * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Leg/stem
   ctx.strokeStyle = 'rgba(52,152,219,0.4)'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(sx, sy - ENTITY_H + r); ctx.lineTo(sx, sy); ctx.stroke();
+
+  // Animated feet
+  const walkSpeed = Math.hypot(p.facing.x, p.facing.y) > 0.1 ? 1 : 0;
+  const footSwing = Math.sin(tick * 5) * 3 * walkSpeed;
+  ctx.fillStyle = '#636e72';
+  ctx.beginPath(); ctx.arc(sx - 4 - footSwing, sy - 1, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(sx + 4 + footSwing, sy - 1, 2.5, 0, Math.PI * 2); ctx.fill();
+
+  // Outer glow ring
   ctx.shadowColor = p.dashing ? '#3498db' : '#00ffcc';
   ctx.shadowBlur = 18;
   ctx.strokeStyle = p.dashing ? '#3498db' : '#00ffcc';
   ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(sx, sy - ENTITY_H, r + 3, 0, Math.PI * 2); ctx.stroke();
   ctx.shadowBlur = 0;
+
+  // Body
   ctx.fillStyle = flash ? '#ff6b6b' : '#dfe6e9';
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(sx, sy - ENTITY_H, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+  // Inner body detail — subtle cross pattern
+  ctx.strokeStyle = 'rgba(0,0,0,0.07)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(sx - r * 0.5, sy - ENTITY_H); ctx.lineTo(sx + r * 0.5, sy - ENTITY_H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(sx, sy - ENTITY_H - r * 0.5); ctx.lineTo(sx, sy - ENTITY_H + r * 0.5); ctx.stroke();
+
+  // Facing chevron indicator
+  const chevDist = r - 2;
+  const chevX = sx + Math.cos(fa) * chevDist;
+  const chevY = sy - ENTITY_H + Math.sin(fa) * chevDist;
+  const chevSize = 4;
   ctx.fillStyle = '#00ffcc';
-  const fa = Math.atan2(p.facing.y, p.facing.x);
-  ctx.beginPath(); ctx.arc(sx + Math.cos(fa) * (r - 4), sy - ENTITY_H + Math.sin(fa) * (r - 4), 4, 0, Math.PI * 2); ctx.fill();
-  const { sx:ws, sy:wy } = w2s(p.x, p.y, 0);
+  ctx.beginPath();
+  ctx.moveTo(chevX + Math.cos(fa) * chevSize, chevY + Math.sin(fa) * chevSize);
+  ctx.lineTo(chevX + Math.cos(fa + 2.3) * chevSize, chevY + Math.sin(fa + 2.3) * chevSize);
+  ctx.lineTo(chevX + Math.cos(fa - 2.3) * chevSize, chevY + Math.sin(fa - 2.3) * chevSize);
+  ctx.closePath(); ctx.fill();
+
+  // Weapon icons
   for (let i = 0; i < p.weapons.length; i++) {
     const w = p.weapons[i];
     const def = WEAPONS[w.id];
     ctx.font = '13px monospace';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(def.icon, ws + (i - (p.weapons.length - 1) / 2) * 16, wy - ENTITY_H - r - 14);
+    ctx.fillText(def.icon, sx + (i - (p.weapons.length - 1) / 2) * 16, sy - ENTITY_H - r - 14);
   }
   ctx.textBaseline = 'alphabetic';
 }
@@ -655,7 +1018,13 @@ function renderProjectilesWorld() {
   const { ctx } = R;
   const game = R.game;
   for (const p of game.projectiles) {
-    const { sx, sy } = w2s(p.x, p.y, 8);
+    const { sx, sy: sy0 } = w2s(p.x, p.y, 8);
+    // Arc from turret height down to ground as projectile travels
+    let sy = sy0;
+    if (p.startZ) {
+      const t = Math.min(1, (p.age || 0) / Math.max(0.1, (p.life || 1) + (p.age || 0)) * 2);
+      sy = sy0 - p.startZ * (1 - t);
+    }
     const r = p.size || 5;
     switch (p.visual || p.type) {
       case 'pistol':

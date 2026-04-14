@@ -1205,6 +1205,7 @@ export function updateStructures(dt: number) {
           width:4,
           glow:12,
           life:1.2,
+          startZ:70,
         });
       }
       t.atkCooldown = 1 / t.atkSpeed;
@@ -1222,6 +1223,7 @@ export function updateStructures(dt: number) {
         width:3,
         glow:10,
         life:1.1,
+        startZ:40,
       });
       op.atkCooldown = 1 / op.atkSpeed;
     }
