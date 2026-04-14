@@ -10,39 +10,13 @@ const CB_W = 148, CB_H = 215, CB_GAP = 10;
 const CAT_COLORS: Record<string, string> = { player:'#e74c3c', econ:'#f1c40f', tower:'#f39c12', outpost:'#3498db', unlock:'#8e44ad' };
 const CAT_LABELS: Record<string, string> = { player:'⚔️ PLAYER', econ:'💰 ECONOMY', tower:'🏰 BASE', outpost:'🔵 TOWERS', unlock:'🔓 UNLOCKS' };
 
-const CB_SECTIONS = [
-  {
-    label: '⚔️  WEAPONS', color: '#e74c3c',
-    note: 'Every weapon unlock and level-up offer.',
-    cards: () => {
-      const out: any[] = [];
-      for (const [id, def] of Object.entries(WEAPONS)) {
-        for (let lv = 1; lv <= 4; lv++) out.push({ type:'weapon', weaponId:id, newLevel:lv, rarity:(def as any).rarity });
-      }
-      return out;
-    },
-  },
-  {
-    label: '🧍 PLAYER STATS', color: '#2ecc71',
-    note: 'Core player boosts that can appear throughout the run.',
-    cards: () => STAT_UPGRADES
-      .filter(s => !['towerRepair','towerBoost','towerRadar','towerSpeed','outpostRepair','outpostBoost','outpostCheap'].includes(s.id))
-      .map(s => ({ type:'stat', statId:s.id, rarity:s.rarity || 'common' })),
-  },
-  {
-    label: '🏰 BASE CARDS', color: '#f39c12',
-    note: 'Base support cards. Some only roll when the base needs them.',
-    cards: () => ['towerRepair','towerBoost','towerRadar','towerSpeed']
-      .map(id => { const s = STAT_UPGRADES.find(x => x.id === id); return s ? { type:'stat', statId:id, rarity:s.rarity || 'uncommon' } : null; })
-      .filter(Boolean),
-  },
-  {
-    label: '🔵 TOWER CARDS', color: '#3498db',
-    note: 'Tower support cards. Utility rolls only show up when useful.',
-    cards: () => ['outpostRepair','outpostBoost','outpostCheap']
-      .map(id => { const s = STAT_UPGRADES.find(x => x.id === id); return s ? { type:'stat', statId:id, rarity:s.rarity || 'uncommon' } : null; })
-      .filter(Boolean),
-  },
+const CB_SECTIONS: { id: string; label: string; color: string; icon: string; note: string; filter: (s: any) => boolean }[] = [
+  { id:'player', icon:'🧍', label:'PLAYER',  color:'#2ecc71', note:'Core stat boosts — survivability, damage, mobility.',
+    filter: s => !s.id.startsWith('tower') && !s.id.startsWith('outpost') },
+  { id:'base',   icon:'🏰', label:'BASE',    color:'#f39c12', note:'Base turret enhancements. Some only appear when useful.',
+    filter: s => s.id.startsWith('tower') },
+  { id:'towers', icon:'🔵', label:'TOWERS',  color:'#3498db', note:'Outpost utility. Conditional cards check your current state.',
+    filter: s => s.id.startsWith('outpost') },
 ];
 
 export function render() {
@@ -1688,78 +1662,157 @@ function makeCardBookPreviewGame(card: any) {
 
 function renderCardBook() {
   const { ctx, W, H, ui } = R;
-  ctx.fillStyle = '#070d1a'; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#2980b9'; ctx.font = 'bold 26px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('📖 CARD BOOK', W / 2, 36);
-  const sections = CB_SECTIONS.map(section => ({ ...section, entries: section.cards() }));
-  const totalCards = sections.reduce((sum, section) => sum + section.entries.length, 0);
-  ctx.fillStyle = '#95a5a6'; ctx.font = '12px monospace';
-  ctx.fillText(`${totalCards} possible run cards and weapon upgrades`, W / 2, 56);
+  const CARD_W = 140, CARD_H = 200, CARD_GAP = 10;
+  const SIDE = 200;
+  const CONTENT_X = SIDE + 16;
+  const CONTENT_W = W - CONTENT_X - 16;
+  const HEADER_H = 52;
+  const clipTop = HEADER_H + 2;
+  const clipBot = H - 4;
+
+  // Background
+  ctx.fillStyle = '#060c18'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#0b1525'; ctx.fillRect(0, 0, SIDE, H);
+  ctx.fillStyle = '#1a2a3e'; ctx.fillRect(SIDE, 0, 1, H);
+
+  // Header
+  ctx.fillStyle = '#1a2a3e'; ctx.fillRect(0, 0, W, HEADER_H);
+  ctx.fillStyle = '#2980b9'; ctx.fillRect(0, HEADER_H, W, 1);
+  ctx.fillStyle = '#5dade2'; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'left';
+  ctx.fillText('📖  CARD BOOK', 16, 34);
   const luckPreview = 0;
   const t = buildDropChanceTable(luckPreview);
-  const items = [
-    { label:'Common', color:'#3498db', pct:t.common },
-    { label:'Uncommon', color:'#e67e22', pct:t.uncommon },
-    { label:'Rare', color:'#9b59b6', pct:t.rare },
+  const rarityItems = [
+    { label:'Common',   color:'#3498db', pct: t.common },
+    { label:'Uncommon', color:'#e67e22', pct: t.uncommon },
+    { label:'Rare',     color:'#9b59b6', pct: t.rare },
   ];
-  let lx = W / 2 - 210;
-  ctx.font = '11px monospace'; ctx.textAlign = 'left';
-  for (const it of items) {
-    ctx.fillStyle = it.color + '33'; rrect(lx, 66, 132, 18, 4); ctx.fill();
-    ctx.strokeStyle = it.color + '99'; ctx.lineWidth = 1; rrect(lx, 66, 132, 18, 4); ctx.stroke();
-    ctx.fillStyle = it.color; ctx.font = 'bold 11px monospace'; ctx.fillText(`${it.label}`, lx + 6, 78);
-    ctx.fillStyle = '#ddd'; ctx.font = '11px monospace'; ctx.fillText(`${it.pct}% / card`, lx + 70, 78);
-    lx += 142;
+  let rx = W - 16;
+  ctx.textAlign = 'right';
+  for (let i = rarityItems.length - 1; i >= 0; i--) {
+    const it = rarityItems[i];
+    ctx.fillStyle = it.color + '30'; rrect(rx - 118, 14, 118, 22, 4); ctx.fill();
+    ctx.strokeStyle = it.color + '88'; ctx.lineWidth = 1; rrect(rx - 118, 14, 118, 22, 4); ctx.stroke();
+    ctx.fillStyle = it.color; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+    ctx.fillText(it.label, rx - 112, 28);
+    ctx.fillStyle = '#bbb'; ctx.font = '10px monospace';
+    ctx.fillText(`${it.pct}% / card`, rx - 60, 28);
+    rx -= 128;
   }
-  ctx.fillStyle = '#7f8c8d'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('Base odds before Lucky bonuses. Context cards only appear in runs when they can do something.', W / 2, 98);
-  const clipTop = 114, clipBot = H - 48;
-  const cols = Math.max(1, Math.floor((W - 72) / (CB_W + CB_GAP)));
-  const gridW = cols * (CB_W + CB_GAP) - CB_GAP;
-  const startX = Math.round(W / 2 - gridW / 2);
+
+  // Sidebar nav
+  const NAV_ITEMS = [
+    { id:'weapons', icon:'⚔️',  label:'WEAPONS',  color:'#e74c3c', count: Object.keys(WEAPONS).length },
+    ...CB_SECTIONS.map(s => ({ id:s.id, icon:s.icon, label:s.label, color:s.color,
+      count: STAT_UPGRADES.filter(s.filter).length })),
+  ];
+  let navY = clipTop + 12;
+  for (const nav of NAV_ITEMS) {
+    ctx.fillStyle = nav.color + '22'; rrect(8, navY, SIDE - 16, 42, 6); ctx.fill();
+    ctx.strokeStyle = nav.color + '66'; ctx.lineWidth = 1; rrect(8, navY, SIDE - 16, 42, 6); ctx.stroke();
+    ctx.fillStyle = nav.color; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left';
+    ctx.fillText(`${nav.icon}  ${nav.label}`, 18, navY + 17);
+    ctx.fillStyle = '#7f8c8d'; ctx.font = '10px monospace';
+    ctx.fillText(`${nav.count} cards`, 18, navY + 32);
+    navY += 52;
+  }
+
   function drawBookCard(card: any, bx: number, by: number) {
     const savedGame = R.game;
     R.game = makeCardBookPreviewGame(card);
-    drawCard(card, bx, by, CB_W, CB_H, { dropChance: rarityDropChance(card.rarity, luckPreview) });
+    drawCard(card, bx, by, CARD_W, CARD_H, { dropChance: rarityDropChance(card.rarity, luckPreview) });
     R.game = savedGame;
   }
+
+  function drawSectionHeader(y: number, icon: string, label: string, color: string, note: string, count: number) {
+    ctx.fillStyle = color + '18'; rrect(CONTENT_X, y, CONTENT_W, 38, 6); ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 2; rrect(CONTENT_X, y, CONTENT_W, 38, 6); ctx.stroke();
+    ctx.fillStyle = color; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'left';
+    ctx.fillText(`${icon}  ${label}`, CONTENT_X + 12, y + 24);
+    ctx.fillStyle = '#7f8c8d'; ctx.font = '10px monospace';
+    ctx.fillText(note, CONTENT_X + 12, y + 36);
+    ctx.fillStyle = color + 'cc'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'right';
+    ctx.fillText(`${count} cards`, CONTENT_X + CONTENT_W - 12, y + 24);
+  }
+
   function layout(draw: boolean) {
     let y = clipTop - ui.cardBookScroll;
-    for (const section of sections) {
-      const rows = Math.ceil(section.entries.length / cols);
-      const cardsH = rows > 0 ? rows * (CB_H + CB_GAP) - CB_GAP : 0;
-      const secH = 46 + 12 + cardsH + 18;
+    const cols = Math.max(1, Math.floor((CONTENT_W + CARD_GAP) / (CARD_W + CARD_GAP)));
+
+    // ── WEAPONS ──────────────────────────────────────────────
+    const weaponIds = Object.keys(WEAPONS);
+    const wpnSecH = 48 + weaponIds.length * (CARD_H + CARD_GAP + 24);
+    if (draw && y + wpnSecH >= clipTop && y < clipBot) {
+      drawSectionHeader(y, '⚔️', 'WEAPONS', '#e74c3c', 'Each weapon has 4 upgrade levels. Level 1 = unlock, 2-4 = power upgrades.', weaponIds.length * 4);
+    }
+    y += 48;
+    for (const id of weaponIds) {
+      const def = WEAPONS[id] as any;
+      const rowCards = [1,2,3,4].map(lv => ({ type:'weapon', weaponId:id, newLevel:lv, rarity:def.rarity }));
+      const rowH = CARD_H + 24;
+      if (draw && y + rowH >= clipTop && y < clipBot) {
+        // weapon label
+        ctx.fillStyle = def.color + '22';
+        ctx.fillRect(CONTENT_X, y, CONTENT_W, 20);
+        ctx.fillStyle = def.color; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left';
+        ctx.fillText(`${def.icon}  ${def.name}`, CONTENT_X + 8, y + 14);
+        ctx.fillStyle = '#7f8c8d'; ctx.font = '10px monospace';
+        ctx.fillText(def.rarity.toUpperCase(), CONTENT_X + CONTENT_W - 60, y + 14);
+        for (let i = 0; i < 4; i++) {
+          const bx = CONTENT_X + i * (CARD_W + CARD_GAP);
+          const by = y + 22;
+          if (bx + CARD_W > CONTENT_X + CONTENT_W) continue;
+          if (by + CARD_H < clipTop || by > clipBot) continue;
+          drawBookCard(rowCards[i], bx, by);
+        }
+      }
+      y += rowH + CARD_GAP;
+    }
+    y += 16;
+
+    // ── STAT CARD SECTIONS ────────────────────────────────────
+    for (const sec of CB_SECTIONS) {
+      const cards = STAT_UPGRADES.filter(sec.filter).map(s => ({ type:'stat', statId:s.id, rarity:s.rarity || 'common' }));
+      if (cards.length === 0) continue;
+      const gridRows = Math.ceil(cards.length / cols);
+      const secH = 48 + gridRows * (CARD_H + CARD_GAP);
       if (draw && y + secH >= clipTop && y < clipBot) {
-        ctx.fillStyle = section.color + '18'; rrect(startX - 8, y, gridW + 16, 46, 8); ctx.fill();
-        ctx.strokeStyle = section.color + '66'; ctx.lineWidth = 1.5; rrect(startX - 8, y, gridW + 16, 46, 8); ctx.stroke();
-        ctx.fillStyle = section.color; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'left'; ctx.fillText(section.label, startX + 8, y + 18);
-        ctx.fillStyle = '#7f8c8d'; ctx.font = '10px monospace'; ctx.fillText(section.note, startX + 8, y + 34);
-        ctx.fillStyle = '#dfe6e9'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'right'; ctx.fillText(`${section.entries.length} entries`, startX + gridW + 6, y + 28);
-        const cardsY = y + 58;
-        section.entries.forEach((card: any, idx: number) => {
+        drawSectionHeader(y, sec.icon, sec.label, sec.color, sec.note, cards.length);
+        const cardsY = y + 48;
+        cards.forEach((card: any, idx: number) => {
           const col = idx % cols;
           const row = Math.floor(idx / cols);
-          const bx = startX + col * (CB_W + CB_GAP);
-          const by = cardsY + row * (CB_H + CB_GAP);
-          if (by + CB_H < clipTop || by > clipBot) return;
+          const bx = CONTENT_X + col * (CARD_W + CARD_GAP);
+          const by = cardsY + row * (CARD_H + CARD_GAP);
+          if (by + CARD_H < clipTop || by > clipBot) return;
           drawBookCard(card, bx, by);
         });
       }
-      y += secH;
+      y += secH + 16;
     }
+
     return y + ui.cardBookScroll;
   }
+
   const totalH = layout(false);
-  const maxScroll = Math.max(0, totalH - clipBot + 18);
+  const maxScroll = Math.max(0, totalH - clipBot + 24);
   ui.cardBookScroll = clamp(ui.cardBookScroll, 0, maxScroll);
+
   ctx.save();
-  ctx.beginPath(); ctx.rect(0, clipTop, W, clipBot - clipTop); ctx.clip();
+  ctx.beginPath(); ctx.rect(CONTENT_X, clipTop, W - CONTENT_X, clipBot - clipTop); ctx.clip();
   layout(true);
   ctx.restore();
-  ctx.fillStyle = 'rgba(7,13,26,0.9)'; ctx.fillRect(0, clipBot, W, H - clipBot);
-  ctx.fillStyle = '#444'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('↕ scroll with mouse wheel', W / 2, clipBot + 16);
-  ui.cardBookBackBtn = btn(W / 2, H - 18, '← BACK TO MENU', '#555', 220, 28);
+
+  // Scrollbar
+  if (maxScroll > 0) {
+    const sbX = W - 8, sbTop = clipTop + 4, sbH = clipBot - clipTop - 8;
+    const thumbH = Math.max(30, sbH * (clipBot - clipTop) / (totalH));
+    const thumbY = sbTop + (ui.cardBookScroll / maxScroll) * (sbH - thumbH);
+    ctx.fillStyle = '#1e2d44'; ctx.fillRect(sbX - 4, sbTop, 4, sbH);
+    ctx.fillStyle = '#3a5a7a'; rrect(sbX - 4, thumbY, 4, thumbH, 2); ctx.fill();
+  }
+
+  ui.cardBookBackBtn = btn(SIDE / 2, H - 28, '← BACK', '#2c3e50', 160, 32);
 }
 
 function renderMetaScreen() {
