@@ -52,6 +52,7 @@ export const R: Runtime = {
   game: null,
   meta: loadMeta(),
   lastTime: 0,
+  fps: 60,
   ui: {
     waveStartBtn: null,
     refreshAllBtn: null,

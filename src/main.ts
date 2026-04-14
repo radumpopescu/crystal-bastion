@@ -12,6 +12,8 @@ import { ISO_SCALE, WAVE_INTERVAL } from './constants';
 function loop(ts: number) {
   const dt = Math.min((ts - R.lastTime) / 1000, 0.05);
   R.lastTime = ts;
+  const instantFps = dt > 0 ? 1 / dt : 60;
+  R.fps += (instantFps - R.fps) * 0.12;
 
   if (R.state === 'menu' && R.dev.menuHoldStart > 0 && performance.now() - R.dev.menuHoldStart >= DEV_MENU_HOLD_MS) {
     R.dev.menuHoldStart = 0;

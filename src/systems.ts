@@ -1112,7 +1112,8 @@ function fireWeapon(w: any, def: any, owner: any, target: any) {
 function spawnProj(ox: number, oy: number, tx: number, ty: number, dmg: number, speed: number, size: number, color: string, owner: string, pierce: boolean, opts: any = {}) {
   const d = dist(ox, oy, tx, ty);
   if (d === 0) return;
-  const life = opts.life ?? 2;
+  const travelLife = d / Math.max(1, speed) + 0.18;
+  const life = Math.max(opts.life ?? 0, travelLife);
   addProjectile({
     x:ox, y:oy,
     startX:ox, startY:oy,

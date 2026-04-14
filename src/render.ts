@@ -1184,19 +1184,45 @@ function renderDmgNums() {
   ctx.textBaseline = 'alphabetic';
 }
 
+function renderEnemyBreakdown(x: number, y: number, monsters: any[]) {
+  const { ctx } = R;
+  const counts = {
+    grunt: 0,
+    rusher: 0,
+    brute: 0,
+    tank: 0,
+  } as Record<string, number>;
+  for (const m of monsters) counts[m.type] = (counts[m.type] || 0) + 1;
+  const entries = [
+    ['G', counts.grunt, '#e74c3c'],
+    ['R', counts.rusher, '#e67e22'],
+    ['B', counts.brute, '#8e44ad'],
+    ['T', counts.tank, '#2c3e50'],
+  ];
+  let dx = x;
+  for (const [label, value, color] of entries) {
+    ctx.fillStyle = color as string;
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText(`${label}:${value}`, dx, y);
+    dx += 46;
+  }
+}
+
 function renderHUD() {
   const { ctx, W, H, meta, ui } = R;
   const game = R.game;
   const p = game.player, t = game.tower;
+  const towerCount = game.outposts?.length || 0;
   const autoConstructUnlocked = (meta.upgrades['autoConstruct'] || 0) > 0;
   if (isMobileUI()) {
-    const topH = 38;
+    const topH = 54;
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
-    rrect(8, 8, 126, topH, 8); ctx.fill();
+    rrect(8, 8, 196, topH, 8); ctx.fill();
     ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 15px monospace'; ctx.textAlign = 'left';
     ctx.fillText(`W${game.wave}`, 16, 24);
     ctx.fillStyle = '#cbd5e1'; ctx.font = '10px monospace';
-    ctx.fillText(game.waveActive ? `${game.monsters.length} foes` : `${Math.ceil(game.waveTimer)}s`, 16, 38);
+    ctx.fillText(game.waveActive ? `${game.monsters.length} foes · ${towerCount} towers` : `${Math.ceil(game.waveTimer)}s · ${towerCount} towers`, 16, 38);
+    if (game.waveActive) renderEnemyBreakdown(16, 52, game.monsters);
 
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
     rrect(W / 2 - 74, 8, 148, topH, 8); ctx.fill();
@@ -1239,6 +1265,12 @@ function renderHUD() {
       ctx.fillText(`Start early for +${earlyGold} gold`, W / 2, H - 42);
       ui.waveStartBtn = btn(W / 2, H - 20, `START WAVE NOW`, '#e67e22', 164, 28);
     }
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    rrect(8, H - 86, 74, 22, 7); ctx.fill();
+    ctx.fillStyle = '#9fb3c8';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(`FPS ${Math.round(R.fps)}`, 16, H - 71);
     renderMinimap();
     return;
   }
@@ -1276,7 +1308,7 @@ function renderHUD() {
   ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'right';
   ctx.fillText(`⬡ ${game.gold}`, W - 60, 37);
 
-  const waveBoxH = game.waveActive ? 84 : 132;
+  const waveBoxH = game.waveActive ? 118 : 146;
   ctx.fillStyle = 'rgba(0,0,0,0.72)';
   rrect(10, 8, 230, waveBoxH, 8); ctx.fill();
   ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'left';
@@ -1284,6 +1316,9 @@ function renderHUD() {
   if (game.waveActive) {
     ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 15px monospace';
     ctx.fillText(`👾 ${game.monsters.length} enemies`, 20, 56);
+    ctx.fillStyle = '#3498db'; ctx.font = '12px monospace';
+    ctx.fillText(`🔵 ${towerCount} towers`, 20, 76);
+    renderEnemyBreakdown(20, 96, game.monsters);
     ui.waveStartBtn = null;
   } else {
     ctx.fillStyle = '#2ecc71'; ctx.font = 'bold 15px monospace';
@@ -1291,10 +1326,17 @@ function renderHUD() {
     const earlyGold = Math.max(2, Math.round(7 * (game.waveTimer / (WAVE_INTERVAL + (game.waveDelayBonus || 0))) * (game.earlyBonusMult || 1) * (1 + game.wave * 0.12)));
     ctx.fillStyle = '#f5c26b'; ctx.font = '11px monospace';
     ctx.fillText(`Start early for +${earlyGold} gold`, 20, 78);
-    ui.waveStartBtn = btn(125, 112, `START WAVE NOW`, '#e67e22', 220, 36);
+    ctx.fillStyle = '#3498db'; ctx.font = '12px monospace';
+    ctx.fillText(`🔵 ${towerCount} towers`, 20, 98);
+    ui.waveStartBtn = btn(125, 124, `START WAVE NOW`, '#e67e22', 220, 36);
   }
   ctx.fillStyle = '#556'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
-  ctx.fillText(game.player.weapons.map((w: any) => `${WEAPONS[w.id].icon}${w.level}`).join('  '), 20, game.waveActive ? 78 : 98);
+  ctx.fillText(game.player.weapons.map((w: any) => `${WEAPONS[w.id].icon}${w.level}`).join('  '), 20, game.waveActive ? 114 : 126);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  rrect(10, H - 104, 84, 24, 7); ctx.fill();
+  ctx.fillStyle = '#9fb3c8'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
+  ctx.fillText(`FPS ${Math.round(R.fps)}`, 18, H - 88);
 
   const controlsBoxH = 112;
   const controlsBoxY = H - 322;

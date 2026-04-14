@@ -196,7 +196,7 @@ export const META_UPGRADES: any[] = [
 
 export const TOWER_UPGRADES: any[] = [
   { id:'hp',        label:'Base HP +150',       cost:[60,100,150,210,280], max:5 },
-  { id:'range',     label:'Base Range +60',     cost:[70,120,180,250,330], max:5 },
+  { id:'range',     label:'Base Range +60',     cost:[70,120,180,250,330,430,560,720], max:8 },
   { id:'dmg',       label:'Base Damage +40%',   cost:[80,130,190,260,340], max:5 },
   { id:'multishot', label:'Multishot +1 target', cost:[90,150,220,300],    max:4 },
 ];

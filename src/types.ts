@@ -78,6 +78,7 @@ export interface Runtime {
   game: any;
   meta: any;
   lastTime: number;
+  fps: number;
   ui: RuntimeUI;
   dev: RuntimeDev;
 }

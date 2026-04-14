@@ -10,6 +10,17 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: GAME_VERSION,
+    title: 'HUD telemetry and long-range projectile fix',
+    date: '2026-04-14',
+    changes: [
+      'Added an FPS counter above the player health panel.',
+      'Top-left wave HUD now shows tower count, and active waves also show a compact enemy-type breakdown.',
+      'Base projectiles now live long enough to visually reach distant targets instead of disappearing early at very high range.',
+      'Raised the in-run Base Range upgrade cap from 5 to 8 levels.',
+    ],
+  },
+  {
+    version: '2026.04.14.11',
     title: 'Base turret layout and weapon-card balance',
     date: '2026-04-14',
     changes: [
