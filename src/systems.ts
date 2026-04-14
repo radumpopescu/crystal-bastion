@@ -1238,6 +1238,7 @@ export function updateProjectiles(dt: number) {
   const game = R.game;
   for (let i = game.projectiles.length - 1; i >= 0; i--) {
     const p = game.projectiles[i];
+    if (!p) continue;
     p.life -= dt;
     p.age = (p.age || 0) + dt;
     if (p.spin) p.rot += p.spin * dt;

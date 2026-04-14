@@ -10,6 +10,15 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: GAME_VERSION,
+    title: 'Wave-end freeze fix',
+    date: '2026-04-14',
+    changes: [
+      'Fixed the freeze that could happen when the last enemy died and wave-end cleanup cleared projectiles during projectile iteration.',
+      'Projectile updates now safely skip cleared entries if the projectile list is reset mid-frame.',
+    ],
+  },
+  {
+    version: '2026.04.14.7',
     title: 'Built-in changelog screen',
     date: '2026-04-14',
     changes: [
