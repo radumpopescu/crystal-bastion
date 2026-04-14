@@ -1,6 +1,6 @@
 import { R, metaVal } from './state';
 import { handleCardClick, handlePlayingClick, startNextWave, tryDash, tryPlaceOutpost } from './systems';
-import { handleDevMenuClick, handleGameoverClick, handleMenuClick, handleMetaClick, handlePauseClick } from './render';
+import { handleChangelogClick, handleDevMenuClick, handleGameoverClick, handleMenuClick, handleMetaClick, handlePauseClick } from './render';
 import { clamp } from './utils';
 
 window.addEventListener('keydown', e => {
@@ -47,6 +47,7 @@ R.canvas.addEventListener('wheel', e => {
   const step = Math.abs(e.deltaY) > 50 ? Math.sign(e.deltaY) * 60 : e.deltaY * 0.8;
   if (R.state === 'cardbook') R.ui.cardBookScroll = Math.max(0, R.ui.cardBookScroll + step);
   if (R.state === 'metascreen') R.ui.metaScroll = clamp(R.ui.metaScroll + step, 0, R.ui.maxMetaScroll);
+  if (R.state === 'changelog') R.ui.changelogScroll = clamp(R.ui.changelogScroll + step, 0, R.ui.maxChangelogScroll);
   if ((R.state === 'playing' || R.state === 'levelup' || R.state === 'paused') && R.ui.isMobileLandscape && R.ui.mobileScrollArea) {
     R.ui.mobileScrollY = clamp(R.ui.mobileScrollY + step, 0, R.ui.mobileScrollMax);
   }
@@ -68,9 +69,11 @@ R.canvas.addEventListener('touchstart', e => {
   if (!touch) return;
   updatePointer(touch.clientX, touch.clientY);
   const area = R.ui.mobileScrollArea;
-  touchScrolling = !!(R.ui.isMobileLandscape && area && R.mouseX >= area.x && R.mouseX <= area.x + area.w && R.mouseY >= area.y && R.mouseY <= area.y + area.h);
+  touchScrolling = R.state === 'changelog'
+    ? true
+    : !!(R.ui.isMobileLandscape && area && R.mouseX >= area.x && R.mouseX <= area.x + area.w && R.mouseY >= area.y && R.mouseY <= area.y + area.h);
   touchScrollStartY = touch.clientY;
-  touchScrollStartOffset = R.ui.mobileScrollY;
+  touchScrollStartOffset = R.state === 'changelog' ? R.ui.changelogScroll : R.ui.mobileScrollY;
 }, { passive: true });
 
 R.canvas.addEventListener('touchmove', e => {
@@ -78,7 +81,8 @@ R.canvas.addEventListener('touchmove', e => {
   if (!touch) return;
   updatePointer(touch.clientX, touch.clientY);
   if (touchScrolling) {
-    R.ui.mobileScrollY = clamp(touchScrollStartOffset + (touchScrollStartY - touch.clientY), 0, R.ui.mobileScrollMax);
+    if (R.state === 'changelog') R.ui.changelogScroll = clamp(touchScrollStartOffset + (touchScrollStartY - touch.clientY), 0, R.ui.maxChangelogScroll);
+    else R.ui.mobileScrollY = clamp(touchScrollStartOffset + (touchScrollStartY - touch.clientY), 0, R.ui.mobileScrollMax);
     e.preventDefault();
   }
 }, { passive: false });
@@ -95,6 +99,7 @@ R.canvas.addEventListener('click', e => {
   else if (R.state === 'devmenu') handleDevMenuClick(mx, my);
   else if (R.state === 'gameover') handleGameoverClick(mx, my);
   else if (R.state === 'metascreen') handleMetaClick(mx, my);
+  else if (R.state === 'changelog') handleChangelogClick(mx, my);
   else if (R.state === 'cardbook') { if (R.ui.cardBookBackBtn && mx >= R.ui.cardBookBackBtn.cx - R.ui.cardBookBackBtn.bw / 2 && mx <= R.ui.cardBookBackBtn.cx + R.ui.cardBookBackBtn.bw / 2 && my >= R.ui.cardBookBackBtn.cy - R.ui.cardBookBackBtn.bh / 2 && my <= R.ui.cardBookBackBtn.cy + R.ui.cardBookBackBtn.bh / 2) R.state = 'menu'; }
   else if (R.state === 'levelup') handleCardClick(mx, my);
   else if (R.state === 'paused') handlePauseClick(mx, my);

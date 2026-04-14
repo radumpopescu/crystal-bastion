@@ -4,6 +4,7 @@ import { buildDropChanceTable, getAnchors, getBaseStats, getLoadoutStats, getMob
 import { clamp, dist, inBtn } from './utils';
 import { saveMeta } from './meta';
 import { GAME_VERSION } from './version';
+import { CHANGELOG } from './changelog';
 import type { BtnRect } from './types';
 
 const CB_W = 148, CB_H = 215, CB_GAP = 10;
@@ -270,6 +271,7 @@ export function render() {
   if (R.state === 'gameover')   { renderGameover(); return; }
   if (R.state === 'metascreen') { renderMetaScreen(); return; }
   if (R.state === 'cardbook')   { renderCardBook(); return; }
+  if (R.state === 'changelog')  { renderChangelog(); return; }
   if (R.state === 'levelup')    { renderGame(); R.hoverRegions = []; renderLevelUpCards(); renderRunCardTooltip(); return; }
   if (R.state === 'paused')     { renderGame(); renderPauseScreen(); renderRunCardTooltip(); return; }
   renderGame();
@@ -1947,12 +1949,19 @@ function renderMenu() {
   ui.menuBtns = menuDefs.map((def, index) => ({ cx: actionX + actionW / 2, cy: actionCardTop + actionCardH / 2 + index * (actionCardH + cardGap), bw: actionW - (mobile ? 22 : 34), bh: actionCardH }));
   menuDefs.forEach((def, index) => drawMenuActionCard(ui.menuBtns[index], def.label, def.subtitle, def.color, inBtn(mouseX, mouseY, ui.menuBtns[index])));
   ctx.fillStyle = '#4f637a'; ctx.font = '10px monospace'; ctx.textAlign = 'left'; ctx.fillText(`v${GAME_VERSION}`, actionX + 18, actionPanelY + actionPanelH - 12);
+  ui.versionBtn = { cx: actionX + 40, cy: actionPanelY + actionPanelH - 16, bw: 72, bh: 20 };
   ctx.textAlign = 'right'; ctx.fillStyle = '#63758a'; ctx.fillText(mobile ? 'landscape phone mode active' : 'WASD move  ·  SPACE dash  ·  ENTER starts waves early', W - (mobile ? 16 : 32), H - (mobile ? 12 : 28));
 }
 
 export function handleMenuClick(mx: number, my: number) {
   const ui = R.ui;
   R.dev.menuHoldStart = 0;
+  if (ui.versionBtn && mx >= ui.versionBtn.cx - ui.versionBtn.bw / 2 && mx <= ui.versionBtn.cx + ui.versionBtn.bw / 2 && my >= ui.versionBtn.cy - ui.versionBtn.bh / 2 && my <= ui.versionBtn.cy + ui.versionBtn.bh / 2) {
+    ui.changelogScroll = 0;
+    R.prevState = 'menu';
+    R.state = 'changelog';
+    return;
+  }
   if (ui.menuBtns[0] && inBtn(mx, my, ui.menuBtns[0])) { newGame(); R.state = 'playing'; }
   if (ui.menuBtns[1] && inBtn(mx, my, ui.menuBtns[1])) { R.prevState = 'menu'; ui.metaScroll = 0; R.state = 'metascreen'; }
   if (ui.menuBtns[2] && inBtn(mx, my, ui.menuBtns[2])) { ui.cardBookScroll = 0; R.state = 'cardbook'; }
@@ -2336,6 +2345,80 @@ function renderCardBook() {
   ui.cardBookBackBtn = mobile ? btn(W - 32, 22, '←', '#2c3e50', 40, 24) : btn(SIDE / 2, H - 28, '← BACK', '#2c3e50', 160, 32);
 }
 
+function renderChangelog() {
+  const { ctx, W, H, ui } = R;
+  const mobile = isMobileUI();
+  ctx.fillStyle = '#07101c';
+  ctx.fillRect(0, 0, W, H);
+  const panelX = mobile ? 12 : 28;
+  const panelY = mobile ? 14 : 24;
+  const panelW = W - panelX * 2;
+  const panelH = H - (mobile ? 26 : 40);
+  const clipTop = panelY + 62;
+  const clipBottom = H - 58;
+
+  ctx.fillStyle = 'rgba(8,14,24,0.92)';
+  rrect(panelX, panelY, panelW, panelH, 18); ctx.fill();
+  ctx.strokeStyle = 'rgba(93, 128, 170, 0.35)';
+  ctx.lineWidth = 1.4;
+  rrect(panelX, panelY, panelW, panelH, 18); ctx.stroke();
+
+  ctx.fillStyle = '#5dade2';
+  ctx.font = mobile ? 'bold 20px monospace' : 'bold 24px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('CHANGELOG', panelX + 18, panelY + 28);
+  ctx.fillStyle = '#8fa4ba';
+  ctx.font = '11px monospace';
+  ctx.fillText('Version history and notable changes', panelX + 18, panelY + 46);
+
+  let y = clipTop - ui.changelogScroll;
+  let contentBottom = 0;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(panelX + 12, clipTop, panelW - 24, clipBottom - clipTop);
+  ctx.clip();
+
+  for (const entry of CHANGELOG) {
+    const itemX = panelX + 18;
+    const itemW = panelW - 36;
+    const estimatedH = 92 + entry.changes.length * 22;
+    ctx.fillStyle = 'rgba(12,20,34,0.96)';
+    rrect(itemX, y, itemW, estimatedH, 12); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    rrect(itemX, y, itemW, estimatedH, 12); ctx.stroke();
+
+    ctx.fillStyle = '#f1c40f';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(`v${entry.version}`, itemX + 14, y + 22);
+    ctx.fillStyle = '#ecf0f1';
+    ctx.font = 'bold 15px monospace';
+    ctx.fillText(entry.title, itemX + 14, y + 44);
+    ctx.fillStyle = '#7f92a8';
+    ctx.font = '10px monospace';
+    ctx.fillText(entry.date, itemX + 14, y + 60);
+
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '11px monospace';
+    let lineY = y + 82;
+    for (const change of entry.changes) {
+      const wrapped = wrapTextLines(`• ${change}`, itemW - 28);
+      for (const line of wrapped) {
+        ctx.fillText(line, itemX + 14, lineY);
+        lineY += 16;
+      }
+      lineY += 6;
+    }
+    contentBottom = lineY + ui.changelogScroll;
+    y = lineY + 8;
+  }
+
+  ctx.restore();
+  ui.maxChangelogScroll = Math.max(0, contentBottom - clipBottom + 16);
+  ui.changelogScroll = clamp(ui.changelogScroll, 0, ui.maxChangelogScroll);
+  ui.changelogBackBtn = btn(W / 2, H - 24, mobile ? 'BACK' : '← BACK', '#2c3e50', 170, 32);
+}
+
 function renderMetaScreen() {
   const { ctx, W, H, meta, ui } = R;
   const mobile = isMobileUI();
@@ -2390,6 +2473,11 @@ export function handleMetaClick(mx: number, my: number) {
     }
   }
   if (ui.metaBackBtn && inBtn(mx, my, ui.metaBackBtn)) R.state = R.prevState === 'gameover' ? 'gameover' : 'menu';
+}
+
+export function handleChangelogClick(mx: number, my: number) {
+  const { ui } = R;
+  if (ui.changelogBackBtn && inBtn(mx, my, ui.changelogBackBtn)) R.state = 'menu';
 }
 
 function wrapText(text: string, x: number, y: number, maxW: number, lineH: number, maxLines = Infinity) {

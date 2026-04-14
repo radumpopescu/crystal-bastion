@@ -6,7 +6,8 @@ export type ScreenState =
   | 'gameover'
   | 'metascreen'
   | 'paused'
-  | 'cardbook';
+  | 'cardbook'
+  | 'changelog';
 
 export interface BtnRect {
   cx: number;
@@ -38,6 +39,10 @@ export interface RuntimeUI {
   metaBackBtn: BtnRect | null;
   metaScroll: number;
   maxMetaScroll: number;
+  changelogScroll: number;
+  maxChangelogScroll: number;
+  changelogBackBtn: BtnRect | null;
+  versionBtn: BtnRect | null;
   devMenuBtns: any[];
   levelupWeaponBtns: any[];
   levelupShopLockBtns: any[];
