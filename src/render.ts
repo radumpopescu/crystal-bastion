@@ -219,9 +219,10 @@ function renderMobileLoadoutDrawerContent(shell: any, allowSell = false) {
   });
   y += 6;
   const outposts = game.outposts || [];
+  const levelBonus = game.towerLevelBonus || 0;
   ctx.fillStyle = '#5dade2'; ctx.font = 'bold 10px monospace'; ctx.fillText('TOWERS', shell.contentX, y); y += 14;
   drawCompactMetricRow('Built', `${outposts.length}`, shell.contentX, y, shell.contentW); y += 14;
-  drawCompactMetricRow('Global level', `Lv${game.outpostLevel || 1}`, shell.contentX, y, shell.contentW, '#f5c26b'); y += 14;
+  drawCompactMetricRow('Future build bonus', `+${levelBonus} lv`, shell.contentX, y, shell.contentW, '#f5c26b'); y += 14;
   y += 6;
   const runCards = getRunCardEntries();
   ctx.fillStyle = '#5dade2'; ctx.font = 'bold 10px monospace'; ctx.fillText('RUN CARDS', shell.contentX, y); y += 14;
@@ -561,7 +562,7 @@ function renderOutpost(op: any) {
   const { ctx } = R;
   const { sx, sy } = w2s(op.x, op.y, 0);
   const tick = R.game.tick || 0;
-  const lv = R.game.outpostLevel || 1;
+  const lv = op.level || 1;
   const towerType = getTowerTypeDef(ACTIVE_BALANCE_CONFIG, op.towerType || R.game.selectedTowerType);
   const accent = op.color || towerType.color || '#3498db';
 
@@ -1671,22 +1672,22 @@ function renderLoadoutSidebar(panelX: number, panelW: number, options: { title?:
   });
 
   const outposts = game.outposts || [];
-  const opLv = game.outpostLevel || 1;
   const op0 = outposts[0];
   const previewTowerTypeId = op0?.towerType || game.selectedTowerType;
   const previewTowerType = getTowerTypeDef(ACTIVE_BALANCE_CONFIG, previewTowerTypeId);
   const totalHp = outposts.reduce((s: number, o: any) => s + o.hp, 0);
   const totalMaxHp = outposts.reduce((s: number, o: any) => s + o.maxHp, 0);
   const hpPct = totalMaxHp > 0 ? totalHp / totalMaxHp : 0;
-  const towerStats = getOutpostStatsForLevel(ACTIVE_BALANCE_CONFIG, opLv, game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0, previewTowerTypeId);
+  const highestTowerLevel = outposts.reduce((max: number, op: any) => Math.max(max, op.level || 1), 1);
+  const towerStats = getOutpostStatsForLevel(ACTIVE_BALANCE_CONFIG, highestTowerLevel, game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0, previewTowerTypeId);
   const towerDmg = Math.round(op0?.atkDmg || towerStats.atkDmg);
   const towerRange = Math.round(op0?.atkRange || towerStats.atkRange);
 
   sideY += 4;
   ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
   ctx.fillText('TOWERS', panelX + 10, sideY);
-  ctx.fillStyle = previewTowerType.color || (opLv >= 5 ? '#f1c40f' : '#8bd3ff'); ctx.font = 'bold 10px monospace'; ctx.textAlign = 'right';
-  ctx.fillText(`${outposts.length} built  Lv${opLv}/${towerStats.maxLevel || 5}`, panelX + panelW - 4, sideY); sideY += 14;
+  ctx.fillStyle = previewTowerType.color || '#8bd3ff'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'right';
+  ctx.fillText(`${outposts.length} built  +${game.towerLevelBonus || 0} future lv`, panelX + panelW - 4, sideY); sideY += 14;
   const barW = panelW - 20;
   const barX = panelX + 10;
   ctx.fillStyle = '#1a2535';
@@ -1707,6 +1708,25 @@ function renderLoadoutSidebar(panelX: number, panelW: number, options: { title?:
   ctx.fillStyle = previewTowerType.color || '#f5c26b'; ctx.textAlign = 'right';
   ctx.fillText(`${previewTowerType.label}  ${towerDmg}dmg  ${towerRange}rng`, panelX + panelW - 4, sideY);
   sideY += 14;
+
+  if (outposts.length > 0) {
+    ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+    ctx.fillText('TOWER LEVELS', panelX + 10, sideY); sideY += 14;
+    outposts.slice(0, 6).forEach((op: any, index: number) => {
+      const type = getTowerTypeDef(ACTIVE_BALANCE_CONFIG, op.towerType);
+      ctx.fillStyle = type.color || '#cbd5e1'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
+      ctx.fillText(`${index + 1}. ${type.label}`, panelX + 10, sideY);
+      ctx.fillStyle = '#8bd3ff'; ctx.textAlign = 'right';
+      ctx.fillText(`Lv${op.level || 1}/${op.maxLevel || towerStats.maxLevel || 5}`, panelX + panelW - 4, sideY);
+      sideY += 13;
+    });
+    if (outposts.length > 6) {
+      ctx.fillStyle = '#7f8c9a'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
+      ctx.fillText(`+${outposts.length - 6} more towers`, panelX + 10, sideY);
+      sideY += 12;
+    }
+    sideY += 2;
+  }
 
   renderGroupedRunCards(panelX, panelW, sideY + 8, H - 18);
 }

@@ -3,18 +3,59 @@ import assert from 'node:assert/strict';
 
 import { deepMergeBalanceConfig, defaultBalanceConfig } from '../src/balance-config.ts';
 import {
-  buildRuntimeBalance,
+  applyTowerLevelBonus,
   buildInitialGameState,
+  buildRuntimeBalance,
   computeCardGoldCost,
   computeEarlyStartBonus,
   computeOutpostCost,
   computeRerollBaseCost,
+  getInitialTowerLevel,
   getOutpostStatsForLevel,
+  getTowerMaxLevel,
   getTowerTypeDef,
   getTowerTypeIds,
   getUnlockedTowerTypeIds,
   metaValueFromConfig,
 } from '../src/runtime-balance.ts';
+
+test('tower progression uses per-instance levels and future-build bonus instead of one shared displayed level', () => {
+  const config = deepMergeBalanceConfig(defaultBalanceConfig, {
+    towers: { generic: { maxLevel: 5, levelDamageMultiplier: 1.28, levelRangeAdd: 18 } },
+    towerTypes: {
+      standard: { slot: 1, label: 'Standard', maxLevelBonus: 0 },
+      burst: { slot: 2, label: 'Burst', maxLevelBonus: 1 },
+    },
+    towerProgression: {
+      baseMaxLevel: 5,
+      sharedLevelCards: { bonusLevelsPerPick: 1, maxBonusLevel: 5 },
+    },
+  });
+
+  const game = {
+    towerLevelBonus: 0,
+    selectedTowerType: 'standard',
+    outposts: [
+      { towerType: 'standard', level: 1, hp: 100, maxHp: 100 },
+      { towerType: 'burst', level: 2, hp: 100, maxHp: 100 },
+    ],
+    opAtkMult: 1,
+    opRangeBonus: 0,
+    opHpBonus: 0,
+  };
+
+  assert.equal(getTowerMaxLevel(config, 'standard'), 5);
+  assert.equal(getTowerMaxLevel(config, 'burst'), 6);
+  assert.equal(getInitialTowerLevel(config, game, 'standard'), 1);
+
+  applyTowerLevelBonus(config, game, 2, 5);
+
+  assert.equal(game.towerLevelBonus, 2);
+  assert.equal(game.outposts[0].level, 3);
+  assert.equal(game.outposts[1].level, 4);
+  assert.equal(getInitialTowerLevel(config, game, 'standard'), 3);
+  assert.equal(getInitialTowerLevel(config, game, 'burst'), 3);
+});
 
 test('tower selection helpers expose ordered ids and unlock filtering by wave', () => {
   const config = deepMergeBalanceConfig(defaultBalanceConfig, {

@@ -278,7 +278,7 @@ function getRunCardCount(card: any, player: any, game: any) {
     case 'compound':
       return player.dashLevel || 0;
     case 'level_up_all_towers':
-      return Math.max(0, (game.outpostLevel || 1) - 1);
+      return Math.max(0, game.towerLevelBonus || 0);
     default:
       return 0;
   }
@@ -295,8 +295,12 @@ function isRunCardAvailable(card: any, player: any, game: any) {
       return game.tower.hp < game.tower.maxHp;
     case 'instant_full_heal':
       return game.outposts.some((op: any) => op.hp < op.maxHp);
-    case 'level_up_all_towers':
-      return (game.outpostLevel || 1) < (tuning.maxLevel || OUTPOST_MAX_LEVEL);
+    case 'level_up_all_towers': {
+      const configuredMax = tuning.maxLevel || OUTPOST_MAX_LEVEL;
+      const towers = game.outposts || [];
+      if (!towers.length) return (game.towerLevelBonus || 0) < Math.max(0, configuredMax - 1);
+      return towers.some((op: any) => (op.level || 1) < Math.min(configuredMax, getTowerMaxLevel(ACTIVE_BALANCE_CONFIG, op.towerType || game.selectedTowerType)));
+    }
     case 'flat_add':
       if (tuning.stat === 'towers.costDiscount') {
         const rules = (getTowerConfig(ACTIVE_BALANCE_CONFIG).cost || {});
@@ -363,19 +367,7 @@ function applyRunCardEffect(card: any, player: any, game: any) {
       break;
     case 'level_up_all_towers': {
       const maxLevel = tuning.maxLevel || OUTPOST_MAX_LEVEL;
-      const nextLevel = Math.min((game.outpostLevel || 1) + (tuning.perStack || 1), maxLevel);
-      game.outpostLevel = nextLevel;
-      for (const op of game.outposts) {
-        const stats = getOutpostStatsForLevel(ACTIVE_BALANCE_CONFIG, nextLevel, game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0, op.towerType || game.selectedTowerType);
-        op.maxHp = stats.maxHp;
-        op.range = stats.range;
-        op.atkDmg = stats.atkDmg;
-        op.atkRange = stats.atkRange;
-        op.atkSpeed = stats.atkSpeed;
-        op.towerType = stats.towerTypeId;
-        op.towerLabel = stats.label;
-        op.color = stats.color;
-      }
+      applyTowerLevelBonus(ACTIVE_BALANCE_CONFIG, game, tuning.perStack || 1, maxLevel);
       break;
     }
   }
@@ -577,6 +569,18 @@ export function getWeaponStats(weaponId: string, level: number) {
   return computeWeaponLevelStats(weapon, level);
 }
 
+export function getTowerMaxLevel(config: any, towerTypeId?: string | null) {
+  const tower = getTowerConfig(config);
+  const progression = getTowerProgression(config);
+  const towerType = getTowerTypeDef(config, towerTypeId);
+  return (tower.maxLevel ?? progression.baseMaxLevel ?? 5) + (towerType.maxLevelBonus ?? 0);
+}
+
+export function getInitialTowerLevel(config: any, game: any, towerTypeId?: string | null) {
+  const bonus = game?.towerLevelBonus || 0;
+  return Math.min(getTowerMaxLevel(config, towerTypeId), Math.max(1, 1 + bonus));
+}
+
 export function getOutpostStatsForLevel(config: any, level: number, opAtkMult = 1, opRangeBonus = 0, opHpBonus = 0, towerTypeId?: string | null) {
   const tower = getTowerConfig(config);
   const progression = getTowerProgression(config);
@@ -588,13 +592,36 @@ export function getOutpostStatsForLevel(config: any, level: number, opAtkMult = 
     towerTypeId: towerType.id,
     label: towerType.label,
     color: towerType.color,
-    maxLevel: (tower.maxLevel ?? progression.baseMaxLevel ?? 5) + (towerType.maxLevelBonus ?? 0),
+    level: effectiveLevel,
+    maxLevel: getTowerMaxLevel(config, towerType.id),
     maxHp: round((tower.hp || 0) * (towerType.hpMultiplier ?? 1) + opHpBonus),
     range: round((tower.buildRange || 0) * (towerType.buildRangeMultiplier ?? 1) + opRangeBonus),
     atkDmg: round((tower.damage || 0) * (towerType.damageMultiplier ?? 1) * Math.pow(levelDamageMultiplier || 1, Math.max(0, effectiveLevel - 1)) * opAtkMult),
     atkRange: round((tower.attackRange || 0) * (towerType.attackRangeMultiplier ?? 1) + levelRangeAdd * Math.max(0, effectiveLevel - 1)),
     atkSpeed: round((tower.attackSpeed || 0) * (towerType.attackSpeedMultiplier ?? 1)),
   };
+}
+
+export function applyTowerLevelBonus(config: any, game: any, amount = 1, maxLevelOverride?: number | null) {
+  if (!game) return game;
+  game.towerLevelBonus = (game.towerLevelBonus || 0) + amount;
+  for (const op of game.outposts || []) {
+    const maxLevel = maxLevelOverride || getTowerMaxLevel(config, op.towerType || game.selectedTowerType);
+    const nextLevel = Math.min(maxLevel, Math.max(1, (op.level || 1) + amount));
+    const nextStats = getOutpostStatsForLevel(config, nextLevel, game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0, op.towerType || game.selectedTowerType);
+    const hpRatio = op.maxHp > 0 ? op.hp / op.maxHp : 1;
+    op.level = nextLevel;
+    op.maxHp = nextStats.maxHp;
+    op.range = nextStats.range;
+    op.atkDmg = nextStats.atkDmg;
+    op.atkRange = nextStats.atkRange;
+    op.atkSpeed = nextStats.atkSpeed;
+    op.towerType = nextStats.towerTypeId;
+    op.towerLabel = nextStats.label;
+    op.color = nextStats.color;
+    op.hp = Math.min(op.maxHp, round(op.maxHp * hpRatio));
+  }
+  return game;
 }
 
 export function computeOutpostCost(config: any, game: any, towerTypeId?: string | null) {
@@ -723,6 +750,7 @@ export function buildInitialGameState(config: any, meta: any, opts: any = {}) {
       facing: { x: 1, y: 0 },
     },
     outpostLevel: 1,
+    towerLevelBonus: 0,
     killStats: { player: 0, base: 0, tower: 0 },
     outposts: [],
     opHpBonus,

@@ -10,6 +10,16 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: GAME_VERSION,
+    title: 'Towers now level individually',
+    date: '2026-04-15',
+    changes: [
+      'Moved tower progression from one shared displayed tower level to per-tower-instance levels, with future tower builds inheriting bonus levels from tower-level cards.',
+      'Tower Mastery and related tower-level effects now upgrade each placed tower individually while preserving the future-build bonus for towers placed later in the run.',
+      'Tower rendering and sidebars now show per-tower levels so tower progression is readable per structure instead of as one global label.',
+    ],
+  },
+  {
+    version: '2026.04.15.3',
     title: 'Tower selection controls now work on desktop and mobile',
     date: '2026-04-15',
     changes: [

@@ -1,4 +1,4 @@
-import { ACTIVE_BALANCE_CONFIG, AUTO_CONSTRUCT_SPACING, BASE_MONSTERS, CARD_RARITY_WEIGHTS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, EARLY_START_BONUS, LEASH_DMG, LEVELUP_OFFER_COUNT, MAX_WEAPON_SLOTS, MONSTER_ATTACK_COOLDOWN, MONSTER_CONTACT_BUFFER, MONSTER_DEF, MONSTER_SCALE, MONSTER_SPAWN_ATTACK_COOLDOWN_MAX, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_PLACEMENT, OUTPOST_RANGE, PLAYER_DASH_INVULN_BONUS, PLAYER_HIT_FLASH, PLAYER_HIT_INVULN, PLAYER_RADIUS, PLAYER_SPEED, SHOP_OFFER_COUNT, STAT_UPGRADES, STRUCTURE_CONTACT_RADIUS, TILE_SIZE, TOWER_TYPES, TOWER_UPGRADES, WAVE_CONFIG, WAVE_CRYSTAL_REWARD, WAVE_ENEMY_MIX, WAVE_INTERVAL, WAVE_SPAWN_CONFIG, WEAPONS, computeCardGoldCost, computeOutpostCost, computeRerollBaseCost, getOutpostStatsForLevel, getTowerTypeDef, getUnlockedTowerTypeIds, getWeaponMaxLevel, getWeaponStats } from './constants';
+import { ACTIVE_BALANCE_CONFIG, AUTO_CONSTRUCT_SPACING, BASE_MONSTERS, CARD_RARITY_WEIGHTS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, EARLY_START_BONUS, LEASH_DMG, LEVELUP_OFFER_COUNT, MAX_WEAPON_SLOTS, MONSTER_ATTACK_COOLDOWN, MONSTER_CONTACT_BUFFER, MONSTER_DEF, MONSTER_SCALE, MONSTER_SPAWN_ATTACK_COOLDOWN_MAX, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_PLACEMENT, OUTPOST_RANGE, PLAYER_DASH_INVULN_BONUS, PLAYER_HIT_FLASH, PLAYER_HIT_INVULN, PLAYER_RADIUS, PLAYER_SPEED, SHOP_OFFER_COUNT, STAT_UPGRADES, STRUCTURE_CONTACT_RADIUS, TILE_SIZE, TOWER_TYPES, TOWER_UPGRADES, WAVE_CONFIG, WAVE_CRYSTAL_REWARD, WAVE_ENEMY_MIX, WAVE_INTERVAL, WAVE_SPAWN_CONFIG, WEAPONS, applyTowerLevelBonus, computeCardGoldCost, computeOutpostCost, computeRerollBaseCost, getInitialTowerLevel, getOutpostStatsForLevel, getTowerMaxLevel, getTowerTypeDef, getUnlockedTowerTypeIds, getWeaponMaxLevel, getWeaponStats } from './constants';
 import { DEV_WEAPON_IDS, R, devCardLimit, finishDevSession, makeWeapon, metaVal, newGame } from './state';
 import { clamp, dist, inBtn, shuffle } from './utils';
 import { saveMeta } from './meta';
@@ -57,7 +57,7 @@ export function selectTowerType(towerTypeId: string, game = R.game) {
 function canPlaceOutpostAt(px: number, py: number, towerTypeId?: string | null) {
   const game = R.game;
   const towerType = getTowerTypeDef(ACTIVE_BALANCE_CONFIG, towerTypeId || getCurrentTowerTypeId(game));
-  const stats = getOutpostStatsForLevel(ACTIVE_BALANCE_CONFIG, game.outpostLevel || 1, game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0, towerType.id);
+  const stats = getOutpostStatsForLevel(ACTIVE_BALANCE_CONFIG, getInitialTowerLevel(ACTIVE_BALANCE_CONFIG, game, towerType.id), game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0, towerType.id);
   const minAnchorDistance = (OUTPOST_PLACEMENT.minAnchorDistance || 65) * (towerType.placement?.minAnchorDistanceMultiplier ?? 1);
   const connectionFactor = (OUTPOST_PLACEMENT.connectionFactor || 0.6) * (towerType.placement?.connectionFactorMultiplier ?? 1);
   let canConnect = false;
@@ -78,26 +78,14 @@ function outpostStatsForLevel(level: number, game: any, towerTypeId?: string | n
 function placeOutpostAt(px: number, py: number, towerTypeId?: string | null) {
   const game = R.game;
   const towerType = getTowerTypeDef(ACTIVE_BALANCE_CONFIG, towerTypeId || getCurrentTowerTypeId(game));
-  const level = game.outpostLevel || 1;
+  const level = getInitialTowerLevel(ACTIVE_BALANCE_CONFIG, game, towerType.id);
   const stats = outpostStatsForLevel(level, game, towerType.id);
-  game.outposts.push({ x:px, y:py, hp:stats.maxHp, maxHp:stats.maxHp, range:stats.range, ...stats, atkCooldown:0, towerType:towerType.id, towerLabel:towerType.label, color:towerType.color });
+  game.outposts.push({ x:px, y:py, hp:stats.maxHp, maxHp:stats.maxHp, range:stats.range, ...stats, atkCooldown:0, towerType:towerType.id, towerLabel:towerType.label, color:towerType.color, level });
   spawnParticles(px, py, towerType.color || '#27ae60', 12, 60);
 }
 
-export function upgradeOutpostLevel(game: any) {
-  const currentTypeStats = getOutpostStatsForLevel(ACTIVE_BALANCE_CONFIG, game.outpostLevel || 1, game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0, game.selectedTowerType);
-  const maxLevel = currentTypeStats.maxLevel || 5;
-  const newLevel = Math.min((game.outpostLevel || 1) + 1, maxLevel);
-  game.outpostLevel = newLevel;
-  for (const op of game.outposts) {
-    const stats = outpostStatsForLevel(newLevel, game, op.towerType || game.selectedTowerType);
-    op.maxHp = stats.maxHp;
-    op.range = stats.range;
-    op.atkDmg = stats.atkDmg;
-    op.atkRange = stats.atkRange;
-    op.atkSpeed = stats.atkSpeed;
-    op.color = stats.color;
-  }
+export function upgradeOutpostLevel(game: any, towerTypeId?: string | null) {
+  applyTowerLevelBonus(ACTIVE_BALANCE_CONFIG, game, 1, getTowerMaxLevel(ACTIVE_BALANCE_CONFIG, towerTypeId || game.selectedTowerType));
   for (const op of game.outposts) spawnParticles(op.x, op.y, op.color || '#f1c40f', 10, 60);
 }
 
