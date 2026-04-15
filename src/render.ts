@@ -1,4 +1,4 @@
-import { ENTITY_H, ISO_SCALE, MAX_WEAPON_SLOTS, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES, EARLY_START_BONUS, getWeaponMaxLevel, getOutpostStatsForLevel, getTowerTypeDef, ACTIVE_BALANCE_CONFIG } from './constants';
+import { ENTITY_H, ISO_SCALE, MAX_WEAPON_SLOTS, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES, EARLY_START_BONUS, computeStructureRepairPerSecond, getWeaponMaxLevel, getOutpostStatsForLevel, getTowerTypeDef, ACTIVE_BALANCE_CONFIG } from './constants';
 import { R, devCardColor, devCardLimit, finishDevSession, newGame, resetDevConfig, w2s } from './state';
 import { buildDropChanceTable, getAnchors, getBaseStats, getBaseTurretMounts, getLoadoutStats, getMobileLevelupLayout, getOutpostCost, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave, weaponCardNeedsSlot } from './systems';
 import { clamp, dist, inBtn } from './utils';
@@ -1707,6 +1707,13 @@ function renderLoadoutSidebar(panelX: number, panelW: number, options: { title?:
   );
   ctx.fillStyle = previewTowerType.color || '#f5c26b'; ctx.textAlign = 'right';
   ctx.fillText(`${previewTowerType.label}  ${towerDmg}dmg  ${towerRange}rng`, panelX + panelW - 4, sideY);
+  sideY += 14;
+  const repairPerSecond = computeStructureRepairPerSecond(ACTIVE_BALANCE_CONFIG, game);
+  const refreshInfo = game.lastIntermissionRefresh || { stacks: game.intermissionRefreshStacks || 0 };
+  ctx.fillStyle = '#cbd5e1'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
+  ctx.fillText(`repair ${repairPerSecond.toFixed(1)}/s`, panelX + 10, sideY);
+  ctx.fillStyle = '#8bd3ff'; ctx.textAlign = 'right';
+  ctx.fillText(`intermission +${refreshInfo.stacks || 0} refresh`, panelX + panelW - 4, sideY);
   sideY += 14;
 
   if (outposts.length > 0) {

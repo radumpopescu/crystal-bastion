@@ -1294,16 +1294,26 @@
           "perStack": 1.35
         }
       },
-      "outpostRepair": {
-        "id": "outpostRepair",
-        "icon": "\ud83d\udd27",
-        "name": "Repair Towers",
-        "description": "Fully heal all towers",
+      "structureRepair": {
+        "id": "structureRepair",
+        "icon": "🛠️",
+        "name": "Maintenance Drones",
+        "description": "+0.5 structure repair/sec",
         "rarity": "uncommon",
-        "maxStacks": null,
+        "maxStacks": 6,
         "tuning": {
-          "effectType": "instant_full_heal",
-          "stat": "towers.all"
+          "effectType": "repair_per_second"
+        }
+      },
+      "intermissionRefresh": {
+        "id": "intermissionRefresh",
+        "icon": "🔋",
+        "name": "Replenishment Cycle",
+        "description": "Boost between-wave structure replenishment",
+        "rarity": "uncommon",
+        "maxStacks": 5,
+        "tuning": {
+          "effectType": "intermission_refresh"
         }
       },
       "outpostBoost": {

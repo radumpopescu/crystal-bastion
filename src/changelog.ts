@@ -10,6 +10,16 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: GAME_VERSION,
+    title: 'Repair and intermission replenishment are now balance-driven',
+    date: '2026-04-15',
+    changes: [
+      'Added a new Maintenance Drones run-card path that increases passive structure repair over time using runStats.repair tuning from the balance config.',
+      'Added a separate Replenishment Cycle card path that boosts automatic between-wave structure replenishment using intermission.towerRefresh config values.',
+      'Gameplay sidebars now show the live repair-per-second rate and the current intermission refresh stack count so sustain tuning is readable in-run.',
+    ],
+  },
+  {
+    version: '2026.04.15.5',
     title: 'Melee and sniper towers joined the roster',
     date: '2026-04-15',
     changes: [

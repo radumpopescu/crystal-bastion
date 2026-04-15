@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { deepMergeBalanceConfig, defaultBalanceConfig } from '../src/balance-config.ts';
 import {
+  applyIntermissionStructureRefresh,
   applyTowerLevelBonus,
   buildInitialGameState,
   buildRuntimeBalance,
@@ -10,6 +11,7 @@ import {
   computeEarlyStartBonus,
   computeOutpostCost,
   computeRerollBaseCost,
+  computeStructureRepairPerSecond,
   getInitialTowerLevel,
   getOutpostStatsForLevel,
   getTowerAttackProfile,
@@ -311,6 +313,78 @@ test('buildInitialGameState uses config for player, economy, base, towers, and m
   assert.equal(game.tower.multishot, 2);
   assert.equal(game.opHpBonus, 0);
   assert.equal(game.outpostDiscount, 0);
+});
+
+test('repair helpers use config-defined repair scaling and intermission refresh stacks', () => {
+  const config = deepMergeBalanceConfig(defaultBalanceConfig, {
+    runStats: {
+      repair: {
+        basePerSecond: 0.5,
+        perCard: 0.75,
+        maxPerSecond: 2.2,
+        tickSeconds: 0.5,
+      },
+    },
+    intermission: {
+      towerRefresh: {
+        healPercent: 0.1,
+        flatHeal: 5,
+        maxStacks: 4,
+      },
+    },
+    runCards: {
+      statCards: {
+        structureRepair: {
+          id: 'structureRepair',
+          icon: '🛠️',
+          name: 'Maintenance Drones',
+          description: '+repair',
+          rarity: 'uncommon',
+          maxStacks: 4,
+          tuning: { effectType: 'repair_per_second' },
+        },
+        intermissionRefresh: {
+          id: 'intermissionRefresh',
+          icon: '🔋',
+          name: 'Replenishment Cycle',
+          description: '+intermission tower refresh',
+          rarity: 'uncommon',
+          maxStacks: 4,
+          tuning: { effectType: 'intermission_refresh' },
+        },
+      },
+    },
+  });
+
+  const runtime = buildRuntimeBalance(config);
+  const repairCard = runtime.STAT_UPGRADES.find((entry) => entry.id === 'structureRepair');
+  const refreshCard = runtime.STAT_UPGRADES.find((entry) => entry.id === 'intermissionRefresh');
+  const game = {
+    repairCardStacks: 0,
+    intermissionRefreshStacks: 0,
+    tower: { hp: 150, maxHp: 200 },
+    outposts: [
+      { hp: 50, maxHp: 100 },
+      { hp: 92, maxHp: 100 },
+    ],
+  };
+  const player = {};
+
+  assert.equal(computeStructureRepairPerSecond(config, game), 0.5);
+  repairCard.apply(player, game);
+  repairCard.apply(player, game);
+  refreshCard.apply(player, game);
+  refreshCard.apply(player, game);
+
+  assert.equal(repairCard.count(player, game), 2);
+  assert.equal(refreshCard.count(player, game), 2);
+  assert.equal(computeStructureRepairPerSecond(config, game), 2);
+
+  const refreshSummary = applyIntermissionStructureRefresh(config, game);
+  assert.deepEqual(refreshSummary, { towerHealed: 50, outpostHealed: 53, stacks: 2 });
+  assert.equal(game.tower.hp, 200);
+  assert.equal(game.outposts[0].hp, 95);
+  assert.equal(game.outposts[1].hp, 100);
 });
 
 test('economy helpers use config-defined values', () => {

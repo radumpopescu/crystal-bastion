@@ -1,4 +1,4 @@
-import { ACTIVE_BALANCE_CONFIG, AUTO_CONSTRUCT_SPACING, BASE_MONSTERS, CARD_RARITY_WEIGHTS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, EARLY_START_BONUS, LEASH_DMG, LEVELUP_OFFER_COUNT, MAX_WEAPON_SLOTS, MONSTER_ATTACK_COOLDOWN, MONSTER_CONTACT_BUFFER, MONSTER_DEF, MONSTER_SCALE, MONSTER_SPAWN_ATTACK_COOLDOWN_MAX, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_PLACEMENT, OUTPOST_RANGE, PLAYER_DASH_INVULN_BONUS, PLAYER_HIT_FLASH, PLAYER_HIT_INVULN, PLAYER_RADIUS, PLAYER_SPEED, SHOP_OFFER_COUNT, STAT_UPGRADES, STRUCTURE_CONTACT_RADIUS, TILE_SIZE, TOWER_TYPES, TOWER_UPGRADES, WAVE_CONFIG, WAVE_CRYSTAL_REWARD, WAVE_ENEMY_MIX, WAVE_INTERVAL, WAVE_SPAWN_CONFIG, WEAPONS, applyTowerLevelBonus, computeCardGoldCost, computeOutpostCost, computeRerollBaseCost, getInitialTowerLevel, getOutpostStatsForLevel, getTowerAttackProfile, getTowerMaxLevel, getTowerTypeDef, getUnlockedTowerTypeIds, getWeaponMaxLevel, getWeaponStats } from './constants';
+import { ACTIVE_BALANCE_CONFIG, AUTO_CONSTRUCT_SPACING, BASE_MONSTERS, CARD_RARITY_WEIGHTS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, EARLY_START_BONUS, LEASH_DMG, LEVELUP_OFFER_COUNT, MAX_WEAPON_SLOTS, MONSTER_ATTACK_COOLDOWN, MONSTER_CONTACT_BUFFER, MONSTER_DEF, MONSTER_SCALE, MONSTER_SPAWN_ATTACK_COOLDOWN_MAX, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_PLACEMENT, OUTPOST_RANGE, PLAYER_DASH_INVULN_BONUS, PLAYER_HIT_FLASH, PLAYER_HIT_INVULN, PLAYER_RADIUS, PLAYER_SPEED, SHOP_OFFER_COUNT, STAT_UPGRADES, STRUCTURE_CONTACT_RADIUS, TILE_SIZE, TOWER_TYPES, TOWER_UPGRADES, WAVE_CONFIG, WAVE_CRYSTAL_REWARD, WAVE_ENEMY_MIX, WAVE_INTERVAL, WAVE_SPAWN_CONFIG, WEAPONS, applyIntermissionStructureRefresh, applyTowerLevelBonus, computeCardGoldCost, computeOutpostCost, computeRerollBaseCost, computeStructureRepairPerSecond, getInitialTowerLevel, getOutpostStatsForLevel, getTowerAttackProfile, getTowerMaxLevel, getTowerTypeDef, getUnlockedTowerTypeIds, getWeaponMaxLevel, getWeaponStats } from './constants';
 import { DEV_WEAPON_IDS, R, devCardLimit, finishDevSession, makeWeapon, metaVal, newGame } from './state';
 import { clamp, dist, inBtn, shuffle } from './utils';
 import { saveMeta } from './meta';
@@ -1240,6 +1240,17 @@ export function getBaseTurretMounts(t: any) {
 export function updateStructures(dt: number) {
   const game = R.game;
   const t = game.tower;
+  game.repairTickTimer = (game.repairTickTimer || 0) + dt;
+  const repairTickSeconds = ACTIVE_BALANCE_CONFIG?.runStats?.repair?.tickSeconds ?? 1;
+  if (repairTickSeconds > 0 && game.repairTickTimer >= repairTickSeconds) {
+    const repairPerSecond = computeStructureRepairPerSecond(ACTIVE_BALANCE_CONFIG, game);
+    const healAmount = repairPerSecond * repairTickSeconds;
+    if (healAmount > 0) {
+      t.hp = Math.min(t.maxHp, t.hp + healAmount);
+      for (const op of game.outposts) op.hp = Math.min(op.maxHp, op.hp + healAmount);
+    }
+    game.repairTickTimer = 0;
+  }
   if (t.atkCooldown > 0) t.atkCooldown -= dt;
   else {
     const targets = nearestMonsters(t.x, t.y, t.atkRange, t.multishot || 1);
@@ -1422,6 +1433,7 @@ function checkWaveEnd() {
       spawnDmgNum(game.player.x, game.player.y - 58, `+${waveCrystalReward}💎`, '#a855f7');
     }
     game.waveTimer = WAVE_INTERVAL + (game.waveDelayBonus || 0);
+    game.lastIntermissionRefresh = applyIntermissionStructureRefresh(ACTIVE_BALANCE_CONFIG, game);
     if (game.devSession) {
       finishDevSession(`Wave ${game.wave} cleared. Adjust the preset and run again.`);
       return;

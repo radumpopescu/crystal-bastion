@@ -293,6 +293,10 @@ function getRunCardCount(card: any, player: any, game: any) {
       return player.dashLevel || 0;
     case 'level_up_all_towers':
       return Math.max(0, game.towerLevelBonus || 0);
+    case 'repair_per_second':
+      return Math.max(0, game.repairCardStacks || 0);
+    case 'intermission_refresh':
+      return Math.max(0, game.intermissionRefreshStacks || 0);
     default:
       return 0;
   }
@@ -315,6 +319,8 @@ function isRunCardAvailable(card: any, player: any, game: any) {
       if (!towers.length) return (game.towerLevelBonus || 0) < Math.max(0, configuredMax - 1);
       return towers.some((op: any) => (op.level || 1) < Math.min(configuredMax, getTowerMaxLevel(ACTIVE_BALANCE_CONFIG, op.towerType || game.selectedTowerType)));
     }
+    case 'intermission_refresh':
+      return (game.intermissionRefreshStacks || 0) < ((getIntermissionConfig(ACTIVE_BALANCE_CONFIG).towerRefresh?.maxStacks) ?? card.maxStacks ?? Infinity);
     case 'flat_add':
       if (tuning.stat === 'towers.costDiscount') {
         const rules = (getTowerConfig(ACTIVE_BALANCE_CONFIG).cost || {});
@@ -384,6 +390,12 @@ function applyRunCardEffect(card: any, player: any, game: any) {
       applyTowerLevelBonus(ACTIVE_BALANCE_CONFIG, game, tuning.perStack || 1, maxLevel);
       break;
     }
+    case 'repair_per_second':
+      game.repairCardStacks = (game.repairCardStacks || 0) + 1;
+      break;
+    case 'intermission_refresh':
+      game.intermissionRefreshStacks = (game.intermissionRefreshStacks || 0) + 1;
+      break;
   }
 }
 
@@ -669,6 +681,39 @@ export function computeEarlyStartBonus(config: any, wave: number, waveTimer: num
   return Math.max(tuning.minimum ?? 0, Math.round(raw * earlyBonusMult));
 }
 
+export function computeStructureRepairPerSecond(config: any, game: any) {
+  const repair = getRunStatsConfig(config).repair || {};
+  const base = repair.basePerSecond ?? 0;
+  const perCard = repair.perCard ?? 0;
+  const cardStacks = Math.max(0, game?.repairCardStacks || 0);
+  const raw = base + perCard * cardStacks;
+  const capped = repair.maxPerSecond != null ? Math.min(repair.maxPerSecond, raw) : raw;
+  return round(Math.max(0, capped));
+}
+
+export function applyIntermissionStructureRefresh(config: any, game: any) {
+  const towerRefresh = getIntermissionConfig(config).towerRefresh || {};
+  const stacks = Math.max(0, game?.intermissionRefreshStacks || 0);
+  const multiplier = 1 + stacks;
+  const healPercent = Math.max(0, towerRefresh.healPercent ?? 0) * multiplier;
+  const flatHeal = Math.max(0, towerRefresh.flatHeal ?? 0) * multiplier;
+  let towerHealed = 0;
+  let outpostHealed = 0;
+
+  const applyHeal = (target: any) => {
+    if (!target || target.maxHp == null || target.hp == null) return 0;
+    const missing = Math.max(0, target.maxHp - target.hp);
+    if (missing <= 0) return 0;
+    const heal = Math.min(missing, Math.round(target.maxHp * healPercent + flatHeal));
+    target.hp += heal;
+    return heal;
+  };
+
+  towerHealed += applyHeal(game?.tower);
+  for (const outpost of game?.outposts || []) outpostHealed += applyHeal(outpost);
+  return { towerHealed, outpostHealed, stacks };
+}
+
 export function buildInitialGameState(config: any, meta: any, opts: any = {}) {
   const player = getPlayerBase(config);
   const economy = getEconomy(config);
@@ -765,6 +810,10 @@ export function buildInitialGameState(config: any, meta: any, opts: any = {}) {
     },
     outpostLevel: 1,
     towerLevelBonus: 0,
+    repairCardStacks: 0,
+    repairTickTimer: 0,
+    intermissionRefreshStacks: 0,
+    lastIntermissionRefresh: null,
     killStats: { player: 0, base: 0, tower: 0 },
     outposts: [],
     opHpBonus,
