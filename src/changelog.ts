@@ -10,6 +10,16 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: GAME_VERSION,
+    title: 'Typed tower roster foundation now drives tower stats',
+    date: '2026-04-15',
+    changes: [
+      'Replaced the single generic tower path with typed tower definitions that now control tower cost, HP, build range, attack range, damage, fire rate, color, and placement multipliers.',
+      'Initial tower roster now exposes three explicit current tower families through the balance JSON and editor: Standard, Burst, and Support.',
+      'Placed towers now carry their tower type at runtime so future tower-selection controls and tower-specific progression can build on the same balance-driven foundation.',
+    ],
+  },
+  {
+    version: '2026.04.15.1',
     title: 'Expansion foundation now lives in the balance system',
     date: '2026-04-15',
     changes: [

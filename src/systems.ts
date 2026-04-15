@@ -1,4 +1,4 @@
-import { ACTIVE_BALANCE_CONFIG, AUTO_CONSTRUCT_SPACING, BASE_MONSTERS, CARD_RARITY_WEIGHTS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, EARLY_START_BONUS, LEASH_DMG, LEVELUP_OFFER_COUNT, MAX_WEAPON_SLOTS, MONSTER_ATTACK_COOLDOWN, MONSTER_CONTACT_BUFFER, MONSTER_DEF, MONSTER_SCALE, MONSTER_SPAWN_ATTACK_COOLDOWN_MAX, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_PLACEMENT, OUTPOST_RANGE, PLAYER_DASH_INVULN_BONUS, PLAYER_HIT_FLASH, PLAYER_HIT_INVULN, PLAYER_RADIUS, PLAYER_SPEED, SHOP_OFFER_COUNT, STAT_UPGRADES, STRUCTURE_CONTACT_RADIUS, TILE_SIZE, TOWER_UPGRADES, WAVE_CONFIG, WAVE_CRYSTAL_REWARD, WAVE_ENEMY_MIX, WAVE_INTERVAL, WAVE_SPAWN_CONFIG, WEAPONS, computeCardGoldCost, computeOutpostCost, computeRerollBaseCost, getOutpostStatsForLevel, getWeaponMaxLevel, getWeaponStats } from './constants';
+import { ACTIVE_BALANCE_CONFIG, AUTO_CONSTRUCT_SPACING, BASE_MONSTERS, CARD_RARITY_WEIGHTS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, EARLY_START_BONUS, LEASH_DMG, LEVELUP_OFFER_COUNT, MAX_WEAPON_SLOTS, MONSTER_ATTACK_COOLDOWN, MONSTER_CONTACT_BUFFER, MONSTER_DEF, MONSTER_SCALE, MONSTER_SPAWN_ATTACK_COOLDOWN_MAX, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_PLACEMENT, OUTPOST_RANGE, PLAYER_DASH_INVULN_BONUS, PLAYER_HIT_FLASH, PLAYER_HIT_INVULN, PLAYER_RADIUS, PLAYER_SPEED, SHOP_OFFER_COUNT, STAT_UPGRADES, STRUCTURE_CONTACT_RADIUS, TILE_SIZE, TOWER_TYPES, TOWER_UPGRADES, WAVE_CONFIG, WAVE_CRYSTAL_REWARD, WAVE_ENEMY_MIX, WAVE_INTERVAL, WAVE_SPAWN_CONFIG, WEAPONS, computeCardGoldCost, computeOutpostCost, computeRerollBaseCost, getOutpostStatsForLevel, getTowerTypeDef, getWeaponMaxLevel, getWeaponStats } from './constants';
 import { DEV_WEAPON_IDS, R, devCardLimit, finishDevSession, makeWeapon, metaVal, newGame } from './state';
 import { clamp, dist, inBtn, shuffle } from './utils';
 import { saveMeta } from './meta';
@@ -20,64 +20,81 @@ export function nearestAnchor(x: number, y: number) {
   return { anchor: best, dist: bestD };
 }
 
-export function getOutpostCost() {
-  return computeOutpostCost(ACTIVE_BALANCE_CONFIG, R.game);
+export function getOutpostCost(towerTypeId?: string | null) {
+  return computeOutpostCost(ACTIVE_BALANCE_CONFIG, R.game, towerTypeId);
 }
 
-function canPlaceOutpostAt(px: number, py: number) {
+function getCurrentTowerTypeId(game = R.game) {
+  return game?.selectedTowerType || Object.keys(TOWER_TYPES || {})[0] || 'standard';
+}
+
+function getCurrentTowerType(game = R.game) {
+  return getTowerTypeDef(ACTIVE_BALANCE_CONFIG, getCurrentTowerTypeId(game));
+}
+
+function canPlaceOutpostAt(px: number, py: number, towerTypeId?: string | null) {
   const game = R.game;
-  const opRange = OUTPOST_RANGE + (game.opRangeBonus || 0);
+  const towerType = getTowerTypeDef(ACTIVE_BALANCE_CONFIG, towerTypeId || getCurrentTowerTypeId(game));
+  const stats = getOutpostStatsForLevel(ACTIVE_BALANCE_CONFIG, game.outpostLevel || 1, game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0, towerType.id);
+  const minAnchorDistance = (OUTPOST_PLACEMENT.minAnchorDistance || 65) * (towerType.placement?.minAnchorDistanceMultiplier ?? 1);
+  const connectionFactor = (OUTPOST_PLACEMENT.connectionFactor || 0.6) * (towerType.placement?.connectionFactorMultiplier ?? 1);
   let canConnect = false;
   for (const a of getAnchors()) {
-    if (dist(px, py, a.x, a.y) <= a.range + opRange * (OUTPOST_PLACEMENT.connectionFactor || 0.6)) { canConnect = true; break; }
+    if (dist(px, py, a.x, a.y) <= a.range + stats.range * connectionFactor) { canConnect = true; break; }
   }
   if (!canConnect) return false;
   for (const a of getAnchors()) {
-    if (dist(px, py, a.x, a.y) < (OUTPOST_PLACEMENT.minAnchorDistance || 65)) return false;
+    if (dist(px, py, a.x, a.y) < minAnchorDistance) return false;
   }
   return true;
 }
 
-function outpostStatsForLevel(level: number, game: any) {
-  return getOutpostStatsForLevel(ACTIVE_BALANCE_CONFIG, level, game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0);
+function outpostStatsForLevel(level: number, game: any, towerTypeId?: string | null) {
+  return getOutpostStatsForLevel(ACTIVE_BALANCE_CONFIG, level, game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0, towerTypeId || getCurrentTowerTypeId(game));
 }
 
-function placeOutpostAt(px: number, py: number) {
+function placeOutpostAt(px: number, py: number, towerTypeId?: string | null) {
   const game = R.game;
-  const opRange = OUTPOST_RANGE + (game.opRangeBonus || 0);
-  const maxHp = OUTPOST_HP_BASE + (game.opHpBonus || 0);
+  const towerType = getTowerTypeDef(ACTIVE_BALANCE_CONFIG, towerTypeId || getCurrentTowerTypeId(game));
   const level = game.outpostLevel || 1;
-  const stats = outpostStatsForLevel(level, game);
-  game.outposts.push({ x:px, y:py, hp:maxHp, maxHp, range:opRange, ...stats, atkCooldown:0 });
-  spawnParticles(px, py, '#27ae60', 12, 60);
+  const stats = outpostStatsForLevel(level, game, towerType.id);
+  game.outposts.push({ x:px, y:py, hp:stats.maxHp, maxHp:stats.maxHp, range:stats.range, ...stats, atkCooldown:0, towerType:towerType.id, towerLabel:towerType.label, color:towerType.color });
+  spawnParticles(px, py, towerType.color || '#27ae60', 12, 60);
 }
 
 export function upgradeOutpostLevel(game: any) {
-  const newLevel = Math.min((game.outpostLevel || 1) + 1, 5);
+  const currentTypeStats = getOutpostStatsForLevel(ACTIVE_BALANCE_CONFIG, game.outpostLevel || 1, game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0, game.selectedTowerType);
+  const maxLevel = currentTypeStats.maxLevel || 5;
+  const newLevel = Math.min((game.outpostLevel || 1) + 1, maxLevel);
   game.outpostLevel = newLevel;
-  const stats = outpostStatsForLevel(newLevel, game);
   for (const op of game.outposts) {
+    const stats = outpostStatsForLevel(newLevel, game, op.towerType || game.selectedTowerType);
+    op.maxHp = stats.maxHp;
+    op.range = stats.range;
     op.atkDmg = stats.atkDmg;
     op.atkRange = stats.atkRange;
+    op.atkSpeed = stats.atkSpeed;
+    op.color = stats.color;
   }
-  for (const op of game.outposts) spawnParticles(op.x, op.y, '#f1c40f', 10, 60);
+  for (const op of game.outposts) spawnParticles(op.x, op.y, op.color || '#f1c40f', 10, 60);
 }
 
-export function tryPlaceOutpostAt(px: number, py: number) {
+export function tryPlaceOutpostAt(px: number, py: number, towerTypeId?: string | null) {
   const game = R.game;
-  const cost = getOutpostCost();
+  const resolvedTowerTypeId = towerTypeId || getCurrentTowerTypeId(game);
+  const cost = getOutpostCost(resolvedTowerTypeId);
   const free = (game.freeOutpost || 0) > 0;
   if (!free && game.gold < cost) return false;
-  if (!canPlaceOutpostAt(px, py)) return false;
+  if (!canPlaceOutpostAt(px, py, resolvedTowerTypeId)) return false;
   if (free) game.freeOutpost--;
   else game.gold -= cost;
-  placeOutpostAt(px, py);
+  placeOutpostAt(px, py, resolvedTowerTypeId);
   return true;
 }
 
 export function tryPlaceOutpost() {
   const game = R.game;
-  return tryPlaceOutpostAt(game.player.x, game.player.y);
+  return tryPlaceOutpostAt(game.player.x, game.player.y, getCurrentTowerTypeId(game));
 }
 
 export function handlePlayingClick(mx: number, my: number) {

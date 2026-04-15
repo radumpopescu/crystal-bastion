@@ -1,4 +1,4 @@
-import { ENTITY_H, ISO_SCALE, MAX_WEAPON_SLOTS, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES, EARLY_START_BONUS, getWeaponMaxLevel, getOutpostStatsForLevel, ACTIVE_BALANCE_CONFIG } from './constants';
+import { ENTITY_H, ISO_SCALE, MAX_WEAPON_SLOTS, PLAYER_RADIUS, SHADOW_SCALE, STAT_UPGRADES, TH, TILE_SIZE, TW, TOWER_UPGRADES, WAVE_INTERVAL, WEAPONS, META_UPGRADES, EARLY_START_BONUS, getWeaponMaxLevel, getOutpostStatsForLevel, getTowerTypeDef, ACTIVE_BALANCE_CONFIG } from './constants';
 import { R, devCardColor, devCardLimit, finishDevSession, newGame, resetDevConfig, w2s } from './state';
 import { buildDropChanceTable, getAnchors, getBaseStats, getBaseTurretMounts, getLoadoutStats, getMobileLevelupLayout, getOutpostCost, getRunCardEntries, luCardDims, luPositions, rarityDropChance, startDevWave, weaponCardNeedsSlot } from './systems';
 import { clamp, dist, inBtn } from './utils';
@@ -503,13 +503,10 @@ function renderTower() {
   drawHpBar(sx - 36, sy - bh - 34, 72, 7, t.hp, t.maxHp, '#c0392b', '#27ae60');
 }
 
-function buildOutpostSprite(level: number) {
+function buildOutpostSprite(level: number, accent = '#3498db') {
   const bw = 14, bh = 28;
   const w = bw * 2 + 20, h = bh + 40;
-  // Color tint by level: L1 blue → L3 cyan → L5 gold
-  const lvColors = ['#3498db', '#2eadd4', '#1abc9c', '#e67e22', '#f1c40f'];
-  const accent = lvColors[Math.min(level - 1, 4)];
-  return getSprite(`outpost_lv${level}`, w, h, (ctx) => {
+  return getSprite(`outpost_lv${level}_${accent}`, w, h, (ctx) => {
     const cx = w / 2, baseY = h - 12;
     // Base platform
     ctx.fillStyle = '#0c1a2e';
@@ -565,18 +562,18 @@ function renderOutpost(op: any) {
   const { sx, sy } = w2s(op.x, op.y, 0);
   const tick = R.game.tick || 0;
   const lv = R.game.outpostLevel || 1;
+  const towerType = getTowerTypeDef(ACTIVE_BALANCE_CONFIG, op.towerType || R.game.selectedTowerType);
+  const accent = op.color || towerType.color || '#3498db';
 
   // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath(); ctx.ellipse(sx, sy, 14, 14 * 0.45, 0, 0, Math.PI * 2); ctx.fill();
 
   // Draw cached sprite
-  const sprite = buildOutpostSprite(lv);
+  const sprite = buildOutpostSprite(lv, accent);
   ctx.drawImage(sprite.canvas, sx - sprite.w / 2, sy - sprite.h + 12);
 
   // Orb pulse glow (per-frame animation)
-  const lvColors = ['#3498db', '#2eadd4', '#1abc9c', '#e67e22', '#f1c40f'];
-  const accent = lvColors[Math.min(lv - 1, 4)];
   const pulse = 0.08 + Math.sin(tick * 1.8 + op.x * 3 + op.y * 7) * 0.05;
   ctx.fillStyle = accent;
   ctx.globalAlpha = pulse;
@@ -1675,18 +1672,20 @@ function renderLoadoutSidebar(panelX: number, panelW: number, options: { title?:
   const outposts = game.outposts || [];
   const opLv = game.outpostLevel || 1;
   const op0 = outposts[0];
+  const previewTowerTypeId = op0?.towerType || game.selectedTowerType;
+  const previewTowerType = getTowerTypeDef(ACTIVE_BALANCE_CONFIG, previewTowerTypeId);
   const totalHp = outposts.reduce((s: number, o: any) => s + o.hp, 0);
   const totalMaxHp = outposts.reduce((s: number, o: any) => s + o.maxHp, 0);
   const hpPct = totalMaxHp > 0 ? totalHp / totalMaxHp : 0;
-  const towerStats = getOutpostStatsForLevel(ACTIVE_BALANCE_CONFIG, opLv, game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0);
+  const towerStats = getOutpostStatsForLevel(ACTIVE_BALANCE_CONFIG, opLv, game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0, previewTowerTypeId);
   const towerDmg = Math.round(op0?.atkDmg || towerStats.atkDmg);
   const towerRange = Math.round(op0?.atkRange || towerStats.atkRange);
 
   sideY += 4;
   ctx.fillStyle = '#3a4a5a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
   ctx.fillText('TOWERS', panelX + 10, sideY);
-  ctx.fillStyle = opLv >= 5 ? '#f1c40f' : '#8bd3ff'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'right';
-  ctx.fillText(`${outposts.length} built  Lv${opLv}/5`, panelX + panelW - 4, sideY); sideY += 14;
+  ctx.fillStyle = previewTowerType.color || (opLv >= 5 ? '#f1c40f' : '#8bd3ff'); ctx.font = 'bold 10px monospace'; ctx.textAlign = 'right';
+  ctx.fillText(`${outposts.length} built  Lv${opLv}/${towerStats.maxLevel || 5}`, panelX + panelW - 4, sideY); sideY += 14;
   const barW = panelW - 20;
   const barX = panelX + 10;
   ctx.fillStyle = '#1a2535';
@@ -1704,8 +1703,8 @@ function renderLoadoutSidebar(panelX: number, panelW: number, options: { title?:
     barX,
     sideY,
   );
-  ctx.fillStyle = '#f5c26b'; ctx.textAlign = 'right';
-  ctx.fillText(`${towerDmg}dmg  ${towerRange}rng`, panelX + panelW - 4, sideY);
+  ctx.fillStyle = previewTowerType.color || '#f5c26b'; ctx.textAlign = 'right';
+  ctx.fillText(`${previewTowerType.label}  ${towerDmg}dmg  ${towerRange}rng`, panelX + panelW - 4, sideY);
   sideY += 14;
 
   renderGroupedRunCards(panelX, panelW, sideY + 8, H - 18);

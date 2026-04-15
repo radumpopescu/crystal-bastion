@@ -2217,50 +2217,65 @@
     }
   },
   "towerTypes": {
-    "basic": {
+    "standard": {
       "slot": 1,
+      "label": "Standard Tower",
+      "description": "Balanced all-purpose tower. This is the default baseline for the current roster.",
+      "color": "#3498db",
       "unlockWave": 0,
       "costMultiplier": 1.0,
+      "hpMultiplier": 1.0,
+      "buildRangeMultiplier": 1.0,
+      "attackRangeMultiplier": 1.0,
       "damageMultiplier": 1.0,
-      "rangeMultiplier": 1.0,
       "attackSpeedMultiplier": 1.0,
-      "maxLevelBonus": 0
+      "levelDamageMultiplier": 1.0,
+      "levelRangeAddMultiplier": 1.0,
+      "maxLevelBonus": 0,
+      "placement": {
+        "minAnchorDistanceMultiplier": 1.0,
+        "connectionFactorMultiplier": 1.0
+      }
     },
     "burst": {
       "slot": 2,
+      "label": "Burst Tower",
+      "description": "More aggressive short-range tower with stronger hits and faster firing, but a smaller footprint.",
+      "color": "#e67e22",
       "unlockWave": 0,
-      "costMultiplier": 1.1,
-      "damageMultiplier": 1.15,
-      "rangeMultiplier": 0.95,
-      "attackSpeedMultiplier": 0.92,
-      "maxLevelBonus": 0
+      "costMultiplier": 1.2,
+      "hpMultiplier": 0.9,
+      "buildRangeMultiplier": 0.95,
+      "attackRangeMultiplier": 0.85,
+      "damageMultiplier": 1.35,
+      "attackSpeedMultiplier": 1.25,
+      "levelDamageMultiplier": 1.1,
+      "levelRangeAddMultiplier": 0.8,
+      "maxLevelBonus": 0,
+      "placement": {
+        "minAnchorDistanceMultiplier": 0.95,
+        "connectionFactorMultiplier": 0.95
+      }
     },
     "support": {
       "slot": 3,
+      "label": "Support Tower",
+      "description": "Safer utility-focused tower with wider coverage and sturdier network support, trading raw damage for reach.",
+      "color": "#2ecc71",
       "unlockWave": 0,
       "costMultiplier": 0.95,
-      "damageMultiplier": 0.9,
-      "rangeMultiplier": 1.1,
-      "attackSpeedMultiplier": 1.05,
-      "maxLevelBonus": 0
-    },
-    "melee": {
-      "slot": 4,
-      "unlockWave": 0,
-      "costMultiplier": 1.2,
-      "damageMultiplier": 1.35,
-      "rangeMultiplier": 0.45,
+      "hpMultiplier": 1.05,
+      "buildRangeMultiplier": 1.15,
+      "attackRangeMultiplier": 1.2,
+      "damageMultiplier": 0.85,
       "attackSpeedMultiplier": 0.9,
-      "maxLevelBonus": 0
-    },
-    "sniper": {
-      "slot": 5,
-      "unlockWave": 0,
-      "costMultiplier": 1.55,
-      "damageMultiplier": 1.8,
-      "rangeMultiplier": 1.8,
-      "attackSpeedMultiplier": 0.55,
-      "maxLevelBonus": 0
+      "levelDamageMultiplier": 0.95,
+      "levelRangeAddMultiplier": 1.35,
+      "maxLevelBonus": 0,
+      "placement": {
+        "minAnchorDistanceMultiplier": 1.05,
+        "connectionFactorMultiplier": 1.1
+      }
     }
   },
   "towerProgression": {

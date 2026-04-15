@@ -154,7 +154,7 @@ const FIELD_EXPLANATIONS: Record<string, string> = {
   'waves.hpScaleLateBonus': 'Additional HP scaling for late waves.',
   'waves.speedScalePerWave': 'Enemy movement-speed increase per wave.',
   'waves.damageScalePerWave': 'Enemy damage increase per wave.',
-  'towerTypes.basic.costMultiplier': 'Relative cost tuning for this tower family compared with the generic tower baseline.',
+  'towerTypes.standard.costMultiplier': 'Relative cost tuning for this tower family compared with the generic tower baseline.',
   'towerProgression.baseMaxLevel': 'Shared fallback max level for tower progression systems before per-type overrides are added.',
   'runStats.repair.basePerSecond': 'Starting passive repair rate for the future repair run stat.',
   'runStats.repair.maxPerSecond': 'Upper intended cap for repair-per-second tuning.',
@@ -676,6 +676,45 @@ function renderWeaponsSection() {
   fieldGridEl.appendChild(grid);
 }
 
+function renderTowerTypesSection() {
+  const towerTypes = draftConfig.towerTypes || {};
+  setSectionMeta('towerTypes', 'Tower Types', `${Object.keys(towerTypes).length} typed tower definitions shown side-by-side so cost, survivability, range, damage, speed, and visuals can be compared quickly.`);
+  fieldGridEl.innerHTML = '';
+  const rows = Object.entries(towerTypes).map(([id, towerType]: [string, any]) => ({
+    tower: towerType.label || labelize(id),
+    slot: towerType.slot ?? '—',
+    cost: towerType.costMultiplier ?? '—',
+    hp: towerType.hpMultiplier ?? '—',
+    buildRange: towerType.buildRangeMultiplier ?? '—',
+    attackRange: towerType.attackRangeMultiplier ?? '—',
+    damage: towerType.damageMultiplier ?? '—',
+    speed: towerType.attackSpeedMultiplier ?? '—',
+    color: towerType.color || '—',
+  }));
+  fieldGridEl.appendChild(buildDataTable([
+    { key: 'tower', label: 'Tower Type' },
+    { key: 'slot', label: 'Slot' },
+    { key: 'cost', label: 'Cost ×' },
+    { key: 'hp', label: 'HP ×' },
+    { key: 'buildRange', label: 'Build R ×' },
+    { key: 'attackRange', label: 'Atk R ×' },
+    { key: 'damage', label: 'Damage ×' },
+    { key: 'speed', label: 'Rate ×' },
+    { key: 'color', label: 'Color' },
+  ], rows));
+
+  const grid = document.createElement('div');
+  grid.className = 'be-info-grid';
+  Object.entries(towerTypes).forEach(([id, towerType]: [string, any]) => {
+    const card = buildInfoCard(towerType.label || labelize(id), `slot ${towerType.slot ?? '—'} • unlock wave ${towerType.unlockWave ?? 0}`, towerType.description || 'Typed tower definition.');
+    const tree = renderTreeNode(towerType, ['towerTypes', id], 1);
+    if (tree) card.appendChild(tree);
+    card.appendChild(buildRelatedLinks('towerTypes'));
+    grid.appendChild(card);
+  });
+  fieldGridEl.appendChild(grid);
+}
+
 function renderRunCardsSection() {
   const cards = draftConfig.runCards?.statCards || {};
   setSectionMeta('runCards', 'Run Cards', `${Object.keys(cards).length} run cards grouped per card with rarity, stack limit, and tuning.`);
@@ -739,6 +778,10 @@ function renderSectionFields() {
   }
   if (selectedSection === 'weapons') {
     renderWeaponsSection();
+    return;
+  }
+  if (selectedSection === 'towerTypes') {
+    renderTowerTypesSection();
     return;
   }
   if (selectedSection === 'metaUpgrades') {

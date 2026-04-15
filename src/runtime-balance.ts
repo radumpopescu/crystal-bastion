@@ -76,6 +76,10 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
 }
 
+function towerTypeSortValue([id, entry]: [string, any]) {
+  return [entry?.slot ?? Number.MAX_SAFE_INTEGER, id] as const;
+}
+
 function round(value: number) {
   if (Number.isInteger(value)) return value;
   return Number(value.toFixed(4));
@@ -103,6 +107,46 @@ function getWaveConfig(config: any) {
 
 function getTowerTypes(config: any) {
   return config.towerTypes || defaultBalanceConfig.towerTypes || {};
+}
+
+export function getTowerTypeIds(config: any) {
+  return Object.entries<any>(getTowerTypes(config))
+    .sort((a, b) => {
+      const [slotA, idA] = towerTypeSortValue(a as [string, any]);
+      const [slotB, idB] = towerTypeSortValue(b as [string, any]);
+      return slotA - slotB || String(idA).localeCompare(String(idB));
+    })
+    .map(([id]) => id);
+}
+
+export function getTowerTypeDef(config: any, towerTypeId?: string | null) {
+  const towerTypes = getTowerTypes(config);
+  const orderedIds = getTowerTypeIds(config);
+  const fallbackId = orderedIds[0] || 'standard';
+  const resolvedId = towerTypeId && towerTypes[towerTypeId] ? towerTypeId : fallbackId;
+  const entry = clone(towerTypes[resolvedId] || {});
+  return {
+    id: resolvedId,
+    label: entry.label || resolvedId.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[._-]+/g, ' ').replace(/\b\w/g, (ch: string) => ch.toUpperCase()),
+    color: entry.color || '#3498db',
+    description: entry.description || '',
+    slot: entry.slot ?? 1,
+    unlockWave: entry.unlockWave ?? 0,
+    costMultiplier: entry.costMultiplier ?? 1,
+    hpMultiplier: entry.hpMultiplier ?? 1,
+    buildRangeMultiplier: entry.buildRangeMultiplier ?? entry.rangeMultiplier ?? 1,
+    attackRangeMultiplier: entry.attackRangeMultiplier ?? entry.rangeMultiplier ?? 1,
+    damageMultiplier: entry.damageMultiplier ?? 1,
+    attackSpeedMultiplier: entry.attackSpeedMultiplier ?? 1,
+    levelDamageMultiplier: entry.levelDamageMultiplier ?? 1,
+    levelRangeAddMultiplier: entry.levelRangeAddMultiplier ?? 1,
+    maxLevelBonus: entry.maxLevelBonus ?? 0,
+    placement: {
+      minAnchorDistanceMultiplier: entry.placement?.minAnchorDistanceMultiplier ?? 1,
+      connectionFactorMultiplier: entry.placement?.connectionFactorMultiplier ?? 1,
+    },
+    ...entry,
+  };
 }
 
 function getTowerProgression(config: any) {
@@ -314,10 +358,16 @@ function applyRunCardEffect(card: any, player: any, game: any) {
       const maxLevel = tuning.maxLevel || OUTPOST_MAX_LEVEL;
       const nextLevel = Math.min((game.outpostLevel || 1) + (tuning.perStack || 1), maxLevel);
       game.outpostLevel = nextLevel;
-      const stats = getOutpostStatsForLevel(ACTIVE_BALANCE_CONFIG, nextLevel, game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0);
       for (const op of game.outposts) {
+        const stats = getOutpostStatsForLevel(ACTIVE_BALANCE_CONFIG, nextLevel, game.opAtkMult || 1, game.opRangeBonus || 0, game.opHpBonus || 0, op.towerType || game.selectedTowerType);
+        op.maxHp = stats.maxHp;
+        op.range = stats.range;
         op.atkDmg = stats.atkDmg;
         op.atkRange = stats.atkRange;
+        op.atkSpeed = stats.atkSpeed;
+        op.towerType = stats.towerTypeId;
+        op.towerLabel = stats.label;
+        op.color = stats.color;
       }
       break;
     }
@@ -520,23 +570,34 @@ export function getWeaponStats(weaponId: string, level: number) {
   return computeWeaponLevelStats(weapon, level);
 }
 
-export function getOutpostStatsForLevel(config: any, level: number, opAtkMult = 1, opRangeBonus = 0, opHpBonus = 0) {
+export function getOutpostStatsForLevel(config: any, level: number, opAtkMult = 1, opRangeBonus = 0, opHpBonus = 0, towerTypeId?: string | null) {
   const tower = getTowerConfig(config);
+  const progression = getTowerProgression(config);
+  const towerType = getTowerTypeDef(config, towerTypeId);
+  const effectiveLevel = Math.max(1, level || 1);
+  const levelDamageMultiplier = (tower.levelDamageMultiplier ?? progression.levelDamageMultiplier ?? 1) * (towerType.levelDamageMultiplier ?? 1);
+  const levelRangeAdd = (tower.levelRangeAdd ?? progression.levelRangeAdd ?? 0) * (towerType.levelRangeAddMultiplier ?? 1);
   return {
-    maxHp: (tower.hp || 0) + opHpBonus,
-    range: (tower.buildRange || 0) + opRangeBonus,
-    atkDmg: round((tower.damage || 0) * Math.pow(tower.levelDamageMultiplier || 1, Math.max(0, level - 1)) * opAtkMult),
-    atkRange: round((tower.attackRange || 0) + (tower.levelRangeAdd || 0) * Math.max(0, level - 1)),
-    atkSpeed: tower.attackSpeed || 0,
+    towerTypeId: towerType.id,
+    label: towerType.label,
+    color: towerType.color,
+    maxLevel: (tower.maxLevel ?? progression.baseMaxLevel ?? 5) + (towerType.maxLevelBonus ?? 0),
+    maxHp: round((tower.hp || 0) * (towerType.hpMultiplier ?? 1) + opHpBonus),
+    range: round((tower.buildRange || 0) * (towerType.buildRangeMultiplier ?? 1) + opRangeBonus),
+    atkDmg: round((tower.damage || 0) * (towerType.damageMultiplier ?? 1) * Math.pow(levelDamageMultiplier || 1, Math.max(0, effectiveLevel - 1)) * opAtkMult),
+    atkRange: round((tower.attackRange || 0) * (towerType.attackRangeMultiplier ?? 1) + levelRangeAdd * Math.max(0, effectiveLevel - 1)),
+    atkSpeed: round((tower.attackSpeed || 0) * (towerType.attackSpeedMultiplier ?? 1)),
   };
 }
 
-export function computeOutpostCost(config: any, game: any) {
+export function computeOutpostCost(config: any, game: any, towerTypeId?: string | null) {
   const rules = getTowerConfig(config).cost || {};
+  const towerType = getTowerTypeDef(config, towerTypeId || game?.selectedTowerType);
   const built = game?.outposts?.length || 0;
   const wave = game?.wave || 0;
   const discount = game?.outpostDiscount || 0;
-  const base = (rules.base ?? 0) - discount;
+  const scaledBase = Math.round((rules.base ?? 0) * (towerType.costMultiplier ?? 1));
+  const base = scaledBase - discount;
   const latePenalty = Math.max(0, wave - (rules.lateWaveStart ?? 0)) * (rules.lateWaveStep ?? 0);
   return Math.max(rules.minimum ?? 0, Math.round(base + built * (rules.perBuilt ?? 0) + latePenalty));
 }
@@ -564,6 +625,8 @@ export function buildInitialGameState(config: any, meta: any, opts: any = {}) {
   const player = getPlayerBase(config);
   const economy = getEconomy(config);
   const baseCore = getBaseCore(config);
+  const towerTypeIds = getTowerTypeIds(config);
+  const selectedTowerType = getTowerTypeDef(config, opts.selectedTowerType).id;
   const freeOutposts = metaValueFromConfig(config, meta, 'freeDeploy');
   const startGoldMeta = metaValueFromConfig(config, meta, 'startGold');
   const playerHpBonus = metaValueFromConfig(config, meta, 'playerHp');
@@ -598,6 +661,8 @@ export function buildInitialGameState(config: any, meta: any, opts: any = {}) {
     outpostDiscount: metaValueFromConfig(config, meta, 'outpostCheap') || 0,
     shopDiscount: metaValueFromConfig(config, meta, 'shopDiscount') || 0,
     freeOutpost: freeOutposts,
+    selectedTowerType,
+    availableTowerTypes: towerTypeIds,
     tower: {
       x: 0,
       y: 0,

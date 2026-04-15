@@ -9,8 +9,90 @@ import {
   computeEarlyStartBonus,
   computeOutpostCost,
   computeRerollBaseCost,
+  getOutpostStatsForLevel,
+  getTowerTypeDef,
+  getTowerTypeIds,
   metaValueFromConfig,
 } from '../src/runtime-balance.ts';
+
+test('typed tower definitions drive per-type tower stats, ordering, and cost multipliers', () => {
+  const config = deepMergeBalanceConfig(defaultBalanceConfig, {
+    towers: {
+      generic: {
+        hp: 100,
+        buildRange: 550,
+        damage: 20,
+        attackRange: 240,
+        attackSpeed: 0.85,
+        levelDamageMultiplier: 1.28,
+        levelRangeAdd: 18,
+        cost: {
+          base: 55,
+          minimum: 10,
+          perBuilt: 5,
+          lateWaveStart: 8,
+          lateWaveStep: 2,
+        },
+      },
+    },
+    towerTypes: {
+      standard: {
+        slot: 1,
+        label: 'Standard',
+        color: '#3498db',
+        unlockWave: 0,
+        costMultiplier: 1,
+        hpMultiplier: 1,
+        buildRangeMultiplier: 1,
+        attackRangeMultiplier: 1,
+        damageMultiplier: 1,
+        attackSpeedMultiplier: 1,
+        levelDamageMultiplier: 1,
+        levelRangeAddMultiplier: 1,
+      },
+      burst: {
+        slot: 2,
+        label: 'Burst',
+        color: '#e67e22',
+        unlockWave: 0,
+        costMultiplier: 1.2,
+        hpMultiplier: 0.9,
+        buildRangeMultiplier: 0.95,
+        attackRangeMultiplier: 0.85,
+        damageMultiplier: 1.35,
+        attackSpeedMultiplier: 1.25,
+        levelDamageMultiplier: 1.1,
+        levelRangeAddMultiplier: 0.8,
+      },
+      support: {
+        slot: 3,
+        label: 'Support',
+        color: '#2ecc71',
+        unlockWave: 0,
+        costMultiplier: 0.95,
+        hpMultiplier: 1.05,
+        buildRangeMultiplier: 1.15,
+        attackRangeMultiplier: 1.2,
+        damageMultiplier: 0.85,
+        attackSpeedMultiplier: 0.9,
+        levelDamageMultiplier: 0.95,
+        levelRangeAddMultiplier: 1.35,
+      },
+    },
+  });
+
+  assert.deepEqual(getTowerTypeIds(config), ['standard', 'burst', 'support']);
+  assert.equal(getTowerTypeDef(config, 'burst').label, 'Burst');
+  assert.equal(getTowerTypeDef(config, 'missing').label, 'Standard');
+
+  const burstStats = getOutpostStatsForLevel(config, 3, 1.1, 15, 8, 'burst');
+  assert.equal(burstStats.maxHp, 98);
+  assert.equal(burstStats.range, 537.5);
+  assert.equal(burstStats.atkDmg, 58.8792);
+  assert.equal(burstStats.atkRange, 232.8);
+  assert.equal(burstStats.atkSpeed, 1.0625);
+  assert.equal(computeOutpostCost(config, { outposts: [1, 2], wave: 8, outpostDiscount: 4 }, 'burst'), 72);
+});
 
 test('buildRuntimeBalance maps authoritative config domains into runtime registries', () => {
   const config = deepMergeBalanceConfig(defaultBalanceConfig, {
@@ -114,6 +196,8 @@ test('buildInitialGameState uses config for player, economy, base, towers, and m
 
   const game = buildInitialGameState(config, { upgrades: { playerHp: 1, startGold: 1, freeDeploy: 1, startSlot: 1, towerAtk: 1, towerRange: 1 } }, {});
 
+  assert.equal(game.selectedTowerType, 'standard');
+  assert.deepEqual(game.availableTowerTypes, ['standard', 'burst', 'support']);
   assert.equal(game.gold, 146);
   assert.equal(game.player.hp, 165);
   assert.equal(game.player.maxHp, 165);
