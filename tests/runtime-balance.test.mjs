@@ -12,12 +12,53 @@ import {
   computeRerollBaseCost,
   getInitialTowerLevel,
   getOutpostStatsForLevel,
+  getTowerAttackProfile,
   getTowerMaxLevel,
   getTowerTypeDef,
   getTowerTypeIds,
   getUnlockedTowerTypeIds,
   metaValueFromConfig,
 } from '../src/runtime-balance.ts';
+
+test('melee and sniper tower types expose distinct combat profiles from config', () => {
+  const config = deepMergeBalanceConfig(defaultBalanceConfig, {
+    towerTypes: {
+      standard: { slot: 1, label: 'Standard', attackMode: 'projectile', unlockWave: 0 },
+      melee: {
+        slot: 4,
+        label: 'Melee',
+        attackMode: 'melee',
+        unlockWave: 3,
+        damageMultiplier: 1.7,
+        attackRangeMultiplier: 0.45,
+        attackSpeedMultiplier: 1.15,
+        meleeHitCount: 3,
+        color: '#e74c3c',
+      },
+      sniper: {
+        slot: 5,
+        label: 'Sniper',
+        attackMode: 'projectile',
+        unlockWave: 7,
+        damageMultiplier: 2.4,
+        attackRangeMultiplier: 2.2,
+        attackSpeedMultiplier: 0.45,
+        projectileSpeedMultiplier: 1.6,
+        color: '#9b59b6',
+      },
+    },
+  });
+
+  const melee = getTowerAttackProfile(config, 'melee');
+  const sniper = getTowerAttackProfile(config, 'sniper');
+
+  assert.equal(melee.attackMode, 'melee');
+  assert.equal(melee.meleeHitCount, 3);
+  assert.equal(melee.unlockWave, 3);
+  assert.equal(sniper.attackMode, 'projectile');
+  assert.equal(sniper.projectileSpeedMultiplier, 1.6);
+  assert.equal(sniper.unlockWave, 7);
+});
 
 test('tower progression uses per-instance levels and future-build bonus instead of one shared displayed level', () => {
   const config = deepMergeBalanceConfig(defaultBalanceConfig, {
@@ -67,10 +108,10 @@ test('tower selection helpers expose ordered ids and unlock filtering by wave', 
     },
   });
 
-  assert.deepEqual(getTowerTypeIds(config), ['standard', 'burst', 'support', 'sniper']);
+  assert.deepEqual(getTowerTypeIds(config), ['standard', 'burst', 'support', 'melee', 'sniper']);
   assert.deepEqual(getUnlockedTowerTypeIds(config, 0), ['standard', 'burst']);
-  assert.deepEqual(getUnlockedTowerTypeIds(config, 3), ['standard', 'burst', 'support']);
-  assert.deepEqual(getUnlockedTowerTypeIds(config, 7), ['standard', 'burst', 'support', 'sniper']);
+  assert.deepEqual(getUnlockedTowerTypeIds(config, 3), ['standard', 'burst', 'support', 'melee']);
+  assert.deepEqual(getUnlockedTowerTypeIds(config, 7), ['standard', 'burst', 'support', 'melee', 'sniper']);
 });
 
 test('typed tower definitions drive per-type tower stats, ordering, and cost multipliers', () => {
@@ -139,7 +180,7 @@ test('typed tower definitions drive per-type tower stats, ordering, and cost mul
     },
   });
 
-  assert.deepEqual(getTowerTypeIds(config), ['standard', 'burst', 'support']);
+  assert.deepEqual(getTowerTypeIds(config).slice(0, 3), ['standard', 'burst', 'support']);
   assert.equal(getTowerTypeDef(config, 'burst').label, 'Burst');
   assert.equal(getTowerTypeDef(config, 'missing').label, 'Standard');
 

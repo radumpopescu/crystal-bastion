@@ -156,6 +156,20 @@ export function getTowerTypeDef(config: any, towerTypeId?: string | null) {
   };
 }
 
+export function getTowerAttackProfile(config: any, towerTypeId?: string | null) {
+  const towerType = getTowerTypeDef(config, towerTypeId);
+  return {
+    attackMode: towerType.attackMode || 'projectile',
+    projectileSpeedMultiplier: towerType.projectileSpeedMultiplier ?? 1,
+    projectileSizeMultiplier: towerType.projectileSizeMultiplier ?? 1,
+    meleeHitCount: towerType.meleeHitCount ?? 1,
+    trailColor: towerType.trailColor || towerType.color || '#78f3a5',
+    coreColor: towerType.coreColor || '#f3fff7',
+    glow: towerType.glow ?? 10,
+    unlockWave: towerType.unlockWave ?? 0,
+  };
+}
+
 function getTowerProgression(config: any) {
   return config.towerProgression || defaultBalanceConfig.towerProgression || {};
 }

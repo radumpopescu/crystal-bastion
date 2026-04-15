@@ -1,4 +1,4 @@
-import { ACTIVE_BALANCE_CONFIG, AUTO_CONSTRUCT_SPACING, BASE_MONSTERS, CARD_RARITY_WEIGHTS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, EARLY_START_BONUS, LEASH_DMG, LEVELUP_OFFER_COUNT, MAX_WEAPON_SLOTS, MONSTER_ATTACK_COOLDOWN, MONSTER_CONTACT_BUFFER, MONSTER_DEF, MONSTER_SCALE, MONSTER_SPAWN_ATTACK_COOLDOWN_MAX, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_PLACEMENT, OUTPOST_RANGE, PLAYER_DASH_INVULN_BONUS, PLAYER_HIT_FLASH, PLAYER_HIT_INVULN, PLAYER_RADIUS, PLAYER_SPEED, SHOP_OFFER_COUNT, STAT_UPGRADES, STRUCTURE_CONTACT_RADIUS, TILE_SIZE, TOWER_TYPES, TOWER_UPGRADES, WAVE_CONFIG, WAVE_CRYSTAL_REWARD, WAVE_ENEMY_MIX, WAVE_INTERVAL, WAVE_SPAWN_CONFIG, WEAPONS, applyTowerLevelBonus, computeCardGoldCost, computeOutpostCost, computeRerollBaseCost, getInitialTowerLevel, getOutpostStatsForLevel, getTowerMaxLevel, getTowerTypeDef, getUnlockedTowerTypeIds, getWeaponMaxLevel, getWeaponStats } from './constants';
+import { ACTIVE_BALANCE_CONFIG, AUTO_CONSTRUCT_SPACING, BASE_MONSTERS, CARD_RARITY_WEIGHTS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, EARLY_START_BONUS, LEASH_DMG, LEVELUP_OFFER_COUNT, MAX_WEAPON_SLOTS, MONSTER_ATTACK_COOLDOWN, MONSTER_CONTACT_BUFFER, MONSTER_DEF, MONSTER_SCALE, MONSTER_SPAWN_ATTACK_COOLDOWN_MAX, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_PLACEMENT, OUTPOST_RANGE, PLAYER_DASH_INVULN_BONUS, PLAYER_HIT_FLASH, PLAYER_HIT_INVULN, PLAYER_RADIUS, PLAYER_SPEED, SHOP_OFFER_COUNT, STAT_UPGRADES, STRUCTURE_CONTACT_RADIUS, TILE_SIZE, TOWER_TYPES, TOWER_UPGRADES, WAVE_CONFIG, WAVE_CRYSTAL_REWARD, WAVE_ENEMY_MIX, WAVE_INTERVAL, WAVE_SPAWN_CONFIG, WEAPONS, applyTowerLevelBonus, computeCardGoldCost, computeOutpostCost, computeRerollBaseCost, getInitialTowerLevel, getOutpostStatsForLevel, getTowerAttackProfile, getTowerMaxLevel, getTowerTypeDef, getUnlockedTowerTypeIds, getWeaponMaxLevel, getWeaponStats } from './constants';
 import { DEV_WEAPON_IDS, R, devCardLimit, finishDevSession, makeWeapon, metaVal, newGame } from './state';
 import { clamp, dist, inBtn, shuffle } from './utils';
 import { saveMeta } from './meta';
@@ -1266,16 +1266,32 @@ export function updateStructures(dt: number) {
   }
   for (const op of game.outposts) {
     if (op.atkCooldown > 0) { op.atkCooldown -= dt; continue; }
+    const attackProfile = getTowerAttackProfile(ACTIVE_BALANCE_CONFIG, op.towerType || game.selectedTowerType);
+    if (attackProfile.attackMode === 'melee') {
+      const targets = nearestMonsters(op.x, op.y, op.atkRange, attackProfile.meleeHitCount || 99);
+      if (targets.length > 0) {
+        targets.forEach((m: any) => {
+          const killed = dealDamage(m, op.atkDmg, null);
+          spawnShockRing(op.x, op.y, op.color || '#e74c3c', Math.max(16, op.atkRange * 0.28), 3, 0.12);
+          if (killed) {
+            const idx = game.monsters.indexOf(m);
+            if (idx !== -1) killMonster(idx, 'tower');
+          }
+        });
+        op.atkCooldown = 1 / op.atkSpeed;
+      }
+      continue;
+    }
     const m = nearestMonster(op.x, op.y, op.atkRange);
     if (m) {
-      spawnProj(op.x, op.y, m.x, m.y, op.atkDmg, 420, 6, '#27ae60', 'tower', false, {
+      spawnProj(op.x, op.y, m.x, m.y, op.atkDmg, 420 * (attackProfile.projectileSpeedMultiplier || 1), 6 * (attackProfile.projectileSizeMultiplier || 1), op.color || '#27ae60', 'tower', false, {
         visual:'structure',
-        trailColor:'#78f3a5',
-        coreColor:'#f3fff7',
-        length:14,
-        width:3,
-        glow:10,
-        life:1.1,
+        trailColor:attackProfile.trailColor || '#78f3a5',
+        coreColor:attackProfile.coreColor || '#f3fff7',
+        length:(op.towerType === 'sniper' ? 20 : 14),
+        width:(op.towerType === 'sniper' ? 2.5 : 3),
+        glow:attackProfile.glow || 10,
+        life:op.towerType === 'sniper' ? 1.4 : 1.1,
         startZ:40,
       });
       op.atkCooldown = 1 / op.atkSpeed;

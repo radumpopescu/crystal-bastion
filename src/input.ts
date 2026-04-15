@@ -22,7 +22,7 @@ window.addEventListener('keydown', e => {
       startNextWave(true);
       return;
     }
-    if (/^Digit[1-4]$/.test(e.code) && !e.repeat) {
+    if (/^Digit[1-5]$/.test(e.code) && !e.repeat) {
       const index = Number(e.code.slice(-1)) - 1;
       const towerTypeId = R.game.availableTowerTypes?.[index];
       if (towerTypeId) {

@@ -82,6 +82,7 @@ export {
   computeRerollBaseCost,
   getInitialTowerLevel,
   getOutpostStatsForLevel,
+  getTowerAttackProfile,
   getTowerMaxLevel,
   getTowerTypeDef,
   getTowerTypeIds,

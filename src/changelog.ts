@@ -10,6 +10,16 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: GAME_VERSION,
+    title: 'Melee and sniper towers joined the roster',
+    date: '2026-04-15',
+    changes: [
+      'Added the Melee Tower as a close-range slam tower that damages enemies around itself instead of firing projectiles.',
+      'Added the Sniper Tower as a long-range heavy-damage tower with slower cadence and faster precision shots.',
+      'Both new towers are defined in the balance JSON/editor and use the same typed-tower runtime path as the existing Standard, Burst, and Support towers.',
+    ],
+  },
+  {
+    version: '2026.04.15.4',
     title: 'Towers now level individually',
     date: '2026-04-15',
     changes: [

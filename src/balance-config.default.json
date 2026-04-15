@@ -2276,6 +2276,55 @@
         "minAnchorDistanceMultiplier": 1.05,
         "connectionFactorMultiplier": 1.1
       }
+    },
+    "melee": {
+      "slot": 4,
+      "label": "Melee Tower",
+      "description": "Close-range tower that slams every enemy around itself instead of firing projectiles.",
+      "color": "#e74c3c",
+      "unlockWave": 3,
+      "attackMode": "melee",
+      "costMultiplier": 1.15,
+      "hpMultiplier": 1.2,
+      "buildRangeMultiplier": 0.9,
+      "attackRangeMultiplier": 0.42,
+      "damageMultiplier": 1.75,
+      "attackSpeedMultiplier": 1.1,
+      "levelDamageMultiplier": 1.08,
+      "levelRangeAddMultiplier": 0.6,
+      "meleeHitCount": 99,
+      "glow": 12,
+      "maxLevelBonus": 1,
+      "placement": {
+        "minAnchorDistanceMultiplier": 0.95,
+        "connectionFactorMultiplier": 0.9
+      }
+    },
+    "sniper": {
+      "slot": 5,
+      "label": "Sniper Tower",
+      "description": "Very long-range single-target tower with heavy damage and a slower cadence.",
+      "color": "#9b59b6",
+      "unlockWave": 7,
+      "attackMode": "projectile",
+      "costMultiplier": 1.35,
+      "hpMultiplier": 0.9,
+      "buildRangeMultiplier": 1.05,
+      "attackRangeMultiplier": 2.2,
+      "damageMultiplier": 2.5,
+      "attackSpeedMultiplier": 0.45,
+      "levelDamageMultiplier": 1.16,
+      "levelRangeAddMultiplier": 1.5,
+      "projectileSpeedMultiplier": 1.7,
+      "projectileSizeMultiplier": 0.9,
+      "trailColor": "#d7b7ff",
+      "coreColor": "#f7eeff",
+      "glow": 14,
+      "maxLevelBonus": 0,
+      "placement": {
+        "minAnchorDistanceMultiplier": 1.1,
+        "connectionFactorMultiplier": 1.15
+      }
     }
   },
   "towerProgression": {

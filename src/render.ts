@@ -1274,7 +1274,7 @@ function renderHUD() {
     ctx.fillStyle = selectedTowerType.color || '#9fb3c8';
     ctx.font = '10px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText(`Tower ${selectedTowerType.label} · ${towerBuildCost}g · keys 1-${Math.min(4, game.availableTowerTypes?.length || 1)}`, 16, H - 71);
+    ctx.fillText(`Tower ${selectedTowerType.label} · ${towerBuildCost}g · keys 1-${Math.min(5, game.availableTowerTypes?.length || 1)}`, 16, H - 71);
     renderMinimap();
     return;
   }
