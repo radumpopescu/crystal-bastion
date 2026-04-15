@@ -82,6 +82,7 @@ export {
   getOutpostStatsForLevel,
   getTowerTypeDef,
   getTowerTypeIds,
+  getUnlockedTowerTypeIds,
   getWeaponMaxLevel,
   getWeaponStats,
   metaValueFromConfig,

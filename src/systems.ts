@@ -1,4 +1,4 @@
-import { ACTIVE_BALANCE_CONFIG, AUTO_CONSTRUCT_SPACING, BASE_MONSTERS, CARD_RARITY_WEIGHTS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, EARLY_START_BONUS, LEASH_DMG, LEVELUP_OFFER_COUNT, MAX_WEAPON_SLOTS, MONSTER_ATTACK_COOLDOWN, MONSTER_CONTACT_BUFFER, MONSTER_DEF, MONSTER_SCALE, MONSTER_SPAWN_ATTACK_COOLDOWN_MAX, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_PLACEMENT, OUTPOST_RANGE, PLAYER_DASH_INVULN_BONUS, PLAYER_HIT_FLASH, PLAYER_HIT_INVULN, PLAYER_RADIUS, PLAYER_SPEED, SHOP_OFFER_COUNT, STAT_UPGRADES, STRUCTURE_CONTACT_RADIUS, TILE_SIZE, TOWER_TYPES, TOWER_UPGRADES, WAVE_CONFIG, WAVE_CRYSTAL_REWARD, WAVE_ENEMY_MIX, WAVE_INTERVAL, WAVE_SPAWN_CONFIG, WEAPONS, computeCardGoldCost, computeOutpostCost, computeRerollBaseCost, getOutpostStatsForLevel, getTowerTypeDef, getWeaponMaxLevel, getWeaponStats } from './constants';
+import { ACTIVE_BALANCE_CONFIG, AUTO_CONSTRUCT_SPACING, BASE_MONSTERS, CARD_RARITY_WEIGHTS, DASH_COOLDOWN, DASH_DURATION, DASH_SPEED, EARLY_START_BONUS, LEASH_DMG, LEVELUP_OFFER_COUNT, MAX_WEAPON_SLOTS, MONSTER_ATTACK_COOLDOWN, MONSTER_CONTACT_BUFFER, MONSTER_DEF, MONSTER_SCALE, MONSTER_SPAWN_ATTACK_COOLDOWN_MAX, OUTPOST_COST, OUTPOST_HP_BASE, OUTPOST_PLACEMENT, OUTPOST_RANGE, PLAYER_DASH_INVULN_BONUS, PLAYER_HIT_FLASH, PLAYER_HIT_INVULN, PLAYER_RADIUS, PLAYER_SPEED, SHOP_OFFER_COUNT, STAT_UPGRADES, STRUCTURE_CONTACT_RADIUS, TILE_SIZE, TOWER_TYPES, TOWER_UPGRADES, WAVE_CONFIG, WAVE_CRYSTAL_REWARD, WAVE_ENEMY_MIX, WAVE_INTERVAL, WAVE_SPAWN_CONFIG, WEAPONS, computeCardGoldCost, computeOutpostCost, computeRerollBaseCost, getOutpostStatsForLevel, getTowerTypeDef, getUnlockedTowerTypeIds, getWeaponMaxLevel, getWeaponStats } from './constants';
 import { DEV_WEAPON_IDS, R, devCardLimit, finishDevSession, makeWeapon, metaVal, newGame } from './state';
 import { clamp, dist, inBtn, shuffle } from './utils';
 import { saveMeta } from './meta';
@@ -30,6 +30,28 @@ function getCurrentTowerTypeId(game = R.game) {
 
 function getCurrentTowerType(game = R.game) {
   return getTowerTypeDef(ACTIVE_BALANCE_CONFIG, getCurrentTowerTypeId(game));
+}
+
+export function getAvailableTowerTypeIds(game = R.game) {
+  if (!game) return getUnlockedTowerTypeIds(ACTIVE_BALANCE_CONFIG, 0);
+  const wave = game.waveActive ? game.wave : Math.max(0, game.wave || 0);
+  return getUnlockedTowerTypeIds(ACTIVE_BALANCE_CONFIG, wave);
+}
+
+export function syncAvailableTowerTypes(game = R.game) {
+  if (!game) return [];
+  const available = getAvailableTowerTypeIds(game);
+  game.availableTowerTypes = available;
+  if (!available.includes(game.selectedTowerType)) game.selectedTowerType = available[0] || getCurrentTowerTypeId(game);
+  return available;
+}
+
+export function selectTowerType(towerTypeId: string, game = R.game) {
+  if (!game) return false;
+  const available = syncAvailableTowerTypes(game);
+  if (!available.includes(towerTypeId)) return false;
+  game.selectedTowerType = towerTypeId;
+  return true;
 }
 
 function canPlaceOutpostAt(px: number, py: number, towerTypeId?: string | null) {
@@ -118,6 +140,7 @@ export function startNextWave(early = false) {
   }
 
   game.wave++;
+  syncAvailableTowerTypes(game);
   const count = Math.floor(BASE_MONSTERS + game.wave * (WAVE_CONFIG.monstersPerWave || 0) + Math.pow(game.wave, WAVE_CONFIG.wavePower || 1));
   const hpScale = 1 + (game.wave - 1) * (WAVE_CONFIG.hpScalePerWave || 0) + Math.max(0, game.wave - (WAVE_CONFIG.hpScaleAfterWave || 0)) * (WAVE_CONFIG.hpScaleLateBonus || 0);
   const spdScale = 1 + (game.wave - 1) * (WAVE_CONFIG.speedScalePerWave || 0);

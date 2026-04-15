@@ -10,6 +10,16 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: GAME_VERSION,
+    title: 'Tower selection controls now work on desktop and mobile',
+    date: '2026-04-15',
+    changes: [
+      'Added desktop tower-selection hotkeys so keys 1-4 switch the currently selected tower type instead of always building a single implicit tower.',
+      'Added mobile one-button-per-tower-type controls and synced the mobile build button to the currently selected tower family.',
+      'Gameplay HUD now shows the selected tower type and its current build cost so typed tower building is readable before placing a structure.',
+    ],
+  },
+  {
+    version: '2026.04.15.2',
     title: 'Typed tower roster foundation now drives tower stats',
     date: '2026-04-15',
     changes: [

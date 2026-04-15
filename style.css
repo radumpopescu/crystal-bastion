@@ -138,6 +138,14 @@ canvas {
   align-items: flex-end;
 }
 
+#mobile-controls .mc-tower-types {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+  pointer-events: auto;
+}
+
 #mobile-controls .mc-btn {
   width: 92px;
   min-height: 44px;
@@ -154,6 +162,20 @@ canvas {
 
 #mobile-controls .mc-btn-primary {
   background: rgba(35, 98, 165, 0.92);
+}
+
+#mobile-controls .mc-tower-btn {
+  width: auto;
+  min-width: 132px;
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 10px;
+  background: rgba(7, 12, 22, 0.88);
+}
+
+#mobile-controls .mc-tower-btn.is-active {
+  background: rgba(21, 34, 54, 0.96);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 6px 18px rgba(0,0,0,0.28);
 }
 
 #mobile-controls .mc-btn-secondary {

@@ -1210,6 +1210,8 @@ function renderHUD() {
   const game = R.game;
   const p = game.player, t = game.tower;
   const towerCount = game.outposts?.length || 0;
+  const selectedTowerType = getTowerTypeDef(ACTIVE_BALANCE_CONFIG, game.selectedTowerType);
+  const towerBuildCost = getOutpostCost(game.selectedTowerType);
   const autoConstructUnlocked = (meta.upgrades['autoConstruct'] || 0) > 0;
   if (isMobileUI()) {
     const topH = 54;
@@ -1267,11 +1269,11 @@ function renderHUD() {
       ui.waveStartBtn = btn(W / 2, H - 20, `START WAVE NOW`, '#e67e22', 164, 28);
     }
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
-    rrect(8, H - 86, 74, 22, 7); ctx.fill();
-    ctx.fillStyle = '#9fb3c8';
+    rrect(8, H - 86, 214, 22, 7); ctx.fill();
+    ctx.fillStyle = selectedTowerType.color || '#9fb3c8';
     ctx.font = '10px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText(`FPS ${Math.round(R.fps)}`, 16, H - 71);
+    ctx.fillText(`Tower ${selectedTowerType.label} · ${towerBuildCost}g · keys 1-${Math.min(4, game.availableTowerTypes?.length || 1)}`, 16, H - 71);
     renderMinimap();
     return;
   }
@@ -1339,30 +1341,29 @@ function renderHUD() {
   ctx.fillText(game.player.weapons.map((w: any) => `${WEAPONS[w.id].icon}${w.level}`).join('  '), 20, game.waveActive ? 114 : 122);
 
   ctx.fillStyle = 'rgba(0,0,0,0.72)';
-  rrect(10, H - 104, 84, 24, 7); ctx.fill();
+  rrect(10, H - 104, 276, 24, 7); ctx.fill();
   ctx.fillStyle = '#9fb3c8'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
-  ctx.fillText(`FPS ${Math.round(R.fps)}`, 18, H - 88);
+  ctx.fillText(`FPS ${Math.round(R.fps)} · Tower ${selectedTowerType.label} · ${towerBuildCost}g`, 18, H - 88);
 
-  const controlsBoxH = 112;
-  const controlsBoxY = H - 322;
+  const controlsBoxH = 132;
+  const controlsBoxY = H - 342;
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
   rrect(W - 230, controlsBoxY, 220, controlsBoxH, 6); ctx.fill();
   ctx.fillStyle = '#666'; ctx.font = '11px monospace'; ctx.textAlign = 'right';
   ctx.fillText('WASD move · SPACE dash', W - 14, controlsBoxY + 20);
-  ctx.fillText('E: tower · ENTER: wave · P: pause', W - 14, controlsBoxY + 36);
+  ctx.fillText(`E: build ${selectedTowerType.label} · ENTER: wave · P: pause`, W - 14, controlsBoxY + 36);
+  ctx.fillStyle = selectedTowerType.color || '#8bd3ff'; ctx.font = '10px monospace';
+  ctx.fillText(`Tower hotkeys: ${game.availableTowerTypes?.map((id: string, index: number) => `${index + 1}:${getTowerTypeDef(ACTIVE_BALANCE_CONFIG, id).label}`).join('  ') || '1:Standard'}`, W - 14, controlsBoxY + 50);
   ctx.fillStyle = '#a855f7'; ctx.font = 'bold 13px monospace';
-  ctx.fillText(`💎 ${meta.crystals} crystals`, W - 14, controlsBoxY + 56);
+  ctx.fillText(`💎 ${meta.crystals} crystals`, W - 14, controlsBoxY + 70);
   ctx.fillStyle = autoConstructUnlocked ? '#7f8c8d' : '#4f5b66'; ctx.font = '11px monospace';
-  ctx.fillText(autoConstructUnlocked ? 'Hold SHIFT to auto-build towers' : 'Relic unlock: Arcane Masons', W - 14, controlsBoxY + 74);
+  ctx.fillText(autoConstructUnlocked ? 'Hold SHIFT to auto-build towers' : 'Relic unlock: Arcane Masons', W - 14, controlsBoxY + 88);
   const shiftHeld = game.keys['ShiftLeft'] || game.keys['ShiftRight'];
   ctx.fillStyle = autoConstructUnlocked ? (shiftHeld ? '#27ae60' : '#95a5a6') : '#6b7280';
   ctx.font = 'bold 12px monospace';
-  ctx.fillText(autoConstructUnlocked ? `Auto: ${shiftHeld ? 'HOLD SHIFT' : 'READY'}` : 'Auto: LOCKED', W - 14, controlsBoxY + 90);
-  if (!autoConstructUnlocked) {
-    ctx.fillStyle = '#6b7280'; ctx.font = '10px monospace'; ctx.fillText('Unlock it in Meta Upgrades', W - 14, controlsBoxY + 104);
-  } else {
-    ctx.fillStyle = '#7f8c8d'; ctx.font = '10px monospace'; ctx.fillText('Builds every 1m while you walk', W - 14, controlsBoxY + 104);
-  }
+  ctx.fillText(autoConstructUnlocked ? `Auto: ${shiftHeld ? 'HOLD SHIFT' : 'READY'}` : 'Auto: LOCKED', W - 14, controlsBoxY + 106);
+  ctx.fillStyle = autoConstructUnlocked ? '#7f8c8d' : '#6b7280'; ctx.font = '10px monospace';
+  ctx.fillText(autoConstructUnlocked ? 'Builds every 1m while you walk' : 'Unlock it in Meta Upgrades', W - 14, controlsBoxY + 120);
   renderMinimap();
 }
 

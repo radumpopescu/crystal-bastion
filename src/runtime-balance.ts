@@ -119,6 +119,13 @@ export function getTowerTypeIds(config: any) {
     .map(([id]) => id);
 }
 
+export function getUnlockedTowerTypeIds(config: any, wave = 0) {
+  return getTowerTypeIds(config).filter((id) => {
+    const def = getTowerTypeDef(config, id);
+    return wave >= (def.unlockWave ?? 0);
+  });
+}
+
 export function getTowerTypeDef(config: any, towerTypeId?: string | null) {
   const towerTypes = getTowerTypes(config);
   const orderedIds = getTowerTypeIds(config);
@@ -626,7 +633,8 @@ export function buildInitialGameState(config: any, meta: any, opts: any = {}) {
   const economy = getEconomy(config);
   const baseCore = getBaseCore(config);
   const towerTypeIds = getTowerTypeIds(config);
-  const selectedTowerType = getTowerTypeDef(config, opts.selectedTowerType).id;
+  const availableTowerTypes = getUnlockedTowerTypeIds(config, 0);
+  const selectedTowerType = getTowerTypeDef(config, opts.selectedTowerType && availableTowerTypes.includes(opts.selectedTowerType) ? opts.selectedTowerType : availableTowerTypes[0] || towerTypeIds[0]).id;
   const freeOutposts = metaValueFromConfig(config, meta, 'freeDeploy');
   const startGoldMeta = metaValueFromConfig(config, meta, 'startGold');
   const playerHpBonus = metaValueFromConfig(config, meta, 'playerHp');
@@ -662,7 +670,7 @@ export function buildInitialGameState(config: any, meta: any, opts: any = {}) {
     shopDiscount: metaValueFromConfig(config, meta, 'shopDiscount') || 0,
     freeOutpost: freeOutposts,
     selectedTowerType,
-    availableTowerTypes: towerTypeIds,
+    availableTowerTypes,
     tower: {
       x: 0,
       y: 0,

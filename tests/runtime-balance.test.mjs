@@ -12,8 +12,25 @@ import {
   getOutpostStatsForLevel,
   getTowerTypeDef,
   getTowerTypeIds,
+  getUnlockedTowerTypeIds,
   metaValueFromConfig,
 } from '../src/runtime-balance.ts';
+
+test('tower selection helpers expose ordered ids and unlock filtering by wave', () => {
+  const config = deepMergeBalanceConfig(defaultBalanceConfig, {
+    towerTypes: {
+      standard: { slot: 1, label: 'Standard', unlockWave: 0 },
+      burst: { slot: 2, label: 'Burst', unlockWave: 0 },
+      support: { slot: 3, label: 'Support', unlockWave: 3 },
+      sniper: { slot: 4, label: 'Sniper', unlockWave: 6 },
+    },
+  });
+
+  assert.deepEqual(getTowerTypeIds(config), ['standard', 'burst', 'support', 'sniper']);
+  assert.deepEqual(getUnlockedTowerTypeIds(config, 0), ['standard', 'burst']);
+  assert.deepEqual(getUnlockedTowerTypeIds(config, 3), ['standard', 'burst', 'support']);
+  assert.deepEqual(getUnlockedTowerTypeIds(config, 7), ['standard', 'burst', 'support', 'sniper']);
+});
 
 test('typed tower definitions drive per-type tower stats, ordering, and cost multipliers', () => {
   const config = deepMergeBalanceConfig(defaultBalanceConfig, {

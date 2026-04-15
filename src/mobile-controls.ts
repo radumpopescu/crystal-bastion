@@ -1,7 +1,8 @@
 // @ts-ignore
 import nipplejs from 'nipplejs';
+import { ACTIVE_BALANCE_CONFIG, getTowerTypeDef } from './constants';
 import { R } from './state';
-import { tryDash, tryPlaceOutpost } from './systems';
+import { selectTowerType, tryDash, tryPlaceOutpost } from './systems';
 
 const root = document.createElement('div');
 root.id = 'mobile-controls';
@@ -10,6 +11,7 @@ root.innerHTML = `
     <div id="mobile-joystick-zone" class="mc-joystick-zone"></div>
   </div>
   <div class="mc-actions">
+    <div class="mc-tower-types" data-role="tower-types"></div>
     <button class="mc-btn mc-btn-primary" data-action="dash" type="button">DASH</button>
     <button class="mc-btn" data-action="build" type="button">BUILD</button>
   </div>
@@ -29,6 +31,7 @@ document.body.appendChild(rotateOverlay);
 
 const joystickShell = root.querySelector('.mc-joystick-shell') as HTMLDivElement;
 const joystickZone = root.querySelector('#mobile-joystick-zone') as HTMLDivElement;
+const towerTypesEl = root.querySelector('[data-role="tower-types"]') as HTMLDivElement;
 const dashBtn = root.querySelector('[data-action="dash"]') as HTMLButtonElement;
 const buildBtn = root.querySelector('[data-action="build"]') as HTMLButtonElement;
 
@@ -100,6 +103,26 @@ function shouldShowRotateOverlay() {
   return isTouchMobile() && window.innerHeight > window.innerWidth;
 }
 
+function syncTowerTypeButtons() {
+  const game = R.game;
+  if (!towerTypesEl) return;
+  const available = game?.availableTowerTypes || [];
+  const selectedDef = getTowerTypeDef(ACTIVE_BALANCE_CONFIG, game?.selectedTowerType);
+  buildBtn.textContent = game ? `BUILD ${selectedDef.label}` : 'BUILD';
+  towerTypesEl.innerHTML = '';
+  available.forEach((towerTypeId: string, index: number) => {
+    const def = getTowerTypeDef(ACTIVE_BALANCE_CONFIG, towerTypeId);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `mc-btn mc-tower-btn${game?.selectedTowerType === towerTypeId ? ' is-active' : ''}`;
+    button.dataset.towerType = towerTypeId;
+    button.style.borderColor = def.color || '#3498db';
+    button.style.color = def.color || '#ecf0f1';
+    button.textContent = `${index + 1}. ${def.label}`;
+    towerTypesEl.appendChild(button);
+  });
+}
+
 joystick.on('start', (evt: any, data: any) => {
   const pos = data?.position || evt?.changedTouches?.[0] || evt;
   if (pos?.x != null && pos?.y != null) setDragOrigin(pos.x, pos.y);
@@ -157,10 +180,20 @@ joystickShell.addEventListener('pointerleave', endPointer);
   });
 });
 
+towerTypesEl.addEventListener('click', e => {
+  const target = (e.target as HTMLElement).closest('[data-tower-type]') as HTMLElement | null;
+  if (!target || !visible()) return;
+  e.preventDefault();
+  const towerTypeId = target.dataset.towerType;
+  if (!towerTypeId) return;
+  if (selectTowerType(towerTypeId)) syncTowerTypeButtons();
+});
+
 function syncControls() {
   const show = visible() && !shouldShowRotateOverlay();
   root.classList.toggle('is-visible', show);
   rotateOverlay.classList.toggle('is-visible', shouldShowRotateOverlay());
+  syncTowerTypeButtons();
   if (!show) setTouchMove(0, 0);
   requestAnimationFrame(syncControls);
 }

@@ -1,5 +1,5 @@
 import { R, metaVal } from './state';
-import { handleCardClick, handlePlayingClick, startNextWave, tryDash, tryPlaceOutpost } from './systems';
+import { handleCardClick, handlePlayingClick, selectTowerType, startNextWave, tryDash, tryPlaceOutpost } from './systems';
 import { handleChangelogClick, handleDevMenuClick, handleGameoverClick, handleMenuClick, handleMetaClick, handlePauseClick } from './render';
 import { clamp } from './utils';
 
@@ -21,6 +21,15 @@ window.addEventListener('keydown', e => {
       e.preventDefault();
       startNextWave(true);
       return;
+    }
+    if (/^Digit[1-4]$/.test(e.code) && !e.repeat) {
+      const index = Number(e.code.slice(-1)) - 1;
+      const towerTypeId = R.game.availableTowerTypes?.[index];
+      if (towerTypeId) {
+        e.preventDefault();
+        selectTowerType(towerTypeId);
+        return;
+      }
     }
     if (e.code === 'KeyE') tryPlaceOutpost();
     if (e.code === 'Space') tryDash();
