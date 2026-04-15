@@ -10,6 +10,16 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: GAME_VERSION,
+    title: 'Expansion foundation now lives in the balance system',
+    date: '2026-04-15',
+    changes: [
+      'Added expansion-foundation sections to the shipped balance JSON for tower types, tower progression, repair/intermission tuning, endless rules, difficulty profiles, and character archetypes.',
+      'Runtime balance now exposes those new expansion domains so future gameplay work can read them from config instead of introducing new hardcoded values.',
+      'The balance editor now documents and surfaces the new expansion sections so future features can be tuned through the same override/import/export workflow.',
+    ],
+  },
+  {
+    version: '2026.04.14.17',
     title: 'Runtime balance now reads from the editor config',
     date: '2026-04-14',
     changes: [

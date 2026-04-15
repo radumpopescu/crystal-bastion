@@ -76,6 +76,13 @@ const SECTION_EXPLANATIONS: Record<string, string> = {
   economy: 'Gold, reroll, shop, and early-start reward tuning. These values shape pacing rather than combat output directly.',
   base: 'Home crystal/base baseline stats plus the upgrade shop progression that improves it during a run.',
   towers: 'Current deployed-tower baseline behavior, including cost scaling, placement rules, and per-level tower growth.',
+  towerTypes: 'Expansion foundation for typed towers. This defines per-tower-family multipliers, unlock timing, slot order, and future per-type balance knobs.',
+  towerProgression: 'Shared tuning for tower leveling systems, including future per-tower leveling cards and scaling rules.',
+  runStats: 'Run-level systems that are not tied to one weapon or one structure, such as the upcoming repair stat.',
+  intermission: 'Between-wave phase tuning for tower refresh, repairs, and other intermission-only systems.',
+  endless: 'Wave-14 continuation and endless-run scaling knobs. This is the future authority for endless progression rules.',
+  difficulty: 'Difficulty ladder definitions and multipliers. Each profile should eventually shape enemy, economy, and sustain behavior from config.',
+  characters: 'Character archetype definitions for future run-start selection, including baseline stat multipliers and unlock costs.',
   waves: 'Wave timing, enemy-count growth, spawn distance, and scaling formulas that make later waves harder.',
   enemies: 'Per-enemy archetype stats. These are the direct building blocks for monster difficulty.',
   weapons: 'Per-weapon stats and level bonus texts. This section controls how each weapon family behaves.',
@@ -84,14 +91,21 @@ const SECTION_EXPLANATIONS: Record<string, string> = {
 };
 
 const RELATED_SECTIONS: Record<string, string[]> = {
-  player: ['runCards', 'metaUpgrades', 'weapons'],
-  economy: ['runCards', 'metaUpgrades', 'waves'],
-  base: ['metaUpgrades', 'runCards', 'towers'],
-  towers: ['runCards', 'metaUpgrades', 'base'],
-  waves: ['enemies', 'economy'],
-  enemies: ['waves'],
-  weapons: ['player', 'runCards', 'metaUpgrades'],
-  runCards: ['player', 'base', 'towers', 'economy', 'weapons'],
+  player: ['runCards', 'metaUpgrades', 'weapons', 'characters', 'difficulty'],
+  economy: ['runCards', 'metaUpgrades', 'waves', 'difficulty', 'characters'],
+  base: ['metaUpgrades', 'runCards', 'towers', 'intermission'],
+  towers: ['towerTypes', 'towerProgression', 'runCards', 'metaUpgrades', 'base', 'intermission'],
+  towerTypes: ['towers', 'towerProgression', 'intermission'],
+  towerProgression: ['towers', 'towerTypes', 'runCards', 'intermission'],
+  runStats: ['runCards', 'intermission', 'characters', 'difficulty'],
+  intermission: ['runStats', 'towers', 'towerProgression', 'endless'],
+  endless: ['waves', 'difficulty', 'intermission'],
+  difficulty: ['waves', 'enemies', 'economy', 'characters', 'runStats'],
+  characters: ['player', 'economy', 'runStats', 'difficulty'],
+  waves: ['enemies', 'economy', 'endless', 'difficulty'],
+  enemies: ['waves', 'difficulty'],
+  weapons: ['player', 'runCards', 'metaUpgrades', 'characters'],
+  runCards: ['player', 'base', 'towers', 'towerProgression', 'runStats', 'economy', 'weapons'],
   metaUpgrades: ['player', 'base', 'towers', 'economy', 'weapons'],
 };
 
@@ -140,6 +154,14 @@ const FIELD_EXPLANATIONS: Record<string, string> = {
   'waves.hpScaleLateBonus': 'Additional HP scaling for late waves.',
   'waves.speedScalePerWave': 'Enemy movement-speed increase per wave.',
   'waves.damageScalePerWave': 'Enemy damage increase per wave.',
+  'towerTypes.basic.costMultiplier': 'Relative cost tuning for this tower family compared with the generic tower baseline.',
+  'towerProgression.baseMaxLevel': 'Shared fallback max level for tower progression systems before per-type overrides are added.',
+  'runStats.repair.basePerSecond': 'Starting passive repair rate for the future repair run stat.',
+  'runStats.repair.maxPerSecond': 'Upper intended cap for repair-per-second tuning.',
+  'intermission.towerRefresh.healPercent': 'Percent of tower HP restored by the intermission refresh effect.',
+  'endless.unlockWave': 'Wave where the bank-win-or-continue endless decision should appear.',
+  'difficulty.normal.enemyHpMultiplier': 'Baseline enemy HP multiplier for this difficulty profile.',
+  'characters.survivor.baseHpMultiplier': 'Character-level multiplier applied to the player HP baseline at run start.',
 };
 
 const downKeys = new Set<string>();

@@ -9,6 +9,16 @@ import {
   summarizeWeaponLevelPreviewRows,
 } from '../src/balance-config.ts';
 
+test('default balance config already includes expansion foundation sections for future systems', () => {
+  assert.ok(defaultBalanceConfig.towerTypes);
+  assert.ok(defaultBalanceConfig.towerProgression);
+  assert.ok(defaultBalanceConfig.runStats?.repair);
+  assert.ok(defaultBalanceConfig.intermission);
+  assert.ok(defaultBalanceConfig.endless);
+  assert.ok(defaultBalanceConfig.difficulty);
+  assert.ok(defaultBalanceConfig.characters);
+});
+
 test('deepMergeBalanceConfig overlays nested numeric values without dropping siblings', () => {
   const merged = deepMergeBalanceConfig(defaultBalanceConfig, {
     player: {

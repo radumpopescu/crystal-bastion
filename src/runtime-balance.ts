@@ -64,6 +64,13 @@ export let MONSTER_DEF: Record<string, any> = {};
 export let STAT_UPGRADES: any[] = [];
 export let META_UPGRADES: any[] = [];
 export let TOWER_UPGRADES: any[] = [];
+export let TOWER_TYPES: Record<string, any> = {};
+export let TOWER_PROGRESSION: any = {};
+export let RUN_STATS: any = {};
+export let INTERMISSION: any = {};
+export let ENDLESS: any = {};
+export let DIFFICULTY: Record<string, any> = {};
+export let CHARACTERS: Record<string, any> = {};
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
@@ -92,6 +99,34 @@ function getTowerConfig(config: any) {
 
 function getWaveConfig(config: any) {
   return config.waves || defaultBalanceConfig.waves;
+}
+
+function getTowerTypes(config: any) {
+  return config.towerTypes || defaultBalanceConfig.towerTypes || {};
+}
+
+function getTowerProgression(config: any) {
+  return config.towerProgression || defaultBalanceConfig.towerProgression || {};
+}
+
+function getRunStatsConfig(config: any) {
+  return config.runStats || defaultBalanceConfig.runStats || {};
+}
+
+function getIntermissionConfig(config: any) {
+  return config.intermission || defaultBalanceConfig.intermission || {};
+}
+
+function getEndlessConfig(config: any) {
+  return config.endless || defaultBalanceConfig.endless || {};
+}
+
+function getDifficultyConfig(config: any) {
+  return config.difficulty || defaultBalanceConfig.difficulty || {};
+}
+
+function getCharacterConfig(config: any) {
+  return config.characters || defaultBalanceConfig.characters || {};
 }
 
 function getMetaUpgradeDef(config: any, id: string) {
@@ -328,6 +363,13 @@ export function buildRuntimeBalance(config: any) {
   const baseCore = getBaseCore(config);
   const tower = getTowerConfig(config);
   const waves = getWaveConfig(config);
+  const towerTypes = getTowerTypes(config);
+  const towerProgression = getTowerProgression(config);
+  const runStats = getRunStatsConfig(config);
+  const intermission = getIntermissionConfig(config);
+  const endless = getEndlessConfig(config);
+  const difficulty = getDifficultyConfig(config);
+  const characters = getCharacterConfig(config);
 
   return {
     PLAYER_HP_BASE: player.hp,
@@ -385,6 +427,13 @@ export function buildRuntimeBalance(config: any) {
     STAT_UPGRADES: buildStatUpgrades(config),
     META_UPGRADES: buildMetaUpgrades(config),
     TOWER_UPGRADES: buildTowerUpgrades(config),
+    TOWER_TYPES: clone(towerTypes),
+    TOWER_PROGRESSION: clone(towerProgression),
+    RUN_STATS: clone(runStats),
+    INTERMISSION: clone(intermission),
+    ENDLESS: clone(endless),
+    DIFFICULTY: clone(difficulty),
+    CHARACTERS: clone(characters),
   };
 }
 
@@ -445,6 +494,13 @@ function assignRuntimeBalance(runtime: any) {
     STAT_UPGRADES,
     META_UPGRADES,
     TOWER_UPGRADES,
+    TOWER_TYPES,
+    TOWER_PROGRESSION,
+    RUN_STATS,
+    INTERMISSION,
+    ENDLESS,
+    DIFFICULTY,
+    CHARACTERS,
   } = runtime);
 }
 

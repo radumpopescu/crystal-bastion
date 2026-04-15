@@ -23,6 +23,28 @@ test('buildRuntimeBalance maps authoritative config domains into runtime registr
     runCards: { statCards: { damage: { tuning: { perStack: 1.5 } } } },
     metaUpgrades: { playerHp: { levels: [{ level: 1, cost: 6, value: 222 }] } },
     baseUpgradeShop: { hp: { costs: [999, 1000, 1001, 1002, 1003] } },
+    towerTypes: {
+      sniper: { unlockWave: 5, costMultiplier: 1.8 },
+    },
+    towerProgression: {
+      sharedLevelCards: { bonusLevelsPerPick: 2 },
+    },
+    runStats: {
+      repair: { basePerSecond: 0.75, maxPerSecond: 6 },
+    },
+    intermission: {
+      towerRefresh: { healPercent: 0.4 },
+    },
+    endless: {
+      unlockWave: 16,
+      enemyHpScalePerEndlessWave: 0.2,
+    },
+    difficulty: {
+      veteran: { enemyHpMultiplier: 1.4 },
+    },
+    characters: {
+      engineer: { baseHpMultiplier: 1.15, unlockCost: 25 },
+    },
   });
 
   const runtime = buildRuntimeBalance(config);
@@ -39,6 +61,13 @@ test('buildRuntimeBalance maps authoritative config domains into runtime registr
   assert.equal(runtime.STAT_UPGRADES.find((entry) => entry.id === 'damage').tuning.perStack, 1.5);
   assert.equal(runtime.META_UPGRADES.find((entry) => entry.id === 'playerHp').levels[0].value, 222);
   assert.equal(runtime.TOWER_UPGRADES.find((entry) => entry.id === 'hp').cost[0], 999);
+  assert.equal(runtime.TOWER_TYPES.sniper.unlockWave, 5);
+  assert.equal(runtime.TOWER_PROGRESSION.sharedLevelCards.bonusLevelsPerPick, 2);
+  assert.equal(runtime.RUN_STATS.repair.basePerSecond, 0.75);
+  assert.equal(runtime.INTERMISSION.towerRefresh.healPercent, 0.4);
+  assert.equal(runtime.ENDLESS.unlockWave, 16);
+  assert.equal(runtime.DIFFICULTY.veteran.enemyHpMultiplier, 1.4);
+  assert.equal(runtime.CHARACTERS.engineer.baseHpMultiplier, 1.15);
 });
 
 test('metaValueFromConfig reads config-defined level values including multiplier defaults', () => {

@@ -12,7 +12,13 @@
       "weapons",
       "run cards",
       "meta upgrades",
-      "base upgrade shop"
+      "base upgrade shop",
+      "tower type foundation",
+      "tower progression rules",
+      "repair and intermission systems",
+      "endless continuation rules",
+      "difficulty definitions",
+      "character archetypes"
     ]
   },
   "player": {
@@ -2208,6 +2214,147 @@
         220,
         300
       ]
+    }
+  },
+  "towerTypes": {
+    "basic": {
+      "slot": 1,
+      "unlockWave": 0,
+      "costMultiplier": 1.0,
+      "damageMultiplier": 1.0,
+      "rangeMultiplier": 1.0,
+      "attackSpeedMultiplier": 1.0,
+      "maxLevelBonus": 0
+    },
+    "burst": {
+      "slot": 2,
+      "unlockWave": 0,
+      "costMultiplier": 1.1,
+      "damageMultiplier": 1.15,
+      "rangeMultiplier": 0.95,
+      "attackSpeedMultiplier": 0.92,
+      "maxLevelBonus": 0
+    },
+    "support": {
+      "slot": 3,
+      "unlockWave": 0,
+      "costMultiplier": 0.95,
+      "damageMultiplier": 0.9,
+      "rangeMultiplier": 1.1,
+      "attackSpeedMultiplier": 1.05,
+      "maxLevelBonus": 0
+    },
+    "melee": {
+      "slot": 4,
+      "unlockWave": 0,
+      "costMultiplier": 1.2,
+      "damageMultiplier": 1.35,
+      "rangeMultiplier": 0.45,
+      "attackSpeedMultiplier": 0.9,
+      "maxLevelBonus": 0
+    },
+    "sniper": {
+      "slot": 5,
+      "unlockWave": 0,
+      "costMultiplier": 1.55,
+      "damageMultiplier": 1.8,
+      "rangeMultiplier": 1.8,
+      "attackSpeedMultiplier": 0.55,
+      "maxLevelBonus": 0
+    }
+  },
+  "towerProgression": {
+    "baseMaxLevel": 5,
+    "levelDamageMultiplier": 1.28,
+    "levelRangeAdd": 18,
+    "sharedLevelCards": {
+      "bonusLevelsPerPick": 1,
+      "maxBonusLevel": 5
+    },
+    "perTowerCards": {
+      "bonusLevelsPerPick": 1,
+      "maxBonusLevel": 5
+    }
+  },
+  "runStats": {
+    "repair": {
+      "basePerSecond": 0.5,
+      "perCard": 0.5,
+      "maxPerSecond": 5.0,
+      "tickSeconds": 1.0
+    }
+  },
+  "intermission": {
+    "towerRefresh": {
+      "healPercent": 0.2,
+      "flatHeal": 0,
+      "maxStacks": 5
+    },
+    "buildPhase": {
+      "allowPlacement": 1,
+      "allowUpgrades": 1,
+      "allowRepairs": 1
+    }
+  },
+  "endless": {
+    "unlockWave": 14,
+    "preserveClearCredit": 1,
+    "enemyHpScalePerEndlessWave": 0.12,
+    "enemyDamageScalePerEndlessWave": 0.08,
+    "rewardScalePerEndlessWave": 0.05
+  },
+  "difficulty": {
+    "normal": {
+      "sortOrder": 1,
+      "enemyHpMultiplier": 1.0,
+      "enemyDamageMultiplier": 1.0,
+      "enemySpeedMultiplier": 1.0,
+      "economyMultiplier": 1.0,
+      "repairMultiplier": 1.0
+    },
+    "veteran": {
+      "sortOrder": 2,
+      "enemyHpMultiplier": 1.25,
+      "enemyDamageMultiplier": 1.2,
+      "enemySpeedMultiplier": 1.08,
+      "economyMultiplier": 0.95,
+      "repairMultiplier": 0.9
+    },
+    "nightmare": {
+      "sortOrder": 3,
+      "enemyHpMultiplier": 1.55,
+      "enemyDamageMultiplier": 1.4,
+      "enemySpeedMultiplier": 1.15,
+      "economyMultiplier": 0.9,
+      "repairMultiplier": 0.8
+    }
+  },
+  "characters": {
+    "survivor": {
+      "sortOrder": 1,
+      "baseHpMultiplier": 1.0,
+      "speedMultiplier": 1.0,
+      "damageMultiplier": 1.0,
+      "startingGoldBonus": 0,
+      "repairMultiplier": 1.0
+    },
+    "engineer": {
+      "sortOrder": 2,
+      "baseHpMultiplier": 1.05,
+      "speedMultiplier": 0.96,
+      "damageMultiplier": 1.0,
+      "startingGoldBonus": 10,
+      "repairMultiplier": 1.25,
+      "unlockCost": 20
+    },
+    "scout": {
+      "sortOrder": 3,
+      "baseHpMultiplier": 0.92,
+      "speedMultiplier": 1.12,
+      "damageMultiplier": 1.06,
+      "startingGoldBonus": 0,
+      "repairMultiplier": 0.9,
+      "unlockCost": 20
     }
   }
 }
